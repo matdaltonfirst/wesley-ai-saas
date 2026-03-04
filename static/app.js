@@ -1,22 +1,24 @@
-// ── Config ────────────────────────────────────────────────────────────────
+// ── Config ─────────────────────────────────────────────────────────────────
 marked.setOptions({ breaks: true, gfm: true });
 
-// ── State ─────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────
 let conversationHistory = [];
 
-// ── DOM refs ──────────────────────────────────────────────────────────────
-const messagesEl      = document.getElementById("messages");
-const inputField      = document.getElementById("inputField");
-const sendBtn         = document.getElementById("sendBtn");
-const docList         = document.getElementById("docList");
-const newChatBtn      = document.getElementById("newChatBtn");
-const refreshBtn      = document.getElementById("refreshBtn");
-const sidebar         = document.getElementById("sidebar");
-const backdrop        = document.getElementById("sidebarBackdrop");
-const hamburgerBtn    = document.getElementById("hamburgerBtn");
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const messagesEl       = document.getElementById("messages");
+const inputField       = document.getElementById("inputField");
+const sendBtn          = document.getElementById("sendBtn");
+const docList          = document.getElementById("docList");
+const newChatBtn       = document.getElementById("newChatBtn");
+const refreshBtn       = document.getElementById("refreshBtn");
+const sidebar          = document.getElementById("sidebar");
+const backdrop         = document.getElementById("sidebarBackdrop");
+const hamburgerBtn     = document.getElementById("hamburgerBtn");
 const mobileNewChatBtn = document.getElementById("mobileNewChatBtn");
+const fileUpload       = document.getElementById("fileUpload");
+const uploadProgress   = document.getElementById("uploadProgress");
 
-// ── Utilities ─────────────────────────────────────────────────────────────
+// ── Utilities ──────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -36,34 +38,84 @@ function hideGreeting() {
   if (g) g.remove();
 }
 
-// ── Document list ─────────────────────────────────────────────────────────
+// ── Document list ──────────────────────────────────────────────────────────
 async function loadDocuments() {
   docList.innerHTML = '<div class="doc-empty">Loading…</div>';
   try {
-    const res  = await fetch("/api/documents");
+    const res = await fetch("/api/documents");
+    if (res.status === 401) { window.location.href = "/login"; return; }
     const data = await res.json();
     const docs = data.documents || [];
 
     if (!docs.length) {
-      docList.innerHTML = '<div class="doc-empty">No documents yet.<br>Add PDF or DOCX files to the documents/ folder.</div>';
+      docList.innerHTML = '<div class="doc-empty">No documents yet.<br>Click + to upload a PDF or DOCX.</div>';
       return;
     }
 
     docList.innerHTML = docs.map(d => `
-      <div class="doc-item">
-        <span class="doc-type-badge ${d.type}">${d.type.toUpperCase()}</span>
+      <div class="doc-item" data-id="${d.id}">
+        <span class="doc-type-badge ${esc(d.type)}">${esc(d.type.toUpperCase())}</span>
         <div class="doc-info">
           <div class="doc-name" title="${esc(d.name)}">${esc(d.name)}</div>
           <div class="doc-size">${d.size_kb} KB</div>
         </div>
+        <button class="doc-delete-btn" data-id="${d.id}" title="Delete document" aria-label="Delete ${esc(d.name)}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
     `).join("");
+
+    docList.querySelectorAll(".doc-delete-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        deleteDocument(parseInt(btn.dataset.id));
+      });
+    });
   } catch {
     docList.innerHTML = '<div class="doc-empty">Could not load documents.</div>';
   }
 }
 
-// ── Append helpers ────────────────────────────────────────────────────────
+// ── Upload ─────────────────────────────────────────────────────────────────
+async function uploadDocument(file) {
+  uploadProgress.classList.add("visible");
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res  = await fetch("/api/documents/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Upload failed."); return; }
+    await loadDocuments();
+  } catch {
+    alert("Upload failed. Please check your connection and try again.");
+  } finally {
+    uploadProgress.classList.remove("visible");
+  }
+}
+
+fileUpload.addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await uploadDocument(file);
+  fileUpload.value = "";
+});
+
+// ── Delete ─────────────────────────────────────────────────────────────────
+async function deleteDocument(id) {
+  if (!confirm("Delete this document? It will no longer be available for chat.")) return;
+  try {
+    const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+    if (res.ok) { await loadDocuments(); return; }
+    const data = await res.json();
+    alert(data.error || "Delete failed.");
+  } catch {
+    alert("Delete failed. Please try again.");
+  }
+}
+
+// ── Append helpers ─────────────────────────────────────────────────────────
 function appendUserMsg(text) {
   hideGreeting();
   const row = document.createElement("div");
@@ -109,17 +161,13 @@ function showTyping() {
   row.innerHTML = `
     <div class="msg-avatar assistant">AI</div>
     <div class="msg-body">
-      <div class="typing">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="typing"><span></span><span></span><span></span></div>
     </div>`;
   messagesEl.appendChild(row);
   scrollBottom();
 }
 
-function removeTyping() {
-  document.getElementById("typingRow")?.remove();
-}
+function removeTyping() { document.getElementById("typingRow")?.remove(); }
 
 function appendError(msg) {
   const row = document.createElement("div");
@@ -133,7 +181,7 @@ function appendError(msg) {
   scrollBottom();
 }
 
-// ── Send message ──────────────────────────────────────────────────────────
+// ── Send message ───────────────────────────────────────────────────────────
 async function sendMessage() {
   const text = inputField.value.trim();
   if (!text || sendBtn.disabled) return;
@@ -157,6 +205,8 @@ async function sendMessage() {
 
     removeTyping();
 
+    if (res.status === 401) { window.location.href = "/login"; return; }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       appendError(err.error || "Something went wrong. Please try again.");
@@ -173,14 +223,14 @@ async function sendMessage() {
     }
   } catch {
     removeTyping();
-    appendError("Network error — is the server running?");
+    appendError("Network error — please try again.");
   } finally {
     sendBtn.disabled = !inputField.value.trim();
     inputField.focus();
   }
 }
 
-// ── New chat ──────────────────────────────────────────────────────────────
+// ── New chat ───────────────────────────────────────────────────────────────
 function newChat() {
   conversationHistory = [];
   messagesEl.innerHTML = `
@@ -202,7 +252,7 @@ function newChat() {
   inputField.focus();
 }
 
-// ── Input auto-resize ─────────────────────────────────────────────────────
+// ── Input auto-resize ──────────────────────────────────────────────────────
 inputField.addEventListener("input", () => {
   inputField.style.height = "auto";
   inputField.style.height = Math.min(inputField.scrollHeight, 180) + "px";
@@ -210,13 +260,10 @@ inputField.addEventListener("input", () => {
 });
 
 inputField.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── Suggestion buttons ────────────────────────────────────────────────────
+// ── Suggestion buttons ─────────────────────────────────────────────────────
 function bindSuggestions() {
   document.querySelectorAll(".suggestion-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -227,20 +274,19 @@ function bindSuggestions() {
   });
 }
 
-// ── Sidebar toggle (mobile) ───────────────────────────────────────────────
+// ── Sidebar toggle (mobile) ────────────────────────────────────────────────
 function openSidebar() {
   sidebar.classList.add("open");
   backdrop.classList.add("visible");
   document.body.style.overflow = "hidden";
 }
-
 function closeSidebar() {
   sidebar.classList.remove("open");
   backdrop.classList.remove("visible");
   document.body.style.overflow = "";
 }
 
-// ── Event listeners ───────────────────────────────────────────────────────
+// ── Event listeners ────────────────────────────────────────────────────────
 sendBtn.addEventListener("click", sendMessage);
 newChatBtn.addEventListener("click", newChat);
 mobileNewChatBtn.addEventListener("click", () => { newChat(); closeSidebar(); });
@@ -248,7 +294,7 @@ refreshBtn.addEventListener("click", loadDocuments);
 hamburgerBtn.addEventListener("click", openSidebar);
 backdrop.addEventListener("click", closeSidebar);
 
-// ── Init ──────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 loadDocuments();
 bindSuggestions();
 inputField.focus();

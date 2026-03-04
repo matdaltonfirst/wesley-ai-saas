@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wesley AI — {% if mode == 'signup' %}Create Account{% else %}Sign In{% endif %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent:       #29abb5;
+      --accent-hover: #1f969f;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
+    }
+    body {
+      min-height: 100vh;
+      background: #f4fbfb;
+      font-family: var(--font);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .auth-card {
+      background: #fff;
+      border: 1px solid #cce6e8;
+      border-radius: 16px;
+      padding: 40px 40px 36px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 24px rgba(12,61,67,0.08);
+    }
+    .brand {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .brand-logo {
+      height: 48px;
+      width: auto;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid #e6f5f6;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 10px 0 12px;
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #656d76;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.15s;
+    }
+    .tab-btn.active { color: var(--accent); }
+    .tab-btn.active::after {
+      content: "";
+      position: absolute;
+      bottom: -2px;
+      left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+    .field { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1f2328;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #d0d7de;
+      border-radius: 9px;
+      font-family: var(--font);
+      font-size: 0.93rem;
+      color: #1f2328;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(41,171,181,0.12);
+    }
+    .submit-btn {
+      width: 100%;
+      padding: 11px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-family: var(--font);
+      font-size: 0.94rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s;
+    }
+    .submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .submit-btn:disabled { background: #a0d4d8; cursor: not-allowed; }
+    .error-msg {
+      background: #fff0f0;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.84rem;
+      margin-bottom: 16px;
+      display: none;
+      line-height: 1.45;
+    }
+    .error-msg.visible { display: block; }
+    .switch-link {
+      text-align: center;
+      margin-top: 22px;
+      font-size: 0.84rem;
+      color: #656d76;
+    }
+    .switch-link a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .switch-link a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .auth-card { padding: 28px 20px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+
+    <div class="brand">
+      <img src="/static/WesleyAI.png" alt="Wesley AI" class="brand-logo" />
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn {% if mode == 'login' %}active{% endif %}" data-tab="login">Sign In</button>
+      <button class="tab-btn {% if mode == 'signup' %}active{% endif %}" data-tab="signup">Create Account</button>
+    </div>
+
+    <!-- Login -->
+    <div class="form-panel {% if mode == 'login' %}active{% endif %}" id="panelLogin">
+      <div class="error-msg" id="loginError"></div>
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="you@church.org" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" />
+      </div>
+      <button class="submit-btn" id="loginBtn">Sign In</button>
+      <div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>
+    </div>
+
+    <!-- Signup -->
+    <div class="form-panel {% if mode == 'signup' %}active{% endif %}" id="panelSignup">
+      <div class="error-msg" id="signupError"></div>
+      <div class="field">
+        <label for="signupChurch">Church Name</label>
+        <input type="text" id="signupChurch" placeholder="First United Methodist Church" autocomplete="organization" />
+      </div>
+      <div class="field">
+        <label for="signupEmail">Email</label>
+        <input type="email" id="signupEmail" placeholder="you@church.org" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="signupPassword">Password</label>
+        <input type="password" id="signupPassword" placeholder="At least 8 characters" autocomplete="new-password" />
+      </div>
+      <button class="submit-btn" id="signupBtn">Create Account</button>
+      <div class="switch-link">Already have an account? <a href="/login">Sign in</a></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Tab switching ─────────────────────────────────────────────────────────
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll(".tab-btn").forEach(b =>
+          b.classList.toggle("active", b.dataset.tab === tab)
+        );
+        document.querySelectorAll(".form-panel").forEach(p =>
+          p.classList.toggle("active", p.id === "panel" + tab.charAt(0).toUpperCase() + tab.slice(1))
+        );
+      });
+    });
+
+    function showError(elId, msg) {
+      const el = document.getElementById(elId);
+      el.textContent = msg;
+      el.classList.add("visible");
+    }
+    function clearError(elId) {
+      const el = document.getElementById(elId);
+      el.textContent = "";
+      el.classList.remove("visible");
+    }
+
+    // ── Login ─────────────────────────────────────────────────────────────────
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      clearError("loginError");
+      const email    = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      if (!email || !password) {
+        showError("loginError", "Please enter your email and password.");
+        return;
+      }
+      const btn = document.getElementById("loginBtn");
+      btn.disabled = true; btn.textContent = "Signing in…";
+      try {
+        const res  = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (res.ok) { window.location.href = "/"; }
+        else { showError("loginError", data.error || "Login failed."); }
+      } catch {
+        showError("loginError", "Network error. Please try again.");
+      } finally {
+        btn.disabled = false; btn.textContent = "Sign In";
+      }
+    });
+
+    // ── Signup ────────────────────────────────────────────────────────────────
+    document.getElementById("signupBtn").addEventListener("click", async () => {
+      clearError("signupError");
+      const church_name = document.getElementById("signupChurch").value.trim();
+      const email       = document.getElementById("signupEmail").value.trim();
+      const password    = document.getElementById("signupPassword").value;
+      if (!church_name || !email || !password) {
+        showError("signupError", "All fields are required.");
+        return;
+      }
+      if (password.length < 8) {
+        showError("signupError", "Password must be at least 8 characters.");
+        return;
+      }
+      const btn = document.getElementById("signupBtn");
+      btn.disabled = true; btn.textContent = "Creating account…";
+      try {
+        const res  = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ church_name, email, password }),
+        });
+        const data = await res.json();
+        if (res.ok) { window.location.href = "/"; }
+        else { showError("signupError", data.error || "Signup failed."); }
+      } catch {
+        showError("signupError", "Network error. Please try again.");
+      } finally {
+        btn.disabled = false; btn.textContent = "Create Account";
+      }
+    });
+
+    // Enter submits whichever form is active
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      const loginActive = document.getElementById("panelLogin").classList.contains("active");
+      if (loginActive) document.getElementById("loginBtn").click();
+      else document.getElementById("signupBtn").click();
+    });
+  </script>
+</body>
+</html>
