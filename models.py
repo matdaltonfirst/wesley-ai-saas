@@ -5,6 +5,14 @@ from datetime import datetime
 db = SQLAlchemy()
 
 
+class SystemPrompt(db.Model):
+    """Single-row table (id=1) holding the master Wesley AI system prompt."""
+    __tablename__ = "system_prompts"
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Church(db.Model):
     __tablename__ = "churches"
     id = db.Column(db.Integer, primary_key=True)
