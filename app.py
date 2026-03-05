@@ -1,9 +1,10 @@
 import os
 import re
 import uuid
+import threading
 from pathlib import Path
 
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -11,10 +12,13 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from sqlalchemy import text, inspect as sa_inspect
 import pdfplumber
 from docx import Document as DocxDocument
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
-from models import db, User, Church, Document, SystemPrompt
+from models import db, User, Church, Document, SystemPrompt, CrawledPage
 
 load_dotenv()
 
@@ -57,7 +61,7 @@ def unauthorized():
     return redirect(url_for("login_page"))
 
 
-# ── Super admin + default prompt (defined before app context so seeding can use them) ──
+# ── Super admin + default prompt ──────────────────────────────────────────────
 
 SUPER_ADMIN_EMAIL = "info@wesleyai.co"
 
@@ -77,6 +81,20 @@ def is_super_admin() -> bool:
 
 with app.app_context():
     db.create_all()
+
+    # Inline migration: add Phase 2 columns to existing churches table if absent
+    insp = sa_inspect(db.engine)
+    existing_cols = {c["name"] for c in insp.get_columns("churches")}
+    with db.engine.connect() as conn:
+        if "website_url" not in existing_cols:
+            conn.execute(text("ALTER TABLE churches ADD COLUMN website_url VARCHAR(500)"))
+            conn.commit()
+            print("Migration: added churches.website_url")
+        if "last_crawled_at" not in existing_cols:
+            conn.execute(text("ALTER TABLE churches ADD COLUMN last_crawled_at DATETIME"))
+            conn.commit()
+            print("Migration: added churches.last_crawled_at")
+
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
         db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
@@ -123,10 +141,10 @@ def read_pdf(filepath: Path, display_name: str) -> list[dict]:
     try:
         with pdfplumber.open(filepath) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
-                text = page.extract_text()
-                if text and text.strip():
+                text_content = page.extract_text()
+                if text_content and text_content.strip():
                     chunks.append({
-                        "content": text.strip(),
+                        "content": text_content.strip(),
                         "source": display_name,
                         "location": f"Page {page_num}",
                     })
@@ -145,10 +163,10 @@ def read_docx(filepath: Path, display_name: str) -> list[dict]:
 
         def flush_chunk():
             nonlocal current_text, current_length
-            text = " ".join(current_text).strip()
-            if text:
+            text_content = " ".join(current_text).strip()
+            if text_content:
                 chunks.append({
-                    "content": text,
+                    "content": text_content,
                     "source": display_name,
                     "location": current_heading,
                 })
@@ -157,17 +175,17 @@ def read_docx(filepath: Path, display_name: str) -> list[dict]:
 
         for para in doc.paragraphs:
             style = para.style.name.lower()
-            text = para.text.strip()
-            if not text:
+            para_text = para.text.strip()
+            if not para_text:
                 continue
             if "heading" in style:
                 flush_chunk()
-                current_heading = text
+                current_heading = para_text
             else:
-                if current_length + len(text) > 500 and current_text:
+                if current_length + len(para_text) > 500 and current_text:
                     flush_chunk()
-                current_text.append(text)
-                current_length += len(text)
+                current_text.append(para_text)
+                current_length += len(para_text)
 
         flush_chunk()
     except Exception as e:
@@ -190,6 +208,20 @@ def load_church_documents(church_id: int) -> list[dict]:
         elif suffix == ".docx":
             all_chunks.extend(read_docx(filepath, doc.original_name))
     return all_chunks
+
+
+def load_church_web_content(church_id: int) -> list[dict]:
+    """Return keyword-scoreable chunks from a church's crawled web pages."""
+    pages = CrawledPage.query.filter_by(church_id=church_id).all()
+    chunks = []
+    for page in pages:
+        if page.content and page.content.strip():
+            chunks.append({
+                "content": page.content,
+                "source": page.title or page.url,
+                "location": page.url,
+            })
+    return chunks
 
 
 # ── Relevance scoring ─────────────────────────────────────────────────────────
@@ -252,7 +284,7 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
         contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
 
     current_text = (
-        f"[Relevant church documents:]\n{context}\n---\n{question}"
+        f"[Relevant church information:]\n{context}\n---\n{question}"
         if context.strip()
         else question
     )
@@ -264,6 +296,31 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
     return response.text
+
+
+# ── Nightly crawl scheduler ───────────────────────────────────────────────────
+
+
+def nightly_crawl_job():
+    """Re-crawl all churches that have a website URL configured. Runs at 2am daily."""
+    with app.app_context():
+        from crawler import crawl_church_website
+        churches = Church.query.filter(Church.website_url.isnot(None)).all()
+        print(f"Nightly crawl: found {len(churches)} church(es) to crawl.")
+        for church in churches:
+            if not church.website_url:
+                continue
+            try:
+                result = crawl_church_website(church.id, church.website_url)
+                print(f"Nightly crawl church_id={church.id} ({church.name}): {result}")
+            except Exception as exc:
+                print(f"Nightly crawl error church_id={church.id}: {exc}")
+
+
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
+if not scheduler.running:
+    scheduler.start()
 
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
@@ -342,6 +399,7 @@ def dashboard():
     return render_template(
         "dashboard.html",
         church_name=current_user.church.name,
+        church_id=current_user.church_id,
         user_email=current_user.email,
     )
 
@@ -430,7 +488,7 @@ def delete_document(doc_id):
     return jsonify({"ok": True})
 
 
-# ── Chat API ──────────────────────────────────────────────────────────────────
+# ── Chat API (staff dashboard) ────────────────────────────────────────────────
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -509,6 +567,130 @@ def update_system_prompt():
         db.session.add(SystemPrompt(id=1, content=content))
     db.session.commit()
     return jsonify({"ok": True})
+
+
+# ── Widget JS (public, CORS) ──────────────────────────────────────────────────
+
+
+@app.route("/widget.js")
+def serve_widget():
+    resp = make_response(send_from_directory("static", "widget.js"))
+    resp.headers["Content-Type"] = "application/javascript; charset=utf-8"
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
+
+
+# ── Widget Chat API (public, CORS, crawled content only) ─────────────────────
+
+
+@app.route("/api/widget/chat", methods=["POST", "OPTIONS"])
+def widget_chat():
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    data = request.get_json(silent=True) or {}
+    church_id_raw = data.get("church_id")
+    question = (data.get("question") or "").strip()
+    history = data.get("history", [])
+
+    def cors_err(msg, status=400):
+        resp = jsonify({"error": msg})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, status
+
+    if not church_id_raw or not question:
+        return cors_err("church_id and question are required.")
+
+    try:
+        church_id = int(church_id_raw)
+    except (ValueError, TypeError):
+        return cors_err("Invalid church_id.")
+
+    church = Church.query.get(church_id)
+    if not church:
+        return cors_err("Church not found.", 404)
+
+    # Use crawled web content ONLY — never staff documents
+    web_chunks = load_church_web_content(church_id)
+    context = ""
+    if web_chunks:
+        scored = find_relevant_chunks(question, web_chunks)
+        if scored:
+            context = build_context_block(scored)
+
+    prompt_row = SystemPrompt.query.get(1)
+    system_instruction = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+
+    try:
+        answer = call_gemini(question, context, history, system_instruction)
+    except ValueError as e:
+        return cors_err(str(e), 500)
+    except Exception as e:
+        user_msg, status = _friendly_gemini_error(e)
+        return cors_err(user_msg, status)
+
+    resp = jsonify({"answer": answer})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
+
+# ── Church settings API (website URL + crawl stats) ───────────────────────────
+
+
+@app.route("/api/church/settings", methods=["GET"])
+@login_required
+def get_church_settings():
+    church = current_user.church
+    page_count = CrawledPage.query.filter_by(church_id=church.id).count()
+    return jsonify({
+        "website_url": church.website_url or "",
+        "last_crawled_at": church.last_crawled_at.isoformat() if church.last_crawled_at else None,
+        "page_count": page_count,
+        "church_id": church.id,
+    })
+
+
+@app.route("/api/church/settings", methods=["POST"])
+@login_required
+def save_church_settings():
+    data = request.get_json(silent=True) or {}
+    url = (data.get("website_url") or "").strip().rstrip("/")
+    if url and not url.startswith(("http://", "https://")):
+        return jsonify({"error": "URL must start with http:// or https://"}), 400
+    current_user.church.website_url = url or None
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# ── Manual re-crawl (fires background thread) ─────────────────────────────────
+
+
+@app.route("/api/church/crawl", methods=["POST"])
+@login_required
+def trigger_crawl():
+    church = current_user.church
+    if not church.website_url:
+        return jsonify({"error": "No website URL configured. Save a URL first."}), 400
+
+    crawl_url  = church.website_url
+    church_id  = church.id
+
+    def run_crawl():
+        with app.app_context():
+            from crawler import crawl_church_website
+            result = crawl_church_website(church_id, crawl_url)
+            print(f"Manual crawl church_id={church_id}: {result}")
+
+    t = threading.Thread(target=run_crawl, daemon=True)
+    t.start()
+
+    return jsonify({"ok": True, "message": "Crawl started in the background."})
 
 
 if __name__ == "__main__":

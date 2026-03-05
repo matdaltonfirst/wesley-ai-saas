@@ -17,10 +17,14 @@ class Church(db.Model):
     __tablename__ = "churches"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
+    website_url = db.Column(db.String(500), nullable=True)
+    last_crawled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     users = db.relationship("User", backref="church", lazy=True)
     documents = db.relationship("Document", backref="church", lazy=True)
+    crawled_pages = db.relationship("CrawledPage", backref="church", lazy=True,
+                                    cascade="all, delete-orphan")
 
 
 class User(UserMixin, db.Model):
@@ -40,3 +44,18 @@ class Document(db.Model):
     original_name = db.Column(db.String(300), nullable=False)  # user-visible display name
     size_bytes = db.Column(db.Integer, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CrawledPage(db.Model):
+    """Stores scraped content from a church's public website."""
+    __tablename__ = "crawled_pages"
+    id = db.Column(db.Integer, primary_key=True)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    url = db.Column(db.String(1000), nullable=False)
+    title = db.Column(db.String(500), nullable=True)
+    content = db.Column(db.Text, nullable=True)
+    crawled_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("church_id", "url", name="uq_church_url"),
+    )

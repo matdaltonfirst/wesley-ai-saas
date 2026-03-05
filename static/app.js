@@ -294,7 +294,154 @@ refreshBtn.addEventListener("click", loadDocuments);
 hamburgerBtn.addEventListener("click", openSidebar);
 backdrop.addEventListener("click", closeSidebar);
 
+// ── Website chatbot section ────────────────────────────────────────────────
+const websiteUrlEl     = document.getElementById("websiteUrl");
+const websiteSaveBtn   = document.getElementById("websiteSaveBtn");
+const websiteStatusEl  = document.getElementById("websiteStatus");
+const embedSection     = document.getElementById("websiteEmbedSection");
+const embedCodeEl      = document.getElementById("embedCode");
+const copyEmbedBtn     = document.getElementById("copyEmbedBtn");
+const crawlBtn         = document.getElementById("crawlBtn");
+const crawlPagesCount  = document.getElementById("crawlPagesCount");
+
+function formatCrawlDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+async function loadWebsiteSettings() {
+  websiteStatusEl.textContent = "Loading…";
+  websiteStatusEl.className = "website-status";
+  try {
+    const res  = await fetch("/api/church/settings");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+
+    websiteUrlEl.value = data.website_url || "";
+
+    const churchId = data.church_id || window.CHURCH_ID;
+    const embedSnippet = `<script src="https://app.wesleyai.co/widget.js" data-church-id="${churchId}"><\/script>`;
+    embedCodeEl.textContent = embedSnippet;
+
+    if (data.website_url) {
+      const lastCrawled = data.last_crawled_at
+        ? `Last crawled ${formatCrawlDate(data.last_crawled_at)}`
+        : "Not yet crawled";
+      websiteStatusEl.textContent = lastCrawled;
+      websiteStatusEl.className = "website-status ok";
+      crawlPagesCount.textContent = data.page_count
+        ? `${data.page_count.toLocaleString()} pages indexed`
+        : "0 pages indexed";
+      embedSection.style.display = "";
+    } else {
+      websiteStatusEl.textContent = "Enter your church website URL to enable the chatbot widget.";
+      websiteStatusEl.className = "website-status";
+      embedSection.style.display = "none";
+    }
+  } catch {
+    websiteStatusEl.textContent = "Could not load website settings.";
+    websiteStatusEl.className = "website-status err";
+  }
+}
+
+async function saveWebsiteUrl() {
+  const url = websiteUrlEl.value.trim();
+  websiteSaveBtn.disabled = true;
+  websiteSaveBtn.textContent = "Saving…";
+  try {
+    const res  = await fetch("/api/church/settings", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ website_url: url }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      await loadWebsiteSettings();
+    } else {
+      websiteStatusEl.textContent = data.error || "Save failed.";
+      websiteStatusEl.className = "website-status err";
+    }
+  } catch {
+    websiteStatusEl.textContent = "Network error. Please try again.";
+    websiteStatusEl.className = "website-status err";
+  } finally {
+    websiteSaveBtn.disabled = false;
+    websiteSaveBtn.textContent = "Save";
+  }
+}
+
+async function triggerCrawl() {
+  crawlBtn.disabled = true;
+  crawlBtn.innerHTML = `
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+         style="animation:spin 1s linear infinite">
+      <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+    Crawling…`;
+  try {
+    const res  = await fetch("/api/church/crawl", { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      websiteStatusEl.textContent = "Crawl started — this runs in the background. Refresh in a minute.";
+      websiteStatusEl.className = "website-status ok";
+    } else {
+      websiteStatusEl.textContent = data.error || "Crawl failed to start.";
+      websiteStatusEl.className = "website-status err";
+    }
+  } catch {
+    websiteStatusEl.textContent = "Network error starting crawl.";
+    websiteStatusEl.className = "website-status err";
+  } finally {
+    // Re-enable after 10s to avoid accidental double-triggers
+    setTimeout(() => {
+      crawlBtn.disabled = false;
+      crawlBtn.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Re-crawl now`;
+    }, 10_000);
+  }
+}
+
+async function copyEmbedCode() {
+  const snippet = embedCodeEl.textContent;
+  try {
+    await navigator.clipboard.writeText(snippet);
+    copyEmbedBtn.textContent = "Copied!";
+    setTimeout(() => { copyEmbedBtn.textContent = "Copy"; }, 2000);
+  } catch {
+    // Fallback: select the element text
+    const range = document.createRange();
+    range.selectNode(embedCodeEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    copyEmbedBtn.textContent = "Selected";
+    setTimeout(() => { copyEmbedBtn.textContent = "Copy"; }, 2000);
+  }
+}
+
+// Spin keyframe for crawl button
+(function () {
+  const s = document.createElement("style");
+  s.textContent = "@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}";
+  document.head.appendChild(s);
+})();
+
+websiteSaveBtn.addEventListener("click", saveWebsiteUrl);
+websiteUrlEl.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); saveWebsiteUrl(); }
+});
+crawlBtn.addEventListener("click", triggerCrawl);
+copyEmbedBtn.addEventListener("click", copyEmbedCode);
+
 // ── Init ───────────────────────────────────────────────────────────────────
 loadDocuments();
+loadWebsiteSettings();
 bindSuggestions();
 inputField.focus();
