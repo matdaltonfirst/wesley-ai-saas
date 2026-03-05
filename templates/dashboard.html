@@ -8,6 +8,20 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <style>
+    /* ── Sidebar scroll wrapper ── */
+    .sidebar-middle {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      /* subtle scrollbar */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.12) transparent;
+    }
+    .sidebar-middle::-webkit-scrollbar { width: 4px; }
+    .sidebar-middle::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
     /* ── Documents section header ── */
     .sidebar-section-header {
       display: flex;
@@ -108,6 +122,125 @@
       flex-shrink: 0;
     }
     .logout-btn:hover { color: var(--sidebar-text-hi); background: var(--sidebar-hover); }
+
+    /* ── Website Chatbot section ── */
+    .website-url-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .website-url-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid var(--sidebar-border);
+      border-radius: 7px;
+      color: var(--sidebar-text-hi);
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .website-url-input:focus { border-color: var(--accent); }
+    .website-url-input::placeholder { color: rgba(255,255,255,0.28); font-size: 0.72rem; }
+    .website-save-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.73rem;
+      font-weight: 600;
+      font-family: var(--font);
+      padding: 6px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .website-save-btn:hover { background: #1f969f; }
+    .website-save-btn:disabled { background: #a0d4d8; cursor: not-allowed; }
+
+    .website-status {
+      font-size: 0.69rem;
+      color: var(--sidebar-text);
+      margin-top: 5px;
+      min-height: 15px;
+      line-height: 1.4;
+    }
+    .website-status.ok  { color: #6ee7b7; }
+    .website-status.err { color: #fca5a5; }
+
+    .website-embed-label {
+      font-size: 0.69rem;
+      color: var(--sidebar-text);
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+    .website-embed-row {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+    }
+    .website-embed-code {
+      flex: 1;
+      min-width: 0;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--sidebar-border);
+      border-radius: 6px;
+      color: #8ecdd2;
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      font-size: 0.63rem;
+      padding: 5px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.5;
+      cursor: default;
+      user-select: all;
+    }
+    .website-copy-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid var(--sidebar-border);
+      color: var(--sidebar-text);
+      border-radius: 6px;
+      padding: 5px 9px;
+      font-size: 0.7rem;
+      font-family: var(--font);
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+    }
+    .website-copy-btn:hover { background: rgba(255,255,255,0.14); color: var(--sidebar-text-hi); }
+
+    .website-crawl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .crawl-btn {
+      background: none;
+      border: 1px solid var(--sidebar-border);
+      color: var(--sidebar-text);
+      font-size: 0.71rem;
+      font-family: var(--font);
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .crawl-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--sidebar-text-hi); }
+    .crawl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .crawl-pages-count {
+      font-size: 0.69rem;
+      color: var(--sidebar-text);
+    }
   </style>
 </head>
 <body>
@@ -134,31 +267,76 @@
 
       <div class="sidebar-divider"></div>
 
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <div class="sidebar-label">Documents</div>
-          <label class="upload-label" for="fileUpload" title="Upload PDF or DOCX">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
+      <!-- Scrollable middle content -->
+      <div class="sidebar-middle">
+
+        <!-- Documents section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <div class="sidebar-label">Documents</div>
+            <label class="upload-label" for="fileUpload" title="Upload PDF or DOCX">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
+              </svg>
+            </label>
+            <input type="file" id="fileUpload" accept=".pdf,.docx" style="display:none" />
+          </div>
+
+          <div class="upload-progress" id="uploadProgress"></div>
+
+          <div class="doc-list" id="docList">
+            <div class="doc-empty">Loading…</div>
+          </div>
+
+          <button class="refresh-docs-btn" id="refreshBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
-          </label>
-          <input type="file" id="fileUpload" accept=".pdf,.docx" style="display:none" />
+            Refresh
+          </button>
         </div>
 
-        <div class="upload-progress" id="uploadProgress"></div>
+        <div class="sidebar-divider"></div>
 
-        <div class="doc-list" id="docList">
-          <div class="doc-empty">Loading…</div>
+        <!-- Website Chatbot section -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Website Chatbot</div>
+
+          <div class="website-url-row">
+            <input
+              type="url"
+              id="websiteUrl"
+              class="website-url-input"
+              placeholder="https://yourchurch.org"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="website-save-btn" id="websiteSaveBtn">Save</button>
+          </div>
+
+          <div class="website-status" id="websiteStatus">Loading…</div>
+
+          <div id="websiteEmbedSection" style="display:none">
+            <div class="website-embed-label">Embed code for your website:</div>
+            <div class="website-embed-row">
+              <div class="website-embed-code" id="embedCode" title="Click to select all"></div>
+              <button class="website-copy-btn" id="copyEmbedBtn">Copy</button>
+            </div>
+            <div class="website-crawl-row">
+              <button class="crawl-btn" id="crawlBtn">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                Re-crawl now
+              </button>
+              <span class="crawl-pages-count" id="crawlPagesCount"></span>
+            </div>
+          </div>
         </div>
 
-        <button class="refresh-docs-btn" id="refreshBtn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          Refresh
-        </button>
-      </div>
+      </div><!-- /.sidebar-middle -->
 
       <!-- User / logout -->
       <div class="sidebar-footer">
@@ -239,6 +417,10 @@
     </main>
 
   </div>
+
+  <script>
+    window.CHURCH_ID = {{ church_id }};
+  </script>
   <script src="/static/app.js"></script>
 </body>
 </html>
