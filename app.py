@@ -14,7 +14,7 @@ from google.genai import types
 import pdfplumber
 from docx import Document as DocxDocument
 
-from models import db, User, Church, Document
+from models import db, User, Church, Document, SystemPrompt
 
 load_dotenv()
 
@@ -57,8 +57,31 @@ def unauthorized():
     return redirect(url_for("login_page"))
 
 
+# ── Super admin + default prompt (defined before app context so seeding can use them) ──
+
+SUPER_ADMIN_EMAIL = "info@wesleyai.co"
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are Wesley, a helpful AI assistant for United Methodist churches. "
+    "You are grounded in Wesleyan theology and United Methodist doctrine. "
+    "You speak with warmth, grace, and pastoral care. "
+    "You never contradict UMC doctrine. "
+    "For deep theological or personal questions you always encourage the user "
+    "to speak with their pastor."
+)
+
+
+def is_super_admin() -> bool:
+    return current_user.is_authenticated and current_user.email == SUPER_ADMIN_EMAIL
+
+
 with app.app_context():
     db.create_all()
+    # Seed the master system prompt on first run (id=1 is the single canonical row)
+    if not SystemPrompt.query.get(1):
+        db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
+        db.session.commit()
+        print("System prompt seeded with default.")
 
 # ── API key validation ────────────────────────────────────────────────────────
 
@@ -69,18 +92,6 @@ else:
     print(f"Gemini API key loaded ({_api_key[:8]}…)")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-
-SYSTEM_INSTRUCTION = """You are Wesley AI, a knowledgeable and friendly AI assistant for church staff. \
-You help with a wide range of tasks — answering questions, drafting communications, \
-event planning, pastoral support, and general advice.
-
-When relevant church documents are provided in the conversation context, use them to give \
-accurate, grounded answers and cite the source file and page or section.
-
-If documents don't cover the topic, draw on your general knowledge to help — \
-you are not limited to document content.
-
-Be warm, professional, and conversational. You are a trusted assistant to the church team."""
 
 STOP_WORDS = {
     "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
@@ -228,7 +239,7 @@ def _friendly_gemini_error(exc: Exception) -> tuple[str, int]:
     return (f"AI error: {exc}", 502)
 
 
-def call_gemini(question: str, context: str, history: list[dict]) -> str:
+def call_gemini(question: str, context: str, history: list[dict], system_instruction: str) -> str:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not set. Add it to your .env file.")
@@ -250,7 +261,7 @@ def call_gemini(question: str, context: str, history: list[dict]) -> str:
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents,
-        config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+        config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
     return response.text
 
@@ -447,8 +458,11 @@ def chat():
                     seen.add(key)
                     candidate_sources.append({"file": chunk["source"], "location": chunk["location"]})
 
+    prompt_row = SystemPrompt.query.get(1)
+    system_instruction = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+
     try:
-        answer = call_gemini(question, context, history)
+        answer = call_gemini(question, context, history, system_instruction)
     except ValueError as e:
         return jsonify({"error": str(e)}), 500
     except Exception as e:
@@ -459,6 +473,42 @@ def chat():
     sources = [s for s in candidate_sources if s["file"].lower() in answer_lower]
 
     return jsonify({"answer": answer, "sources": sources})
+
+
+# ── Admin panel ───────────────────────────────────────────────────────────────
+
+
+@app.route("/admin")
+@login_required
+def admin_panel():
+    if not is_super_admin():
+        return render_template("admin.html", forbidden=True), 403
+    prompt_row = SystemPrompt.query.get(1)
+    current_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+    return render_template(
+        "admin.html",
+        forbidden=False,
+        current_prompt=current_prompt,
+        default_prompt=DEFAULT_SYSTEM_PROMPT,
+    )
+
+
+@app.route("/api/admin/system-prompt", methods=["POST"])
+@login_required
+def update_system_prompt():
+    if not is_super_admin():
+        return jsonify({"error": "Forbidden."}), 403
+    data = request.get_json(silent=True) or {}
+    content = (data.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "Prompt content cannot be empty."}), 400
+    prompt_row = SystemPrompt.query.get(1)
+    if prompt_row:
+        prompt_row.content = content
+    else:
+        db.session.add(SystemPrompt(id=1, content=content))
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
