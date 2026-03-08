@@ -329,14 +329,14 @@ if not scheduler.running:
 @app.route("/login")
 def login_page():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("chat_page"))
     return render_template("auth.html", mode="login")
 
 
 @app.route("/signup")
 def signup_page():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("chat_page"))
     return render_template("auth.html", mode="signup")
 
 
@@ -390,14 +390,27 @@ def logout():
     return redirect(url_for("login_page"))
 
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# ── Chat page (main interface) ────────────────────────────────────────────────
 
 
 @app.route("/")
 @login_required
-def dashboard():
+def chat_page():
     return render_template(
         "dashboard.html",
+        church_name=current_user.church.name,
+        user_email=current_user.email,
+    )
+
+
+# ── Dashboard (management) ────────────────────────────────────────────────────
+
+
+@app.route("/dashboard")
+@login_required
+def management_dashboard():
+    return render_template(
+        "settings.html",
         church_name=current_user.church.name,
         church_id=current_user.church_id,
         user_email=current_user.email,
