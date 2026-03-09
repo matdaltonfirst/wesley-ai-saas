@@ -333,6 +333,33 @@
     .crawl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+
+    /* ── Customize Your Bot card ── */
+    .bot-fields { display: flex; flex-direction: column; gap: 16px; }
+    .bot-field-row { display: flex; flex-direction: column; gap: 5px; }
+    .color-picker-row { display: flex; align-items: center; gap: 10px; }
+    input[type="color"].bot-color-swatch {
+      width: 44px;
+      height: 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 2px 3px;
+      cursor: pointer;
+      flex-shrink: 0;
+      background: #fff;
+      transition: border-color 0.15s;
+    }
+    input[type="color"].bot-color-swatch:hover { border-color: var(--accent); }
+    .color-hex-input {
+      max-width: 130px;
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      letter-spacing: 0.04em;
+    }
+    .bot-save-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body class="settings-page">
@@ -382,6 +409,75 @@
             Refresh
           </button>
         </div>
+      </section>
+
+      <!-- Customize Your Bot card -->
+      <section class="settings-card">
+        <div class="settings-card-header">
+          <h2 class="settings-card-title">Customize Your Bot</h2>
+        </div>
+
+        <div class="bot-fields">
+
+          <div class="bot-field-row">
+            <label class="website-field-label" for="botName">Bot name</label>
+            <input
+              type="text"
+              id="botName"
+              class="website-url-input"
+              placeholder="Wesley"
+              maxlength="100"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="bot-field-row">
+            <label class="website-field-label" for="botWelcome">Welcome message</label>
+            <input
+              type="text"
+              id="botWelcome"
+              class="website-url-input"
+              placeholder="How can I help you today?"
+              maxlength="500"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="bot-field-row">
+            <label class="website-field-label" for="botCityInput">Church city</label>
+            <input
+              type="text"
+              id="botCityInput"
+              class="website-url-input"
+              placeholder="e.g. Nashville, TN"
+              maxlength="200"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="bot-field-row">
+            <label class="website-field-label">Primary color</label>
+            <div class="color-picker-row">
+              <input type="color" id="botColorPicker" class="bot-color-swatch" value="#0a3d3d" />
+              <input
+                type="text"
+                id="botColorHex"
+                class="website-url-input color-hex-input"
+                placeholder="#0a3d3d"
+                maxlength="7"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bot-save-row">
+          <button class="website-save-btn" id="botSaveBtn">Save</button>
+        </div>
+        <div class="website-status" id="botStatus"></div>
+
       </section>
 
       <!-- Website Chatbot card -->

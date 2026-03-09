@@ -19,6 +19,15 @@ const copyEmbedBtn    = document.getElementById("copyEmbedBtn");
 const crawlBtn        = document.getElementById("crawlBtn");
 const crawlPagesCount = document.getElementById("crawlPagesCount");
 
+// Bot customisation refs
+const botNameEl      = document.getElementById("botName");
+const botWelcomeEl   = document.getElementById("botWelcome");
+const botCityEl      = document.getElementById("botCityInput");
+const botColorPicker = document.getElementById("botColorPicker");
+const botColorHex    = document.getElementById("botColorHex");
+const botSaveBtn     = document.getElementById("botSaveBtn");
+const botStatusEl    = document.getElementById("botStatus");
+
 // ── Document list ──────────────────────────────────────────────────────────
 async function loadDocuments() {
   docList.innerHTML = '<div class="doc-empty-full">Loading…</div>';
@@ -217,6 +226,77 @@ async function copyEmbedCode() {
   }
 }
 
+// ── Bot customisation ──────────────────────────────────────────────────────
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+async function loadBotSettings() {
+  try {
+    const res  = await fetch("/api/church/branding");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+
+    botNameEl.value    = data.bot_name    || "";
+    botWelcomeEl.value = data.welcome_message || "";
+    botCityEl.value    = data.church_city || "";
+
+    const color = data.primary_color || "#0a3d3d";
+    botColorHex.value    = color;
+    botColorPicker.value = HEX_RE.test(color) ? color : "#0a3d3d";
+  } catch {
+    // non-critical — leave fields blank
+  }
+}
+
+async function saveBotSettings() {
+  const hex = botColorHex.value.trim();
+  if (hex && !HEX_RE.test(hex)) {
+    botStatusEl.textContent = "Invalid color — use format #rrggbb.";
+    botStatusEl.className   = "website-status err";
+    return;
+  }
+
+  botSaveBtn.disabled    = true;
+  botSaveBtn.textContent = "Saving…";
+  botStatusEl.textContent = "";
+  botStatusEl.className   = "website-status";
+
+  try {
+    const res  = await fetch("/api/church/branding", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bot_name:       botNameEl.value.trim(),
+        welcome_message: botWelcomeEl.value.trim(),
+        primary_color:  hex || "#0a3d3d",
+        church_city:    botCityEl.value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      botStatusEl.textContent = "Saved!";
+      botStatusEl.className   = "website-status ok";
+    } else {
+      botStatusEl.textContent = data.error || "Save failed.";
+      botStatusEl.className   = "website-status err";
+    }
+  } catch {
+    botStatusEl.textContent = "Network error. Please try again.";
+    botStatusEl.className   = "website-status err";
+  } finally {
+    botSaveBtn.disabled    = false;
+    botSaveBtn.textContent = "Save";
+  }
+}
+
+// Keep color picker and hex text in sync
+botColorPicker.addEventListener("input", () => {
+  botColorHex.value = botColorPicker.value;
+});
+botColorHex.addEventListener("input", () => {
+  const v = botColorHex.value.trim();
+  if (HEX_RE.test(v)) botColorPicker.value = v;
+});
+
 // ── Event listeners ────────────────────────────────────────────────────────
 refreshBtn.addEventListener("click", loadDocuments);
 websiteSaveBtn.addEventListener("click", saveWebsiteUrl);
@@ -225,7 +305,9 @@ websiteUrlEl.addEventListener("keydown", e => {
 });
 crawlBtn.addEventListener("click", triggerCrawl);
 copyEmbedBtn.addEventListener("click", copyEmbedCode);
+botSaveBtn.addEventListener("click", saveBotSettings);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadDocuments();
 loadWebsiteSettings();
+loadBotSettings();

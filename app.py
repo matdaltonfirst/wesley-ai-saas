@@ -98,8 +98,26 @@ with app.app_context():
             conn.commit()
             print("Migration: added churches.last_crawled_at")
 
-    # Inline migration: create conversations/messages tables if absent (db.create_all handles new tables)
-    # Nothing extra needed — db.create_all() above already creates them on first run.
+    # Inline migration: branding columns added to churches table
+    insp2 = sa_inspect(db.engine)
+    existing_cols2 = {c["name"] for c in insp2.get_columns("churches")}
+    with db.engine.connect() as conn2:
+        if "bot_name" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_name VARCHAR(100) NOT NULL DEFAULT 'Wesley'"))
+            conn2.commit()
+            print("Migration: added churches.bot_name")
+        if "welcome_message" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN welcome_message VARCHAR(500) NOT NULL DEFAULT 'How can I help you today?'"))
+            conn2.commit()
+            print("Migration: added churches.welcome_message")
+        if "primary_color" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN primary_color VARCHAR(7) NOT NULL DEFAULT '#0a3d3d'"))
+            conn2.commit()
+            print("Migration: added churches.primary_color")
+        if "church_city" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN church_city VARCHAR(200)"))
+            conn2.commit()
+            print("Migration: added churches.church_city")
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
@@ -429,10 +447,14 @@ def logout():
 @app.route("/")
 @login_required
 def chat_page():
+    church = current_user.church
     return render_template(
         "dashboard.html",
-        church_name=current_user.church.name,
+        church_name=church.name,
         user_email=current_user.email,
+        bot_name=church.bot_name or "Wesley",
+        welcome_message=church.welcome_message or "How can I help you today?",
+        primary_color=church.primary_color or "#0a3d3d",
     )
 
 
@@ -442,11 +464,16 @@ def chat_page():
 @app.route("/dashboard")
 @login_required
 def management_dashboard():
+    church = current_user.church
     return render_template(
         "settings.html",
-        church_name=current_user.church.name,
+        church_name=church.name,
         church_id=current_user.church_id,
         user_email=current_user.email,
+        bot_name=church.bot_name or "Wesley",
+        welcome_message=church.welcome_message or "How can I help you today?",
+        primary_color=church.primary_color or "#0a3d3d",
+        church_city=church.church_city or "",
     )
 
 
@@ -586,7 +613,15 @@ def chat():
                     candidate_sources.append({"file": chunk["source"], "location": chunk["location"]})
 
     prompt_row = SystemPrompt.query.get(1)
-    system_instruction = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+    base_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+
+    # Append church-specific identity so the bot knows exactly where it is installed
+    church = current_user.church
+    church_ctx = f"\n\nYou are installed at {church.name}"
+    if church.church_city:
+        church_ctx += f", located in {church.church_city}"
+    church_ctx += f". Your name is {church.bot_name or 'Wesley'}."
+    system_instruction = base_prompt + church_ctx
 
     try:
         answer = call_gemini(question, context, history, system_instruction)
@@ -645,6 +680,49 @@ def get_conversation_messages(conv_id):
             for m in conv.messages
         ],
     })
+
+
+# ── Church branding API ───────────────────────────────────────────────────────
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+@app.route("/api/church/branding", methods=["GET"])
+@login_required
+def get_church_branding():
+    church = current_user.church
+    return jsonify({
+        "bot_name":       church.bot_name or "Wesley",
+        "welcome_message": church.welcome_message or "How can I help you today?",
+        "primary_color":  church.primary_color or "#0a3d3d",
+        "church_city":    church.church_city or "",
+    })
+
+
+@app.route("/api/church/branding", methods=["POST"])
+@login_required
+def save_church_branding():
+    data = request.get_json(silent=True) or {}
+    church = current_user.church
+
+    bot_name = (data.get("bot_name") or "").strip()
+    welcome_message = (data.get("welcome_message") or "").strip()
+    primary_color = (data.get("primary_color") or "").strip()
+    church_city = (data.get("church_city") or "").strip()
+
+    if not bot_name:
+        return jsonify({"error": "Bot name cannot be empty."}), 400
+    if not welcome_message:
+        return jsonify({"error": "Welcome message cannot be empty."}), 400
+    if primary_color and not _HEX_COLOR_RE.match(primary_color):
+        return jsonify({"error": "Primary color must be a valid hex color (e.g. #1a2b3c)."}), 400
+
+    church.bot_name = bot_name[:100]
+    church.welcome_message = welcome_message[:500]
+    church.primary_color = primary_color if primary_color else "#0a3d3d"
+    church.church_city = church_city[:200] if church_city else None
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 # ── Admin panel ───────────────────────────────────────────────────────────────
