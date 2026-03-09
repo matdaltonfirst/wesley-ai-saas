@@ -2,7 +2,7 @@
 marked.setOptions({ breaks: true, gfm: true });
 
 // ── State ──────────────────────────────────────────────────────────────────
-let conversationHistory = [];
+let currentConversationId = null;
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const messagesEl       = document.getElementById("messages");
@@ -14,6 +14,7 @@ const sidebar          = document.getElementById("sidebar");
 const backdrop         = document.getElementById("sidebarBackdrop");
 const hamburgerBtn     = document.getElementById("hamburgerBtn");
 const mobileNewChatBtn = document.getElementById("mobileNewChatBtn");
+const convList         = document.getElementById("convList");
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 function esc(str) {
@@ -114,13 +115,11 @@ async function sendMessage() {
   showTyping();
   closeSidebar();
 
-  const historySnapshot = [...conversationHistory];
-
   try {
     const res = await fetch("/api/chat", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ question: text, history: historySnapshot }),
+      body:    JSON.stringify({ question: text, conversation_id: currentConversationId }),
     });
 
     removeTyping();
@@ -138,8 +137,8 @@ async function sendMessage() {
       appendError(data.error);
     } else {
       appendAssistantMsg(data.answer, data.sources);
-      conversationHistory.push({ role: "user",      content: text });
-      conversationHistory.push({ role: "assistant", content: data.answer });
+      currentConversationId = data.conversation_id;
+      loadConversations();
     }
   } catch {
     removeTyping();
@@ -150,9 +149,66 @@ async function sendMessage() {
   }
 }
 
+// ── Conversations sidebar ──────────────────────────────────────────────────
+async function loadConversations() {
+  try {
+    const res = await fetch("/api/conversations");
+    if (!res.ok) return;
+    const data = await res.json();
+    renderConvList(data.conversations);
+  } catch {
+    // silently ignore — sidebar is non-critical
+  }
+}
+
+function renderConvList(conversations) {
+  if (!convList) return;
+  if (!conversations.length) {
+    convList.innerHTML = '<div class="doc-empty">No conversations yet.</div>';
+    return;
+  }
+  convList.innerHTML = conversations.map(c => `
+    <button class="conv-item${c.id === currentConversationId ? " active" : ""}"
+            data-id="${c.id}" title="${esc(c.title)}">
+      <span class="conv-title">${esc(c.title)}</span>
+    </button>
+  `).join("");
+
+  convList.querySelectorAll(".conv-item").forEach(btn => {
+    btn.addEventListener("click", () => loadConversation(parseInt(btn.dataset.id)));
+  });
+}
+
+async function loadConversation(convId) {
+  try {
+    const res = await fetch(`/api/conversations/${convId}/messages`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    currentConversationId = convId;
+
+    // Clear chat and render all messages
+    messagesEl.innerHTML = "";
+    data.messages.forEach(m => {
+      if (m.role === "user") {
+        appendUserMsg(m.content);
+      } else {
+        appendAssistantMsg(m.content, []);
+      }
+    });
+
+    // Refresh sidebar to update active state
+    loadConversations();
+    closeSidebar();
+    inputField.focus();
+  } catch {
+    appendError("Could not load conversation.");
+  }
+}
+
 // ── New chat ───────────────────────────────────────────────────────────────
 function newChat() {
-  conversationHistory = [];
+  currentConversationId = null;
   messagesEl.innerHTML = `
     <div class="greeting" id="greeting">
       <div class="greeting-glow"></div>
@@ -169,6 +225,7 @@ function newChat() {
       </div>
     </div>`;
   bindSuggestions();
+  loadConversations();
   inputField.focus();
 }
 
@@ -216,4 +273,5 @@ backdrop.addEventListener("click", closeSidebar);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 bindSuggestions();
+loadConversations();
 inputField.focus();

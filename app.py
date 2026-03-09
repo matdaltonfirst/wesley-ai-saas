@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import threading
+from datetime import timedelta
 from pathlib import Path
 
 from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
@@ -18,7 +19,7 @@ from docx import Document as DocxDocument
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from models import db, User, Church, Document, SystemPrompt, CrawledPage
+from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message
 
 load_dotenv()
 
@@ -94,6 +95,9 @@ with app.app_context():
             conn.execute(text("ALTER TABLE churches ADD COLUMN last_crawled_at DATETIME"))
             conn.commit()
             print("Migration: added churches.last_crawled_at")
+
+    # Inline migration: create conversations/messages tables if absent (db.create_all handles new tables)
+    # Nothing extra needed — db.create_all() above already creates them on first run.
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
@@ -317,8 +321,21 @@ def nightly_crawl_job():
                 print(f"Nightly crawl error church_id={church.id}: {exc}")
 
 
+def nightly_cleanup_job():
+    """Delete conversations (and their messages) last updated more than 14 days ago."""
+    with app.app_context():
+        cutoff = datetime.utcnow() - timedelta(days=14)
+        old_convs = Conversation.query.filter(Conversation.updated_at < cutoff).all()
+        count = len(old_convs)
+        for conv in old_convs:
+            db.session.delete(conv)
+        db.session.commit()
+        print(f"Nightly cleanup: deleted {count} conversation(s) older than 14 days.")
+
+
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
+scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
 if not scheduler.running:
     scheduler.start()
 
@@ -512,8 +529,31 @@ def chat():
         return jsonify({"error": "No question provided"}), 400
 
     question = data["question"].strip()
-    history = data.get("history", [])
+    conversation_id = data.get("conversation_id")
 
+    # Resolve or create the conversation
+    if conversation_id:
+        conv = Conversation.query.filter_by(
+            id=conversation_id, church_id=current_user.church_id
+        ).first()
+        if not conv:
+            return jsonify({"error": "Conversation not found."}), 404
+    else:
+        title = question[:40]
+        conv = Conversation(church_id=current_user.church_id, title=title)
+        db.session.add(conv)
+        db.session.flush()  # get conv.id
+
+    # Save the user message
+    db.session.add(Message(conversation_id=conv.id, role="user", content=question))
+
+    # Build history from DB (all previous messages for this conversation)
+    history = [
+        {"role": m.role, "content": m.content}
+        for m in conv.messages
+    ]
+
+    # RAG context
     chunks = load_church_documents(current_user.church_id)
     context = ""
     candidate_sources = []
@@ -535,15 +575,60 @@ def chat():
     try:
         answer = call_gemini(question, context, history, system_instruction)
     except ValueError as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 500
     except Exception as e:
+        db.session.rollback()
         user_msg, status = _friendly_gemini_error(e)
         return jsonify({"error": user_msg}), status
+
+    # Save the assistant message and touch updated_at
+    db.session.add(Message(conversation_id=conv.id, role="assistant", content=answer))
+    conv.updated_at = datetime.utcnow()
+    db.session.commit()
 
     answer_lower = answer.lower()
     sources = [s for s in candidate_sources if s["file"].lower() in answer_lower]
 
-    return jsonify({"answer": answer, "sources": sources})
+    return jsonify({"answer": answer, "sources": sources, "conversation_id": conv.id})
+
+
+# ── Conversations API ──────────────────────────────────────────────────────────
+
+
+@app.route("/api/conversations")
+@login_required
+def list_conversations():
+    convs = (
+        Conversation.query
+        .filter_by(church_id=current_user.church_id)
+        .order_by(Conversation.updated_at.desc())
+        .all()
+    )
+    return jsonify({
+        "conversations": [
+            {"id": c.id, "title": c.title, "updated_at": c.updated_at.isoformat()}
+            for c in convs
+        ]
+    })
+
+
+@app.route("/api/conversations/<int:conv_id>/messages")
+@login_required
+def get_conversation_messages(conv_id):
+    conv = Conversation.query.filter_by(
+        id=conv_id, church_id=current_user.church_id
+    ).first()
+    if not conv:
+        return jsonify({"error": "Conversation not found."}), 404
+    return jsonify({
+        "conversation_id": conv.id,
+        "title": conv.title,
+        "messages": [
+            {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+            for m in conv.messages
+        ],
+    })
 
 
 # ── Admin panel ───────────────────────────────────────────────────────────────

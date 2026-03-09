@@ -5,6 +5,30 @@ from datetime import datetime
 db = SQLAlchemy()
 
 
+class Conversation(db.Model):
+    __tablename__ = "conversations"
+    id = db.Column(db.Integer, primary_key=True)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    title = db.Column(db.String(100), nullable=False, default="New Conversation")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = db.relationship(
+        "Message", backref="conversation", lazy=True,
+        cascade="all, delete-orphan",
+        order_by="Message.created_at",
+    )
+
+
+class Message(db.Model):
+    __tablename__ = "messages"
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("conversations.id"), nullable=False)
+    role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class SystemPrompt(db.Model):
     """Single-row table (id=1) holding the master Wesley AI system prompt."""
     __tablename__ = "system_prompts"
@@ -24,6 +48,8 @@ class Church(db.Model):
     users = db.relationship("User", backref="church", lazy=True)
     documents = db.relationship("Document", backref="church", lazy=True)
     crawled_pages = db.relationship("CrawledPage", backref="church", lazy=True,
+                                    cascade="all, delete-orphan")
+    conversations = db.relationship("Conversation", backref="church", lazy=True,
                                     cascade="all, delete-orphan")
 
 

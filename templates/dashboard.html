@@ -56,6 +56,30 @@
       flex-shrink: 0;
     }
     .logout-btn:hover { color: var(--sidebar-text-hi); background: var(--sidebar-hover); }
+
+    /* Conversations list */
+    .sidebar-convs { flex: 1; overflow-y: auto; min-height: 0; }
+    #convList { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+    .conv-item {
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 8px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--sidebar-text);
+      font-size: 0.78rem;
+      font-family: var(--font);
+      transition: background 0.12s, color 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .conv-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text-hi); }
+    .conv-item.active { background: var(--sidebar-active, rgba(255,255,255,0.12)); color: var(--sidebar-text-hi); font-weight: 600; }
+    .conv-title { pointer-events: none; }
   </style>
 </head>
 <body>
@@ -89,10 +113,10 @@
 
         <div class="sidebar-divider"></div>
 
-        <!-- Recent conversations placeholder -->
-        <div class="sidebar-section">
+        <!-- Recent conversations -->
+        <div class="sidebar-section sidebar-convs">
           <div class="sidebar-label">Recent Conversations</div>
-          <div class="doc-empty">Coming soon…</div>
+          <div id="convList"></div>
         </div>
 
         <!-- Footer: Refresh + Sign out -->
