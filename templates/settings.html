@@ -7,6 +7,12 @@
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     /* ── Settings page layout ── */
+    /* style.css locks html+body to overflow:hidden for the chat page;
+       reset both here so the settings page scrolls normally. */
+    html {
+      height: auto;
+      overflow: visible;
+    }
     body.settings-page {
       overflow-y: auto;
       height: auto;
