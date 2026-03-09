@@ -118,6 +118,12 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN church_city VARCHAR(200)"))
             conn2.commit()
             print("Migration: added churches.church_city")
+        if "onboarding_complete" not in existing_cols2:
+            # DEFAULT 1 so all *existing* churches are treated as already onboarded;
+            # new churches created via SQLAlchemy use the model default (False).
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT 1"))
+            conn2.commit()
+            print("Migration: added churches.onboarding_complete")
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
@@ -448,6 +454,8 @@ def logout():
 @login_required
 def chat_page():
     church = current_user.church
+    if not church.onboarding_complete:
+        return redirect(url_for("onboarding_page"))
     return render_template(
         "dashboard.html",
         church_name=church.name,
@@ -456,6 +464,41 @@ def chat_page():
         welcome_message=church.welcome_message or "How can I help you today?",
         primary_color=church.primary_color or "#0a3d3d",
     )
+
+
+# ── Onboarding wizard ─────────────────────────────────────────────────────────
+
+
+@app.route("/onboarding")
+@login_required
+def onboarding_page():
+    if current_user.church.onboarding_complete:
+        return redirect(url_for("chat_page"))
+    church = current_user.church
+    return render_template(
+        "onboarding.html",
+        church_name=church.name,
+        church_id=church.id,
+    )
+
+
+@app.route("/api/onboarding/step1", methods=["POST"])
+@login_required
+def onboarding_step1():
+    """Save church name + city and mark onboarding complete."""
+    data = request.get_json(silent=True) or {}
+    church_name = (data.get("church_name") or "").strip()
+    church_city = (data.get("church_city") or "").strip()
+
+    if not church_name:
+        return jsonify({"error": "Church name cannot be empty."}), 400
+
+    church = current_user.church
+    church.name = church_name[:200]
+    church.church_city = church_city[:200] if church_city else None
+    church.onboarding_complete = True
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 # ── Dashboard (management) ────────────────────────────────────────────────────

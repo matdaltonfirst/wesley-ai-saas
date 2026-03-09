@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome — Wesley AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    /* Reset overflow — style.css locks html+body for the chat page */
+    html { height: auto; overflow: visible; }
+
+    body {
+      height: auto;
+      overflow-y: auto;
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px 64px;
+    }
+
+    /* ── Wizard shell ── */
+    .wizard { max-width: 520px; width: 100%; }
+
+    .wizard-brand {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .wizard-logo { height: 38px; }
+
+    /* ── Progress indicator ── */
+    .wizard-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 28px;
+    }
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background 0.25s;
+    }
+    .step-dot.active { background: var(--accent); }
+    .step-dot.done   { background: var(--accent); opacity: 0.4; }
+    .step-line {
+      flex: 1;
+      max-width: 72px;
+      height: 2px;
+      background: var(--border);
+      transition: background 0.25s, opacity 0.25s;
+    }
+    .step-line.done { background: var(--accent); opacity: 0.4; }
+
+    /* ── Card ── */
+    .wizard-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 36px 32px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.07);
+    }
+
+    /* ── Step panels ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    .step-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .step-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.025em;
+      margin: 0 0 8px;
+      line-height: 1.25;
+    }
+    .step-sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin: 0 0 26px;
+    }
+
+    /* ── Form fields ── */
+    .field-group { display: flex; flex-direction: column; gap: 18px; margin-bottom: 6px; }
+    .field-row   { display: flex; flex-direction: column; gap: 5px; }
+    .field-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .field-input {
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      padding: 11px 14px;
+      font-size: 0.92rem;
+      font-family: var(--font);
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .field-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(10,61,61,0.08);
+    }
+    .field-input::placeholder { color: #94a3b8; }
+
+    /* ── Status line ── */
+    .step-status {
+      font-size: 0.8rem;
+      min-height: 18px;
+      margin: 14px 0 20px;
+      line-height: 1.5;
+    }
+    .step-status.ok  { color: #059669; }
+    .step-status.err { color: #dc2626; }
+
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .btn-row.spread { justify-content: space-between; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      padding: 11px 26px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: filter 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover:not(:disabled) { filter: brightness(0.88); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: none;
+      color: var(--text-muted);
+      border: none;
+      padding: 11px 14px;
+      font-size: 0.88rem;
+      font-family: var(--font);
+      cursor: pointer;
+      border-radius: 9px;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-ghost:hover { color: var(--text); background: var(--surface); }
+
+    .btn-outline {
+      background: none;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 9px;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-outline:hover { background: #e8f7f8; }
+
+    /* ── Step 2 crawl status ── */
+    .crawl-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      min-height: 20px;
+    }
+    .crawl-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+      display: none;
+    }
+    .crawl-spinner.visible { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .step2-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0 20px;
+    }
+
+    /* ── Step 3 success ── */
+    .success-icon {
+      font-size: 2.6rem;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .embed-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 9px;
+      color: #8ecdd2;
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      font-size: 0.77rem;
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: pre;
+      cursor: default;
+      user-select: all;
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .embed-copy-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 28px;
+    }
+    .btn-copy {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 7px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-copy:hover { background: #e8f7f8; color: var(--accent); border-color: var(--accent); }
+
+    .step3-cta-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 560px) {
+      .wizard-card { padding: 28px 22px 24px; }
+      .step-title  { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="wizard">
+
+    <!-- Logo -->
+    <div class="wizard-brand">
+      <img src="/static/WesleyAI.png" alt="Wesley AI" class="wizard-logo" />
+    </div>
+
+    <!-- Progress dots -->
+    <div class="wizard-steps">
+      <div class="step-dot active" id="dot1"></div>
+      <div class="step-line"       id="line1"></div>
+      <div class="step-dot"        id="dot2"></div>
+      <div class="step-line"       id="line2"></div>
+      <div class="step-dot"        id="dot3"></div>
+    </div>
+
+    <div class="wizard-card">
+
+      <!-- ── Step 1: Church details ── -->
+      <div class="step-panel active" id="step1">
+        <div class="step-label">Step 1 of 3</div>
+        <h1 class="step-title">Tell us about your church</h1>
+        <p class="step-sub">This helps Wesley introduce itself properly to your congregation.</p>
+
+        <div class="field-group">
+          <div class="field-row">
+            <label class="field-label" for="churchName">Church name</label>
+            <input
+              type="text"
+              id="churchName"
+              class="field-input"
+              placeholder="First United Methodist Church"
+              value="{{ church_name }}"
+              maxlength="200"
+              autocomplete="organization"
+            />
+          </div>
+          <div class="field-row">
+            <label class="field-label" for="churchCity">City</label>
+            <input
+              type="text"
+              id="churchCity"
+              class="field-input"
+              placeholder="e.g. Nashville, TN"
+              maxlength="200"
+              autocomplete="address-level2"
+            />
+          </div>
+        </div>
+
+        <div class="step-status" id="step1Status"></div>
+        <div class="btn-row">
+          <button class="btn-primary" id="step1Next">Next →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Website chatbot ── -->
+      <div class="step-panel" id="step2">
+        <div class="step-label">Step 2 of 3</div>
+        <h1 class="step-title">Set up your website chatbot</h1>
+        <p class="step-sub">Enter your church website URL and Wesley will crawl it so visitors can get answers straight from your site. You can always do this later.</p>
+
+        <div class="field-group">
+          <div class="field-row">
+            <label class="field-label" for="websiteUrl">Church website URL</label>
+            <input
+              type="url"
+              id="websiteUrl"
+              class="field-input"
+              placeholder="https://yourchurch.org"
+              autocomplete="url"
+              spellcheck="false"
+            />
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top: 4px;">
+          <button class="btn-primary" id="crawlStartBtn">Start Crawl</button>
+        </div>
+
+        <div class="crawl-status-row">
+          <div class="crawl-spinner" id="crawlSpinner"></div>
+          <span id="crawlStatusText"></span>
+        </div>
+
+        <hr class="step2-divider" />
+
+        <div class="btn-row spread">
+          <button class="btn-ghost" id="step2Skip">Skip this step</button>
+          <button class="btn-primary" id="step2Continue" style="display:none">Continue →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 3: All set ── -->
+      <div class="step-panel" id="step3">
+        <div class="success-icon">🎉</div>
+        <div class="step-label">Step 3 of 3</div>
+        <h1 class="step-title">You're all set!</h1>
+        <p class="step-sub">Add this snippet to your church website to embed the chatbot widget anywhere on your site. You can always grab it later from your Dashboard.</p>
+
+        <div class="embed-block" id="embedCodeBlock"></div>
+        <div class="embed-copy-row">
+          <button class="btn-copy" id="copyEmbedBtn">Copy code</button>
+        </div>
+
+        <div class="step3-cta-row">
+          <button class="btn-outline" onclick="window.location.href='/dashboard'">Go to Dashboard</button>
+          <button class="btn-primary" onclick="window.location.href='/'">Start chatting →</button>
+        </div>
+      </div>
+
+    </div><!-- /.wizard-card -->
+  </div><!-- /.wizard -->
+
+  <script>
+  (function () {
+    const CHURCH_ID = {{ church_id }};
+
+    // ── Progress helpers ────────────────────────────────────────────────────
+    function goToStep(n) {
+      [1, 2, 3].forEach(i => {
+        document.getElementById(`step${i}`).classList.toggle("active", i === n);
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.remove("active", "done");
+        if (i < n)      dot.classList.add("done");
+        else if (i === n) dot.classList.add("active");
+      });
+      if (n >= 2) document.getElementById("line1").classList.add("done");
+      else        document.getElementById("line1").classList.remove("done");
+      if (n >= 3) document.getElementById("line2").classList.add("done");
+      else        document.getElementById("line2").classList.remove("done");
+    }
+
+    function setStatus(elId, msg, type) {
+      const el = document.getElementById(elId);
+      el.textContent = msg;
+      el.className = "step-status" + (type ? " " + type : "");
+    }
+
+    // ── Step 1: Save church name + city ────────────────────────────────────
+    document.getElementById("step1Next").addEventListener("click", async () => {
+      const name = document.getElementById("churchName").value.trim();
+      const city = document.getElementById("churchCity").value.trim();
+
+      if (!name) {
+        setStatus("step1Status", "Church name is required.", "err");
+        document.getElementById("churchName").focus();
+        return;
+      }
+
+      const btn = document.getElementById("step1Next");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      setStatus("step1Status", "", "");
+
+      try {
+        const res  = await fetch("/api/onboarding/step1", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ church_name: name, church_city: city }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setStatus("step1Status", data.error || "Save failed.", "err");
+          return;
+        }
+        goToStep(2);
+      } catch {
+        setStatus("step1Status", "Network error. Please try again.", "err");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Next →";
+      }
+    });
+
+    // Enter key on step-1 fields advances
+    ["churchName", "churchCity"].forEach(id => {
+      document.getElementById(id).addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); document.getElementById("step1Next").click(); }
+      });
+    });
+
+    // ── Step 2: Save URL + crawl ────────────────────────────────────────────
+    function showSpinner(on) {
+      document.getElementById("crawlSpinner").classList.toggle("visible", on);
+    }
+
+    function setCrawlMsg(msg, ok) {
+      const el = document.getElementById("crawlStatusText");
+      el.textContent = msg;
+      el.style.color = ok ? "#059669" : (msg ? "#dc2626" : "");
+    }
+
+    document.getElementById("crawlStartBtn").addEventListener("click", async () => {
+      const url = document.getElementById("websiteUrl").value.trim();
+      if (!url) {
+        setCrawlMsg("Please enter a URL first.", false);
+        document.getElementById("websiteUrl").focus();
+        return;
+      }
+
+      const btn = document.getElementById("crawlStartBtn");
+      btn.disabled = true;
+      showSpinner(true);
+      setCrawlMsg("Saving URL…", false);
+
+      try {
+        // 1. Save the URL
+        const saveRes = await fetch("/api/church/settings", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ website_url: url }),
+        });
+        if (!saveRes.ok) {
+          const d = await saveRes.json();
+          setCrawlMsg(d.error || "Failed to save URL.", false);
+          return;
+        }
+
+        // 2. Fire the crawl
+        setCrawlMsg("Starting crawl…", false);
+        const crawlRes  = await fetch("/api/church/crawl", { method: "POST" });
+        const crawlData = await crawlRes.json();
+        if (crawlRes.ok) {
+          setCrawlMsg("✓ Crawl started! Indexing runs in the background.", true);
+          document.getElementById("step2Continue").style.display = "";
+        } else {
+          setCrawlMsg(crawlData.error || "Crawl failed to start.", false);
+        }
+      } catch {
+        setCrawlMsg("Network error. Please try again.", false);
+      } finally {
+        showSpinner(false);
+        btn.disabled = false;
+      }
+    });
+
+    function advanceToStep3() {
+      goToStep(3);
+      // Render embed snippet
+      const snippet = `<script src="https://app.wesleyai.co/widget.js" data-church-id="${CHURCH_ID}"><\/script>`;
+      document.getElementById("embedCodeBlock").textContent = snippet;
+    }
+
+    document.getElementById("step2Skip").addEventListener("click", advanceToStep3);
+    document.getElementById("step2Continue").addEventListener("click", advanceToStep3);
+
+    // ── Step 3: Copy embed code ─────────────────────────────────────────────
+    document.getElementById("copyEmbedBtn").addEventListener("click", async () => {
+      const snippet = document.getElementById("embedCodeBlock").textContent;
+      const btn     = document.getElementById("copyEmbedBtn");
+      try {
+        await navigator.clipboard.writeText(snippet);
+        btn.textContent = "Copied!";
+      } catch {
+        const range = document.createRange();
+        range.selectNode(document.getElementById("embedCodeBlock"));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        btn.textContent = "Selected";
+      }
+      setTimeout(() => { btn.textContent = "Copy code"; }, 2000);
+    });
+
+  })();
+  </script>
+</body>
+</html>
