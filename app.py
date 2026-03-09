@@ -5,6 +5,7 @@ import threading
 from datetime import timedelta
 from pathlib import Path
 
+import click
 from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -82,6 +83,7 @@ def is_super_admin() -> bool:
 
 with app.app_context():
     db.create_all()
+    print("db.create_all() completed — all tables present.")
 
     # Inline migration: add Phase 2 columns to existing churches table if absent
     insp = sa_inspect(db.engine)
@@ -104,6 +106,20 @@ with app.app_context():
         db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
         db.session.commit()
         print("System prompt seeded with default.")
+
+# ── Flask CLI commands ────────────────────────────────────────────────────────
+
+
+@app.cli.command("init-db")
+def init_db_command():
+    """Explicitly create all database tables. Safe to run on an existing DB."""
+    db.create_all()
+    click.echo("init-db: all tables created (or already exist).")
+    # Report which tables are present
+    from sqlalchemy import inspect as sa_inspect2
+    tables = sa_inspect2(db.engine).get_table_names()
+    click.echo(f"init-db: tables in DB → {', '.join(sorted(tables))}")
+
 
 # ── API key validation ────────────────────────────────────────────────────────
 
