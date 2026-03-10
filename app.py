@@ -982,6 +982,18 @@ def trigger_crawl():
     return jsonify({"ok": True, "message": "Crawl started in the background."})
 
 
+# ── Test helpers (remove before production) ───────────────────────────────────
+
+
+@app.route("/test-expire")
+@login_required
+def test_expire():
+    """DEV ONLY — sets trial_ends_at to yesterday so the paywall can be tested."""
+    current_user.church.trial_ends_at = datetime.utcnow() - timedelta(days=1)
+    db.session.commit()
+    return "Trial expired. <a href='/'>Go to /</a> to see the paywall."
+
+
 # ── Stripe billing ────────────────────────────────────────────────────────────
 
 
