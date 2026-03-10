@@ -78,6 +78,8 @@ class Church(db.Model):
                                     cascade="all, delete-orphan")
     conversations = db.relationship("Conversation", backref="church", lazy=True,
                                     cascade="all, delete-orphan")
+    widget_conversations = db.relationship("WidgetConversation", backref="church", lazy=True,
+                                           cascade="all, delete-orphan")
 
 
 class User(UserMixin, db.Model):
@@ -112,3 +114,33 @@ class CrawledPage(db.Model):
     __table_args__ = (
         db.UniqueConstraint("church_id", "url", name="uq_church_url"),
     )
+
+
+class WidgetConversation(db.Model):
+    """A visitor conversation started from the embeddable website widget."""
+    __tablename__ = "widget_conversations"
+    id = db.Column(db.Integer, primary_key=True)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    # Random UUID generated on the visitor's first message; groups messages
+    # belonging to one browser session together.
+    session_id = db.Column(db.String(64), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = db.relationship(
+        "WidgetMessage", backref="widget_conversation", lazy=True,
+        cascade="all, delete-orphan",
+        order_by="WidgetMessage.created_at",
+    )
+
+
+class WidgetMessage(db.Model):
+    """A single message inside a WidgetConversation."""
+    __tablename__ = "widget_messages"
+    id = db.Column(db.Integer, primary_key=True)
+    widget_conversation_id = db.Column(
+        db.Integer, db.ForeignKey("widget_conversations.id"), nullable=False
+    )
+    role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

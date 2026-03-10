@@ -160,9 +160,13 @@
   document.body.appendChild(panel);
 
   // ── State ─────────────────────────────────────────────────────────────────
-  var isOpen   = false;
-  var isBusy   = false;
-  var history  = [];  // [{role:"user"|"assistant", content:"..."}]
+  var isOpen    = false;
+  var isBusy    = false;
+  // session_id groups all messages from this browser session into one
+  // WidgetConversation on the server. Stored in sessionStorage so it
+  // survives same-tab page navigations but resets when the tab is closed.
+  var SESSION_KEY = "wai_session_" + CHURCH_ID;
+  var sessionId   = sessionStorage.getItem(SESSION_KEY) || null;
 
   var msgsEl  = document.getElementById("wai-msgs");
   var inputEl = document.getElementById("wai-input");
@@ -279,15 +283,13 @@
     appendUser(text);
     showTyping();
 
-    var historySnap = history.slice();
-
     fetch(API_BASE + "/api/widget/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        church_id: CHURCH_ID,
-        question:  text,
-        history:   historySnap,
+        church_id:  CHURCH_ID,
+        question:   text,
+        session_id: sessionId,
       }),
     })
       .then(function (res) {
@@ -304,8 +306,11 @@
         } else {
           var answer = result.data.answer || "";
           appendBot(renderMd(answer));
-          history.push({ role: "user",      content: text });
-          history.push({ role: "assistant", content: answer });
+          // Persist the session_id returned by the server for subsequent messages
+          if (result.data.session_id) {
+            sessionId = result.data.session_id;
+            sessionStorage.setItem(SESSION_KEY, sessionId);
+          }
         }
       })
       .catch(function () {

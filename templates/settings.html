@@ -366,6 +366,112 @@
       justify-content: flex-end;
       margin-top: 20px;
     }
+
+    /* ── Website Conversations card ── */
+    .wconv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 48px;
+    }
+
+    .wconv-empty {
+      padding: 20px 12px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      text-align: center;
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+    }
+
+    .wconv-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .wconv-item:hover { border-color: var(--border-focus); }
+
+    .wconv-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .wconv-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .wconv-preview {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.875rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wconv-count {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .wconv-chevron {
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: transform 0.18s;
+      font-size: 0.7rem;
+    }
+    .wconv-item.wconv-open .wconv-chevron { transform: rotate(90deg); }
+
+    .wconv-thread {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 12px 14px;
+      border-top: 1px solid var(--border);
+    }
+    .wconv-item.wconv-open .wconv-thread { display: flex; }
+
+    .wconv-msg {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .wconv-msg-role {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    .wconv-msg-role.user  { color: var(--accent); }
+    .wconv-msg-role.assistant { color: #64748b; }
+    .wconv-msg-content {
+      font-size: 0.875rem;
+      color: var(--text);
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .wconv-loading {
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body class="settings-page">
@@ -528,6 +634,23 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- Website Conversations card -->
+      <section class="settings-card">
+        <div class="settings-card-header">
+          <h2 class="settings-card-title">Website Conversations</h2>
+          <button class="refresh-btn-sm" id="wconvRefreshBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+        <div class="wconv-list" id="wconvList">
+          <div class="wconv-empty">Loading…</div>
+        </div>
       </section>
 
     </div><!-- /.settings-content -->

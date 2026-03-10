@@ -21,7 +21,7 @@ from docx import Document as DocxDocument
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message
+from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message, WidgetConversation, WidgetMessage
 
 load_dotenv()
 
@@ -393,12 +393,25 @@ def nightly_cleanup_job():
         for conv in old_convs:
             db.session.delete(conv)
         db.session.commit()
-        print(f"Nightly cleanup: deleted {count} conversation(s) older than 14 days.")
+        print(f"Nightly cleanup: deleted {count} staff conversation(s) older than 14 days.")
+
+
+def nightly_widget_cleanup_job():
+    """Delete widget conversations (and their messages) older than 30 days."""
+    with app.app_context():
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        old = WidgetConversation.query.filter(WidgetConversation.updated_at < cutoff).all()
+        count = len(old)
+        for wconv in old:
+            db.session.delete(wconv)
+        db.session.commit()
+        print(f"Nightly widget cleanup: deleted {count} widget conversation(s) older than 30 days.")
 
 
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
 scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
+scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
 if not scheduler.running:
     scheduler.start()
 
@@ -779,6 +792,52 @@ def get_conversation_messages(conv_id):
     })
 
 
+# ── Widget Conversations API (staff dashboard) ────────────────────────────────
+
+
+@app.route("/api/widget/conversations")
+@login_required
+def list_widget_conversations():
+    wconvs = (
+        WidgetConversation.query
+        .filter_by(church_id=current_user.church_id)
+        .order_by(WidgetConversation.updated_at.desc())
+        .all()
+    )
+    result = []
+    for wc in wconvs:
+        # First user message as a preview
+        first_msg = next((m for m in wc.messages if m.role == "user"), None)
+        preview = (first_msg.content[:80] + "…") if first_msg and len(first_msg.content) > 80 else (first_msg.content if first_msg else "")
+        result.append({
+            "id": wc.id,
+            "session_id": wc.session_id,
+            "created_at": wc.created_at.isoformat(),
+            "updated_at": wc.updated_at.isoformat(),
+            "preview": preview,
+            "message_count": len(wc.messages),
+        })
+    return jsonify({"conversations": result})
+
+
+@app.route("/api/widget/conversations/<int:wconv_id>/messages")
+@login_required
+def get_widget_conversation_messages(wconv_id):
+    wconv = WidgetConversation.query.filter_by(
+        id=wconv_id, church_id=current_user.church_id
+    ).first()
+    if not wconv:
+        return jsonify({"error": "Widget conversation not found."}), 404
+    return jsonify({
+        "id": wconv.id,
+        "session_id": wconv.session_id,
+        "messages": [
+            {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+            for m in wconv.messages
+        ],
+    })
+
+
 # ── Church branding API ───────────────────────────────────────────────────────
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -886,7 +945,7 @@ def widget_chat():
     data = request.get_json(silent=True) or {}
     church_id_raw = data.get("church_id")
     question = (data.get("question") or "").strip()
-    history = data.get("history", [])
+    session_id = (data.get("session_id") or "").strip() or None
 
     def cors_err(msg, status=400):
         resp = jsonify({"error": msg})
@@ -905,6 +964,29 @@ def widget_chat():
     if not church:
         return cors_err("Church not found.", 404)
 
+    # Resolve or create the widget conversation for this session
+    wconv = None
+    if session_id:
+        wconv = WidgetConversation.query.filter_by(
+            church_id=church_id, session_id=session_id
+        ).first()
+    if not wconv:
+        session_id = uuid.uuid4().hex
+        wconv = WidgetConversation(church_id=church_id, session_id=session_id)
+        db.session.add(wconv)
+        db.session.flush()  # get wconv.id
+
+    # Save the user message
+    db.session.add(WidgetMessage(
+        widget_conversation_id=wconv.id, role="user", content=question
+    ))
+
+    # Build history from DB (all previous messages in this session)
+    history = [
+        {"role": m.role, "content": m.content}
+        for m in wconv.messages
+    ]
+
     # Use crawled web content ONLY — never staff documents
     web_chunks = load_church_web_content(church_id)
     context = ""
@@ -914,17 +996,33 @@ def widget_chat():
             context = build_context_block(scored)
 
     prompt_row = SystemPrompt.query.get(1)
-    system_instruction = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+    base_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+
+    # Inject church identity so the widget bot knows where it's installed
+    church_ctx = f"\n\nYou are installed at {church.name}"
+    if church.church_city:
+        church_ctx += f", located in {church.church_city}"
+    church_ctx += f". Your name is {church.bot_name or 'Wesley'}."
+    system_instruction = base_prompt + church_ctx
 
     try:
         answer = call_gemini(question, context, history, system_instruction)
     except ValueError as e:
+        db.session.rollback()
         return cors_err(str(e), 500)
     except Exception as e:
+        db.session.rollback()
         user_msg, status = _friendly_gemini_error(e)
         return cors_err(user_msg, status)
 
-    resp = jsonify({"answer": answer})
+    # Save the assistant message and touch updated_at
+    db.session.add(WidgetMessage(
+        widget_conversation_id=wconv.id, role="assistant", content=answer
+    ))
+    wconv.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    resp = jsonify({"answer": answer, "session_id": session_id})
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp
 

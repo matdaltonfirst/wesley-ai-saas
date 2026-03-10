@@ -297,6 +297,91 @@ botColorHex.addEventListener("input", () => {
   if (HEX_RE.test(v)) botColorPicker.value = v;
 });
 
+// ── Widget Conversations ───────────────────────────────────────────────────
+const wconvListEl    = document.getElementById("wconvList");
+const wconvRefreshBtn = document.getElementById("wconvRefreshBtn");
+
+function formatWconvDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7)  return `${diffDays}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+async function toggleWidgetConv(id, itemEl) {
+  const isOpen = itemEl.classList.contains("wconv-open");
+  if (isOpen) {
+    itemEl.classList.remove("wconv-open");
+    return;
+  }
+  itemEl.classList.add("wconv-open");
+
+  // Lazy-load messages on first open (thread div is empty)
+  const threadEl = itemEl.querySelector(".wconv-thread");
+  if (threadEl.dataset.loaded) return;
+  threadEl.dataset.loaded = "1";
+  threadEl.innerHTML = '<div class="wconv-loading">Loading…</div>';
+
+  try {
+    const res  = await fetch(`/api/widget/conversations/${id}/messages`);
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+    const msgs = data.messages || [];
+    if (!msgs.length) {
+      threadEl.innerHTML = '<div class="wconv-loading">No messages.</div>';
+      return;
+    }
+    threadEl.innerHTML = msgs.map(m => `
+      <div class="wconv-msg">
+        <div class="wconv-msg-role ${esc(m.role)}">${m.role === "user" ? "Visitor" : "Wesley"}</div>
+        <div class="wconv-msg-content">${esc(m.content)}</div>
+      </div>
+    `).join("");
+  } catch {
+    threadEl.innerHTML = '<div class="wconv-loading">Could not load messages.</div>';
+  }
+}
+
+async function loadWidgetConversations() {
+  wconvListEl.innerHTML = '<div class="wconv-empty">Loading…</div>';
+  try {
+    const res  = await fetch("/api/widget/conversations");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+    const convs = data.conversations || [];
+
+    if (!convs.length) {
+      wconvListEl.innerHTML = '<div class="wconv-empty">No visitor conversations yet. Once someone chats on your website, they\'ll appear here.</div>';
+      return;
+    }
+
+    wconvListEl.innerHTML = convs.map(c => `
+      <div class="wconv-item" data-id="${c.id}">
+        <div class="wconv-row">
+          <span class="wconv-date">${esc(formatWconvDate(c.updated_at))}</span>
+          <span class="wconv-preview">${esc(c.preview || "(no messages)")}</span>
+          <span class="wconv-count">${c.message_count} msg${c.message_count !== 1 ? "s" : ""}</span>
+          <span class="wconv-chevron">▶</span>
+        </div>
+        <div class="wconv-thread"></div>
+      </div>
+    `).join("");
+
+    wconvListEl.querySelectorAll(".wconv-item").forEach(itemEl => {
+      itemEl.querySelector(".wconv-row").addEventListener("click", () => {
+        toggleWidgetConv(parseInt(itemEl.dataset.id), itemEl);
+      });
+    });
+  } catch {
+    wconvListEl.innerHTML = '<div class="wconv-empty">Could not load conversations.</div>';
+  }
+}
+
 // ── Event listeners ────────────────────────────────────────────────────────
 refreshBtn.addEventListener("click", loadDocuments);
 websiteSaveBtn.addEventListener("click", saveWebsiteUrl);
@@ -306,8 +391,10 @@ websiteUrlEl.addEventListener("keydown", e => {
 crawlBtn.addEventListener("click", triggerCrawl);
 copyEmbedBtn.addEventListener("click", copyEmbedCode);
 botSaveBtn.addEventListener("click", saveBotSettings);
+wconvRefreshBtn.addEventListener("click", loadWidgetConversations);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadDocuments();
 loadWebsiteSettings();
 loadBotSettings();
+loadWidgetConversations();
