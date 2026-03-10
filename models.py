@@ -54,6 +54,24 @@ class Church(db.Model):
     # Onboarding
     onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Billing
+    trial_ends_at          = db.Column(db.DateTime, nullable=True)
+    stripe_subscription_id = db.Column(db.String(200), nullable=True)
+
+    @property
+    def is_active(self) -> bool:
+        """True while the trial is running OR an active Stripe subscription exists.
+        Treats trial_ends_at=None as active (safety — avoids accidental lockouts
+        if the column is somehow absent on a row).
+        """
+        if self.trial_ends_at is None:
+            return True
+        if self.trial_ends_at > datetime.utcnow():
+            return True
+        if self.stripe_subscription_id:
+            return True
+        return False
+
     users = db.relationship("User", backref="church", lazy=True)
     documents = db.relationship("Document", backref="church", lazy=True)
     crawled_pages = db.relationship("CrawledPage", backref="church", lazy=True,

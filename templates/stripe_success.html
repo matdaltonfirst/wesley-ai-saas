@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscribed — Wesley AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    html { height: auto; overflow: visible; }
+
+    body {
+      height: auto;
+      overflow-y: auto;
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+    }
+
+    .success-wrap {
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .success-brand { margin-bottom: 28px; }
+    .success-logo  { height: 36px; }
+
+    .success-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 40px 36px 36px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.07);
+    }
+
+    .check-circle {
+      width: 60px;
+      height: 60px;
+      background: #d1fae5;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 1.6rem;
+    }
+
+    .success-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.025em;
+      margin: 0 0 10px;
+    }
+
+    .success-sub {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin: 0 0 28px;
+    }
+
+    .success-btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 30px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: var(--font);
+      cursor: pointer;
+      text-decoration: none;
+      transition: filter 0.15s;
+    }
+    .success-btn:hover { filter: brightness(0.88); }
+  </style>
+</head>
+<body>
+
+  <div class="success-wrap">
+
+    <div class="success-brand">
+      <img src="/static/WesleyAI.png" alt="Wesley AI" class="success-logo" />
+    </div>
+
+    <div class="success-card">
+      <div class="check-circle">✓</div>
+      <h1 class="success-title">You're subscribed!</h1>
+      <p class="success-sub">
+        Welcome to Wesley AI. Your subscription is now active and your church's
+        AI assistant is ready to go.
+      </p>
+      <a href="/" class="success-btn">Start chatting →</a>
+    </div>
+
+  </div>
+
+</body>
+</html>

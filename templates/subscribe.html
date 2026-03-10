@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscribe — Wesley AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    html { height: auto; overflow: visible; }
+
+    body {
+      height: auto;
+      overflow-y: auto;
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px 72px;
+    }
+
+    .sub-wrap { max-width: 480px; width: 100%; }
+
+    /* Brand */
+    .sub-brand { text-align: center; margin-bottom: 28px; }
+    .sub-logo  { height: 38px; }
+
+    /* Trial banner */
+    .trial-banner {
+      text-align: center;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      padding: 10px 16px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      line-height: 1.5;
+    }
+    .trial-banner.expired {
+      background: #fff1f2;
+      border-color: #fecdd3;
+      color: #9f1239;
+    }
+    .trial-banner strong { color: #92400e; }
+    .trial-banner.expired strong { color: #9f1239; }
+
+    /* Card */
+    .sub-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 36px 36px 32px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.07);
+      text-align: center;
+    }
+
+    .founders-badge {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+
+    .sub-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.025em;
+      margin: 0 0 6px;
+    }
+    .sub-tagline {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0 0 28px;
+      line-height: 1.6;
+    }
+
+    /* Price */
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .price-currency {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1;
+      margin-top: 6px;
+    }
+    .price-amount {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+    .price-period {
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .price-note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    /* Divider */
+    .sub-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0 0 24px;
+    }
+
+    /* Feature list */
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 30px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .feature-check {
+      width: 18px;
+      height: 18px;
+      background: #d1fae5;
+      color: #059669;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* CTA */
+    .sub-btn {
+      display: block;
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 24px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: filter 0.15s;
+      margin-bottom: 12px;
+    }
+    .sub-btn:hover { filter: brightness(0.88); }
+    .sub-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .sub-fine {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .sub-fine a { color: var(--accent); text-decoration: none; }
+    .sub-fine a:hover { text-decoration: underline; }
+
+    /* Error */
+    .sub-error {
+      font-size: 0.82rem;
+      color: #dc2626;
+      margin-top: 10px;
+      min-height: 18px;
+      text-align: center;
+    }
+
+    @media (max-width: 520px) {
+      .sub-card { padding: 28px 22px 24px; }
+      .price-amount { font-size: 2.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sub-wrap">
+
+    <div class="sub-brand">
+      <img src="/static/WesleyAI.png" alt="Wesley AI" class="sub-logo" />
+    </div>
+
+    {% if days_left is not none and days_left > 0 %}
+    <div class="trial-banner">
+      Your free trial ends in <strong>{{ days_left }} day{{ 's' if days_left != 1 else '' }}</strong>.
+      Subscribe now to keep Wesley running for your congregation.
+    </div>
+    {% else %}
+    <div class="trial-banner expired">
+      <strong>Your free trial has ended.</strong>
+      Subscribe below to restore access.
+    </div>
+    {% endif %}
+
+    <div class="sub-card">
+      <div class="founders-badge">Founders Pricing</div>
+      <h1 class="sub-title">Wesley AI for Your Church</h1>
+      <p class="sub-tagline">An AI assistant trained on your church's own documents and website — available 24/7 for your staff and congregation.</p>
+
+      <div class="price-row">
+        <span class="price-currency">$</span>
+        <span class="price-amount">20</span>
+        <span class="price-period">/month</span>
+      </div>
+      <p class="price-note">Locked in for life as a founding church. Price will increase for new signups.</p>
+
+      <hr class="sub-divider" />
+
+      <ul class="feature-list">
+        <li>
+          <span class="feature-check">✓</span>
+          <span>AI chat trained on your church documents and website</span>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <span>Embeddable chatbot widget for your church website</span>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <span>Unlimited staff conversations</span>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <span>Upload PDFs, DOCX files, and crawl your website</span>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <span>Custom bot name, welcome message, and brand color</span>
+        </li>
+      </ul>
+
+      <form method="POST" action="/stripe/checkout" id="checkoutForm">
+        <button type="submit" class="sub-btn" id="subBtn">Subscribe Now →</button>
+      </form>
+      <div class="sub-error" id="subError"></div>
+
+      <p class="sub-fine">
+        No setup fees &nbsp;·&nbsp; Cancel anytime &nbsp;·&nbsp; Secured by Stripe<br />
+        Questions? <a href="mailto:info@wesleyai.co">info@wesleyai.co</a>
+      </p>
+    </div>
+
+  </div>
+
+  <script>
+    document.getElementById("checkoutForm").addEventListener("submit", function() {
+      const btn = document.getElementById("subBtn");
+      btn.disabled = true;
+      btn.textContent = "Redirecting to Stripe…";
+    });
+  </script>
+</body>
+</html>

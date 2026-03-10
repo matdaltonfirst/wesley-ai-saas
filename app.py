@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
+import stripe
 from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -23,6 +24,8 @@ from apscheduler.triggers.cron import CronTrigger
 from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message
 
 load_dotenv()
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -124,6 +127,26 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT 1"))
             conn2.commit()
             print("Migration: added churches.onboarding_complete")
+        if "trial_ends_at" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_ends_at DATETIME"))
+            conn2.commit()
+            print("Migration: added churches.trial_ends_at")
+        if "stripe_subscription_id" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_subscription_id VARCHAR(200)"))
+            conn2.commit()
+            print("Migration: added churches.stripe_subscription_id")
+
+    # Backfill trial_ends_at for any existing churches that don't have one yet.
+    # Gives them a 14-day grace window from the date this migration runs.
+    with db.engine.connect() as conn3:
+        trial_cutoff = datetime.utcnow() + timedelta(days=14)
+        result = conn3.execute(
+            text("UPDATE churches SET trial_ends_at = :ts WHERE trial_ends_at IS NULL"),
+            {"ts": trial_cutoff},
+        )
+        conn3.commit()
+        if result.rowcount:
+            print(f"Migration: set trial_ends_at for {result.rowcount} existing church(es)")
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
@@ -380,6 +403,28 @@ if not scheduler.running:
     scheduler.start()
 
 
+# ── Billing helpers ───────────────────────────────────────────────────────────
+
+# Email domains that are permanently exempt from billing checks.
+EXEMPT_DOMAINS = {"wesleyai.co", "daltonfumc.com"}
+
+
+def _is_billing_exempt(email: str) -> bool:
+    domain = email.split("@")[-1].lower()
+    return domain in EXEMPT_DOMAINS
+
+
+def _require_active():
+    """Return a redirect to /subscribe if the current church's billing has lapsed.
+    Returns None if the user may continue.  Exempt domains always pass through.
+    """
+    if _is_billing_exempt(current_user.email):
+        return None
+    if not current_user.church.is_active:
+        return redirect(url_for("subscribe_page"))
+    return None
+
+
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
 
@@ -411,7 +456,10 @@ def api_signup():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "An account with that email already exists."}), 400
 
-    church = Church(name=church_name)
+    church = Church(
+        name=church_name,
+        trial_ends_at=datetime.utcnow() + timedelta(days=14),
+    )
     db.session.add(church)
     db.session.flush()  # get church.id before commit
 
@@ -456,6 +504,9 @@ def chat_page():
     church = current_user.church
     if not church.onboarding_complete:
         return redirect(url_for("onboarding_page"))
+    check = _require_active()
+    if check:
+        return check
     return render_template(
         "dashboard.html",
         church_name=church.name,
@@ -507,6 +558,9 @@ def onboarding_step1():
 @app.route("/dashboard")
 @login_required
 def management_dashboard():
+    check = _require_active()
+    if check:
+        return check
     church = current_user.church
     return render_template(
         "settings.html",
@@ -926,6 +980,92 @@ def trigger_crawl():
     t.start()
 
     return jsonify({"ok": True, "message": "Crawl started in the background."})
+
+
+# ── Stripe billing ────────────────────────────────────────────────────────────
+
+
+@app.route("/subscribe")
+@login_required
+def subscribe_page():
+    church = current_user.church
+    days_left = None
+    if church.trial_ends_at and church.trial_ends_at > datetime.utcnow():
+        days_left = (church.trial_ends_at - datetime.utcnow()).days
+    return render_template("subscribe.html",
+                           user_email=current_user.email,
+                           days_left=days_left)
+
+
+@app.route("/stripe/checkout", methods=["POST"])
+@login_required
+def stripe_checkout():
+    price_id = os.getenv("STRIPE_MONTHLY_PRICE_ID")
+    if not price_id:
+        return "STRIPE_MONTHLY_PRICE_ID is not configured.", 500
+    if not stripe.api_key:
+        return "STRIPE_SECRET_KEY is not configured.", 500
+
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            customer_email=current_user.email,
+            client_reference_id=str(current_user.church_id),
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=url_for("stripe_success", _external=True),
+            cancel_url=url_for("subscribe_page", _external=True),
+        )
+        return redirect(session.url, code=303)
+    except stripe.StripeError as e:
+        return render_template("subscribe.html",
+                               user_email=current_user.email,
+                               days_left=None,
+                               stripe_error=getattr(e, "user_message", str(e)))
+
+
+@app.route("/stripe/success")
+@login_required
+def stripe_success():
+    return render_template("stripe_success.html")
+
+
+@app.route("/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    payload       = request.get_data()
+    sig_header    = request.headers.get("Stripe-Signature", "")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        return jsonify({"error": "Invalid payload"}), 400
+    except stripe.SignatureVerificationError:
+        return jsonify({"error": "Invalid signature"}), 400
+
+    etype = event["type"]
+
+    if etype == "checkout.session.completed":
+        sess       = event["data"]["object"]
+        church_ref = sess.get("client_reference_id")
+        sub_id     = sess.get("subscription")
+        if church_ref and sub_id:
+            church = Church.query.get(int(church_ref))
+            if church:
+                church.stripe_subscription_id = sub_id
+                db.session.commit()
+                print(f"Stripe webhook: church_id={church_ref} subscribed ({sub_id})")
+
+    elif etype == "customer.subscription.deleted":
+        sub    = event["data"]["object"]
+        sub_id = sub["id"]
+        church = Church.query.filter_by(stripe_subscription_id=sub_id).first()
+        if church:
+            church.stripe_subscription_id = None
+            db.session.commit()
+            print(f"Stripe webhook: subscription {sub_id} cancelled")
+
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
