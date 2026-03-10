@@ -94,6 +94,9 @@ class User(UserMixin, db.Model):
     church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Role: "admin" (church owner) or "staff" (invited member)
+    role = db.Column(db.String(20), nullable=False, default="admin")
+
     # Password reset
     reset_token         = db.Column(db.String(100), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
@@ -152,3 +155,14 @@ class WidgetMessage(db.Model):
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Invite(db.Model):
+    """A pending invitation for a staff member to join a church account."""
+    __tablename__ = "invites"
+    id         = db.Column(db.Integer, primary_key=True)
+    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    email      = db.Column(db.String(200), nullable=False)
+    token      = db.Column(db.String(100), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    accepted   = db.Column(db.Boolean, nullable=False, default=False)

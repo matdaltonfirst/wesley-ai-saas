@@ -382,6 +382,105 @@
     }
     .portal-btn:hover { filter: brightness(0.88); }
 
+    /* ── Team card ── */
+    .staff-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 48px;
+      margin-bottom: 16px;
+    }
+
+    .staff-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .staff-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+    .staff-avatar.pending-avatar {
+      background: #94a3b8;
+    }
+
+    .staff-info { flex: 1; min-width: 0; }
+    .staff-email {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .staff-meta {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .staff-role-badge {
+      font-size: 0.67rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .staff-role-badge.admin { background: #dcfce7; color: #166534; }
+    .staff-role-badge.staff { background: #dbeafe; color: #1e40af; }
+    .staff-role-badge.pending { background: #fef9c3; color: #854d0e; }
+
+    .staff-remove-btn {
+      background: none;
+      border: none;
+      color: var(--border);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      transition: color 0.15s, background 0.15s;
+    }
+    .staff-item:hover .staff-remove-btn { color: var(--text-muted); }
+    .staff-remove-btn:hover { color: #dc2626 !important; background: #fee2e2; }
+
+    .staff-empty {
+      padding: 20px 12px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      text-align: center;
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+    }
+
+    .staff-invite-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      margin-top: 4px;
+    }
+
     /* ── Website Conversations card ── */
     .wconv-list {
       display: flex;
@@ -669,6 +768,40 @@
       </section>
       {% endif %}
 
+      <!-- Team card — admin only -->
+      {% if user_role == 'admin' %}
+      <section class="settings-card">
+        <div class="settings-card-header">
+          <h2 class="settings-card-title">Team</h2>
+          <button class="refresh-btn-sm" id="staffRefreshBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="staff-list" id="staffList">
+          <div class="staff-empty">Loading…</div>
+        </div>
+
+        <!-- Invite form -->
+        <div class="staff-invite-row">
+          <input
+            type="email"
+            id="staffInviteEmail"
+            class="website-url-input"
+            placeholder="colleague@church.org"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="website-save-btn" id="staffInviteBtn">Send Invite</button>
+        </div>
+        <div class="website-status" id="staffInviteStatus"></div>
+      </section>
+      {% endif %}
+
       <!-- Website Conversations card -->
       <section class="settings-card">
         <div class="settings-card-header">
@@ -690,6 +823,119 @@
   </main>
 
   <script>window.CHURCH_ID = {{ church_id }};</script>
+  <script>
+  // ── Team card ─────────────────────────────────────────────────────────────
+  (function () {
+    const staffList    = document.getElementById('staffList');
+    const refreshBtn   = document.getElementById('staffRefreshBtn');
+    const inviteEmail  = document.getElementById('staffInviteEmail');
+    const inviteBtn    = document.getElementById('staffInviteBtn');
+    const inviteStatus = document.getElementById('staffInviteStatus');
+    if (!staffList) return; // not shown for staff role
+
+    function initials(email) {
+      return email.slice(0, 2).toUpperCase();
+    }
+
+    function renderStaff(staff, pendingInvites) {
+      staffList.innerHTML = '';
+      if (!staff.length && !pendingInvites.length) {
+        staffList.innerHTML = '<div class="staff-empty">No team members yet. Invite someone below.</div>';
+        return;
+      }
+      staff.forEach(function (u) {
+        const isCurrentUser = u.email === {{ user_email | tojson }};
+        const div = document.createElement('div');
+        div.className = 'staff-item';
+        div.innerHTML =
+          '<div class="staff-avatar">' + initials(u.email) + '</div>' +
+          '<div class="staff-info">' +
+            '<div class="staff-email">' + u.email + '</div>' +
+            '<div class="staff-meta">Joined ' + new Date(u.created_at).toLocaleDateString() + '</div>' +
+          '</div>' +
+          '<span class="staff-role-badge ' + u.role + '">' + u.role + '</span>' +
+          (u.role === 'staff'
+            ? '<button class="staff-remove-btn" data-id="' + u.id + '" title="Remove staff member">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+              '</button>'
+            : '<div style="width:24px;flex-shrink:0;"></div>');
+        staffList.appendChild(div);
+      });
+      pendingInvites.forEach(function (inv) {
+        const div = document.createElement('div');
+        div.className = 'staff-item';
+        div.innerHTML =
+          '<div class="staff-avatar pending-avatar">' + initials(inv.email) + '</div>' +
+          '<div class="staff-info">' +
+            '<div class="staff-email">' + inv.email + '</div>' +
+            '<div class="staff-meta">Invite sent ' + new Date(inv.created_at).toLocaleDateString() + '</div>' +
+          '</div>' +
+          '<span class="staff-role-badge pending">Pending</span>' +
+          '<div style="width:24px;flex-shrink:0;"></div>';
+        staffList.appendChild(div);
+      });
+
+      // Remove buttons
+      staffList.querySelectorAll('.staff-remove-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const uid = btn.dataset.id;
+          if (!confirm('Remove this staff member?')) return;
+          fetch('/api/staff/' + uid, { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.ok) loadStaff();
+              else alert(d.error || 'Could not remove staff member.');
+            });
+        });
+      });
+    }
+
+    function loadStaff() {
+      staffList.innerHTML = '<div class="staff-empty">Loading…</div>';
+      fetch('/api/staff')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderStaff(d.staff || [], d.pending_invites || []); })
+        .catch(function () { staffList.innerHTML = '<div class="staff-empty">Could not load team.</div>'; });
+    }
+
+    if (refreshBtn) refreshBtn.addEventListener('click', loadStaff);
+
+    if (inviteBtn) {
+      inviteBtn.addEventListener('click', function () {
+        const email = inviteEmail.value.trim();
+        if (!email) { inviteStatus.textContent = 'Please enter an email address.'; inviteStatus.className = 'website-status err'; return; }
+        inviteBtn.disabled = true;
+        inviteStatus.textContent = 'Sending…';
+        inviteStatus.className = 'website-status';
+        fetch('/api/staff/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            inviteBtn.disabled = false;
+            if (d.ok) {
+              inviteStatus.textContent = 'Invitation sent to ' + email + '.';
+              inviteStatus.className = 'website-status ok';
+              inviteEmail.value = '';
+              loadStaff();
+            } else {
+              inviteStatus.textContent = d.error || 'Could not send invitation.';
+              inviteStatus.className = 'website-status err';
+            }
+          })
+          .catch(function () {
+            inviteBtn.disabled = false;
+            inviteStatus.textContent = 'Network error. Please try again.';
+            inviteStatus.className = 'website-status err';
+          });
+      });
+    }
+
+    loadStaff();
+  })();
+  </script>
   <script src="/static/dashboard.js"></script>
 </body>
 </html>

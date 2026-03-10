@@ -24,7 +24,7 @@ from docx import Document as DocxDocument
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message, WidgetConversation, WidgetMessage
+from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message, WidgetConversation, WidgetMessage, Invite
 
 load_dotenv()
 
@@ -168,7 +168,7 @@ with app.app_context():
         if result.rowcount:
             print(f"Migration: set trial_ends_at for {result.rowcount} existing church(es)")
 
-    # Inline migration: add password-reset columns to users table
+    # Inline migration: add password-reset + role columns to users table
     insp_users = sa_inspect(db.engine)
     existing_user_cols = {c["name"] for c in insp_users.get_columns("users")}
     with db.engine.connect() as conn_u:
@@ -180,6 +180,11 @@ with app.app_context():
             conn_u.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME"))
             conn_u.commit()
             print("Migration: added users.reset_token_expires")
+        if "role" not in existing_user_cols:
+            # DEFAULT 'admin' so all existing users become admins
+            conn_u.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'"))
+            conn_u.commit()
+            print("Migration: added users.role")
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
@@ -472,10 +477,26 @@ def trial_reminder_job():
         print(f"Trial reminder job: sent {sent} reminder(s).")
 
 
+def invite_cleanup_job():
+    """Daily 4 AM job: delete unaccepted invites older than 7 days."""
+    with app.app_context():
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        old = Invite.query.filter(
+            Invite.accepted == False,  # noqa: E712
+            Invite.created_at < cutoff,
+        ).all()
+        count = len(old)
+        for invite in old:
+            db.session.delete(invite)
+        db.session.commit()
+        print(f"Invite cleanup: deleted {count} expired invite(s).")
+
+
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
 scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
 scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
+scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
 scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
 if not scheduler.running:
     scheduler.start()
@@ -853,6 +874,74 @@ def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
         print(f"Payment confirmation email failed for {to_email}: {exc}")
 
 
+def _send_invite_email(to_email: str, church_name: str, invite_url: str) -> None:
+    """Send a branded staff invitation email via Resend."""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+        <!-- Header -->
+        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
+          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">You've been invited to join {church_name}</h2>
+          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            A church admin has invited you to access <strong>{church_name}</strong>'s Wesley AI dashboard.
+          </p>
+          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Click the button below to set your password and activate your account.
+            This invitation link expires in <strong>7 days</strong>.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding-bottom:24px;">
+              <a href="{invite_url}"
+                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
+                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
+                Accept invitation →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
+            If you weren't expecting this invitation, you can safely ignore this email.
+          </p>
+          <p style="margin:0;font-size:0.78rem;color:#b0bec5;">
+            Or copy this URL into your browser:<br />
+            <span style="color:#29abb5;word-break:break-all;">{invite_url}</span>
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
+                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
+            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from": "Wesley AI <noreply@wesleyai.co>",
+            "to": [to_email],
+            "subject": f"You've been invited to join {church_name} on Wesley AI",
+            "html": html,
+        })
+    except Exception as exc:
+        print(f"Invite email failed for {to_email}: {exc}")
+
+
 @app.route("/forgot-password")
 def forgot_password_page():
     if current_user.is_authenticated:
@@ -983,6 +1072,9 @@ def onboarding_step1():
 @app.route("/dashboard")
 @login_required
 def management_dashboard():
+    # Staff members can only access the chat page
+    if current_user.role == "staff":
+        return redirect(url_for("chat_page"))
     check = _require_active()
     if check:
         return check
@@ -992,12 +1084,173 @@ def management_dashboard():
         church_name=church.name,
         church_id=current_user.church_id,
         user_email=current_user.email,
+        user_role=current_user.role,
         bot_name=church.bot_name or "Wesley",
         welcome_message=church.welcome_message or "How can I help you today?",
         primary_color=church.primary_color or "#0a3d3d",
         church_city=church.church_city or "",
         has_stripe_sub=bool(church.stripe_subscription_id),
     )
+
+
+# ── Staff management API ──────────────────────────────────────────────────────
+
+
+@app.route("/api/staff")
+@login_required
+def list_staff():
+    """Return all users belonging to the current church (admin only)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Forbidden."}), 403
+    users = (
+        User.query
+        .filter_by(church_id=current_user.church_id)
+        .order_by(User.created_at)
+        .all()
+    )
+    # Include pending (unaccepted) invites so the UI can show them too
+    pending = (
+        Invite.query
+        .filter_by(church_id=current_user.church_id, accepted=False)
+        .order_by(Invite.created_at)
+        .all()
+    )
+    return jsonify({
+        "staff": [
+            {"id": u.id, "email": u.email, "role": u.role, "created_at": u.created_at.isoformat()}
+            for u in users
+        ],
+        "pending_invites": [
+            {"id": inv.id, "email": inv.email, "created_at": inv.created_at.isoformat()}
+            for inv in pending
+        ],
+    })
+
+
+@app.route("/api/staff/invite", methods=["POST"])
+@login_required
+def invite_staff():
+    """Send a staff invitation email (admin only)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Forbidden."}), 403
+
+    data  = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+
+    if not email:
+        return jsonify({"error": "Email is required."}), 400
+
+    # Don't invite someone who already has an account at this church
+    existing = User.query.filter_by(email=email, church_id=current_user.church_id).first()
+    if existing:
+        return jsonify({"error": "A user with that email already exists on your team."}), 400
+
+    # Don't create a duplicate pending invite
+    dup = Invite.query.filter_by(
+        email=email, church_id=current_user.church_id, accepted=False
+    ).first()
+    if dup:
+        return jsonify({"error": "An invitation has already been sent to that email."}), 400
+
+    token  = secrets.token_urlsafe(32)
+    invite = Invite(
+        church_id=current_user.church_id,
+        email=email,
+        token=token,
+    )
+    db.session.add(invite)
+    db.session.commit()
+
+    invite_url = url_for("accept_invite_page", token=token, _external=True)
+    church_name = current_user.church.name
+    threading.Thread(
+        target=_send_invite_email,
+        args=(email, church_name, invite_url),
+        daemon=True,
+    ).start()
+
+    return jsonify({"ok": True}), 201
+
+
+@app.route("/api/staff/<int:user_id>", methods=["DELETE"])
+@login_required
+def remove_staff(user_id):
+    """Remove a staff user from the church (admin only; cannot remove admins or self)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Forbidden."}), 403
+
+    if user_id == current_user.id:
+        return jsonify({"error": "You cannot remove yourself."}), 400
+
+    user = User.query.filter_by(id=user_id, church_id=current_user.church_id).first()
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    if user.role == "admin":
+        return jsonify({"error": "Admin accounts cannot be removed via this endpoint."}), 400
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/invite/<token>")
+def accept_invite_page(token: str):
+    """Public invite acceptance page — validates token and renders invite.html."""
+    invite = Invite.query.filter_by(token=token, accepted=False).first()
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    token_valid = (
+        invite is not None
+        and invite.created_at >= cutoff
+    )
+    church_name = ""
+    if token_valid and invite:
+        church = Church.query.get(invite.church_id)
+        church_name = church.name if church else ""
+    return render_template(
+        "invite.html",
+        token=token,
+        token_valid=token_valid,
+        church_name=church_name,
+    )
+
+
+@app.route("/api/invite/accept", methods=["POST"])
+def api_accept_invite():
+    """Create a staff account from a valid invite token."""
+    data     = request.get_json(silent=True) or {}
+    token    = (data.get("token") or "").strip()
+    password = (data.get("password") or "").strip()
+    confirm  = (data.get("confirm") or "").strip()
+
+    if not token or not password or not confirm:
+        return jsonify({"error": "All fields are required."}), 400
+    if password != confirm:
+        return jsonify({"error": "Passwords do not match."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+
+    invite = Invite.query.filter_by(token=token, accepted=False).first()
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    if not invite or invite.created_at < cutoff:
+        return jsonify({"error": "This invitation link is invalid or has expired."}), 400
+
+    # Guard: email may already have an account (e.g. double-click)
+    if User.query.filter_by(email=invite.email).first():
+        return jsonify({"error": "An account with this email already exists. Please log in."}), 400
+
+    user = User(
+        email=invite.email,
+        password_hash=generate_password_hash(password, method="pbkdf2:sha256"),
+        church_id=invite.church_id,
+        role="staff",
+    )
+    db.session.add(user)
+    invite.accepted = True
+    db.session.commit()
+
+    login_user(user)
+    return jsonify({"ok": True})
 
 
 # ── Documents API ─────────────────────────────────────────────────────────────
