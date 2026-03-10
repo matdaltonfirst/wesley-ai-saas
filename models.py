@@ -57,6 +57,7 @@ class Church(db.Model):
     # Billing
     trial_ends_at          = db.Column(db.DateTime, nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)
+    stripe_customer_id     = db.Column(db.String(200), nullable=True)
     billing_exempt         = db.Column(db.Boolean, nullable=False, default=False)
     plan                   = db.Column(db.String(20), nullable=False, default="founders")
 

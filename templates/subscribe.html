@@ -46,6 +46,51 @@
     .trial-banner strong { color: #92400e; }
     .trial-banner.expired strong { color: #9f1239; }
 
+    /* ── Billing toggle ── */
+    .billing-toggle-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 20px;
+      background: #e8f5f6;
+      border: 1.5px solid #b5dfe2;
+      border-radius: 40px;
+      padding: 4px;
+    }
+    .toggle-opt {
+      padding: 8px 22px;
+      border-radius: 36px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      transition: background 0.18s, color 0.18s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+      white-space: nowrap;
+    }
+    .toggle-opt.active {
+      background: #fff;
+      color: #0c3d43;
+      box-shadow: 0 1px 6px rgba(12,61,67,0.12);
+    }
+    .save-badge {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 20px;
+    }
+
     /* Card */
     .sub-card {
       background: #fff;
@@ -89,7 +134,7 @@
       align-items: baseline;
       justify-content: center;
       gap: 4px;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .price-currency {
       font-size: 1.4rem;
@@ -104,6 +149,7 @@
       color: var(--text);
       letter-spacing: -0.04em;
       line-height: 1;
+      transition: opacity 0.15s;
     }
     .price-period {
       font-size: 1rem;
@@ -113,7 +159,15 @@
     .price-note {
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 28px;
+      margin-bottom: 6px;
+      min-height: 1.1em;
+    }
+    .price-saving {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #059669;
+      margin-bottom: 22px;
+      min-height: 1.1em;
     }
 
     /* Divider */
@@ -195,6 +249,7 @@
     @media (max-width: 520px) {
       .sub-card { padding: 28px 22px 24px; }
       .price-amount { font-size: 2.8rem; }
+      .toggle-opt { padding: 7px 14px; font-size: 0.82rem; }
     }
   </style>
 </head>
@@ -218,6 +273,16 @@
     </div>
     {% endif %}
 
+    <!-- Billing cycle toggle -->
+    <div class="billing-toggle-wrap" role="group" aria-label="Billing cycle">
+      <button type="button" class="toggle-opt active" id="btnMonthly" onclick="setCycle('monthly')">
+        Monthly
+      </button>
+      <button type="button" class="toggle-opt" id="btnAnnual" onclick="setCycle('annual')">
+        Annual <span class="save-badge">Save $24</span>
+      </button>
+    </div>
+
     <div class="sub-card">
       <div class="founders-badge">Founders Pricing</div>
       <h1 class="sub-title">Wesley AI for Your Church</h1>
@@ -225,10 +290,11 @@
 
       <div class="price-row">
         <span class="price-currency">$</span>
-        <span class="price-amount">20</span>
-        <span class="price-period">/month</span>
+        <span class="price-amount" id="priceAmount">20</span>
+        <span class="price-period" id="pricePeriod">/month</span>
       </div>
-      <p class="price-note">Locked in for life as a founding church. Price will increase for new signups.</p>
+      <p class="price-note" id="priceNote">Locked in for life as a founding church.</p>
+      <p class="price-saving" id="priceSaving"></p>
 
       <hr class="sub-divider" />
 
@@ -256,9 +322,10 @@
       </ul>
 
       <form method="POST" action="/stripe/checkout" id="checkoutForm">
-        <button type="submit" class="sub-btn" id="subBtn">Subscribe Now →</button>
+        <input type="hidden" name="billing_cycle" id="billingCycle" value="monthly" />
+        <button type="submit" class="sub-btn" id="subBtn">Subscribe Monthly →</button>
       </form>
-      <div class="sub-error" id="subError"></div>
+      <div class="sub-error" id="subError">{% if stripe_error %}{{ stripe_error }}{% endif %}</div>
 
       <p class="sub-fine">
         No setup fees &nbsp;·&nbsp; Cancel anytime &nbsp;·&nbsp; Secured by Stripe<br />
@@ -269,6 +336,36 @@
   </div>
 
   <script>
+    const MONTHLY = {
+      amount: "20",
+      period: "/month",
+      note:   "Locked in for life as a founding church.",
+      saving: "",
+      btn:    "Subscribe Monthly →",
+    };
+    const ANNUAL = {
+      amount: "216",
+      period: "/year",
+      note:   "$18/month — price will increase for new signups.",
+      saving: "Save $24 vs monthly billing",
+      btn:    "Subscribe Annually →",
+    };
+
+    function setCycle(cycle) {
+      const isAnnual = cycle === "annual";
+      const data = isAnnual ? ANNUAL : MONTHLY;
+
+      document.getElementById("billingCycle").value     = cycle;
+      document.getElementById("priceAmount").textContent = data.amount;
+      document.getElementById("pricePeriod").textContent = data.period;
+      document.getElementById("priceNote").textContent   = data.note;
+      document.getElementById("priceSaving").textContent = data.saving;
+      document.getElementById("subBtn").textContent      = data.btn;
+
+      document.getElementById("btnMonthly").classList.toggle("active", !isAnnual);
+      document.getElementById("btnAnnual").classList.toggle("active",   isAnnual);
+    }
+
     document.getElementById("checkoutForm").addEventListener("submit", function() {
       const btn = document.getElementById("subBtn");
       btn.disabled = true;

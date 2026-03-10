@@ -367,6 +367,21 @@
       margin-top: 20px;
     }
 
+    /* ── Manage Subscription card ── */
+    .portal-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 20px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 9px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: filter 0.15s;
+    }
+    .portal-btn:hover { filter: brightness(0.88); }
+
     /* ── Website Conversations card ── */
     .wconv-list {
       display: flex;
@@ -635,6 +650,24 @@
         </div>
 
       </section>
+
+      <!-- Manage Subscription card — only shown when an active Stripe sub exists -->
+      {% if has_stripe_sub %}
+      <section class="settings-card">
+        <div class="settings-card-header">
+          <h2 class="settings-card-title">Subscription</h2>
+        </div>
+        <p style="font-size:0.87rem;color:var(--text-muted);margin:0 0 18px;line-height:1.6;">
+          Update your payment method, download invoices, or cancel your subscription — all handled securely by Stripe.
+        </p>
+        <a href="/billing/portal" class="portal-btn">
+          Manage subscription
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px;">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </a>
+      </section>
+      {% endif %}
 
       <!-- Website Conversations card -->
       <section class="settings-card">

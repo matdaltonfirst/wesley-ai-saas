@@ -145,6 +145,10 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'founders'"))
             conn2.commit()
             print("Migration: added churches.plan")
+        if "stripe_customer_id" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_customer_id VARCHAR(200)"))
+            conn2.commit()
+            print("Migration: added churches.stripe_customer_id")
 
     # Backfill trial_ends_at for any existing churches that don't have one yet.
     # Gives them a 14-day grace window from the date this migration runs.
@@ -185,6 +189,9 @@ if not _api_key:
     print("WARNING: GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.")
 else:
     print(f"Gemini API key loaded ({_api_key[:8]}…)")
+
+if not os.getenv("STRIPE_ANNUAL_PRICE_ID"):
+    print("WARNING: STRIPE_ANNUAL_PRICE_ID is not set. Annual billing will not work.")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -597,6 +604,7 @@ def management_dashboard():
         welcome_message=church.welcome_message or "How can I help you today?",
         primary_color=church.primary_color or "#0a3d3d",
         church_city=church.church_city or "",
+        has_stripe_sub=bool(church.stripe_subscription_id),
     )
 
 
@@ -1258,17 +1266,42 @@ def subscribe_page():
 @app.route("/stripe/checkout", methods=["POST"])
 @login_required
 def stripe_checkout():
-    price_id = os.getenv("STRIPE_MONTHLY_PRICE_ID")
-    if not price_id:
-        return "STRIPE_MONTHLY_PRICE_ID is not configured.", 500
     if not stripe.api_key:
         return "STRIPE_SECRET_KEY is not configured.", 500
 
+    # Choose price based on billing cycle (monthly is default)
+    billing_cycle = request.form.get("billing_cycle", "monthly")
+    if billing_cycle == "annual":
+        price_id = os.getenv("STRIPE_ANNUAL_PRICE_ID")
+        if not price_id:
+            return "STRIPE_ANNUAL_PRICE_ID is not configured.", 500
+    else:
+        price_id = os.getenv("STRIPE_MONTHLY_PRICE_ID")
+        if not price_id:
+            return "STRIPE_MONTHLY_PRICE_ID is not configured.", 500
+
+    church = current_user.church
+
     try:
+        # Retrieve or create a Stripe Customer so the portal works later
+        customer_id = church.stripe_customer_id
+        if not customer_id:
+            existing = stripe.Customer.list(email=current_user.email, limit=1)
+            if existing.data:
+                customer_id = existing.data[0].id
+            else:
+                customer = stripe.Customer.create(
+                    email=current_user.email,
+                    metadata={"church_id": str(current_user.church_id)},
+                )
+                customer_id = customer.id
+            church.stripe_customer_id = customer_id
+            db.session.commit()
+
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
             mode="subscription",
-            customer_email=current_user.email,
+            customer=customer_id,
             client_reference_id=str(current_user.church_id),
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=url_for("stripe_success", _external=True),
@@ -1288,6 +1321,50 @@ def stripe_success():
     return render_template("stripe_success.html")
 
 
+@app.route("/billing/portal")
+@login_required
+def billing_portal():
+    """Redirect the logged-in church admin to the Stripe Customer Portal."""
+    if not stripe.api_key:
+        return "STRIPE_SECRET_KEY is not configured.", 500
+
+    church = current_user.church
+    customer_id = church.stripe_customer_id
+
+    # Fallback: look up the Stripe customer by email if we don't have the ID stored
+    if not customer_id:
+        try:
+            existing = stripe.Customer.list(email=current_user.email, limit=1)
+            if existing.data:
+                customer_id = existing.data[0].id
+                church.stripe_customer_id = customer_id
+                db.session.commit()
+        except stripe.StripeError:
+            pass
+
+    if not customer_id:
+        return render_template(
+            "subscribe.html",
+            user_email=current_user.email,
+            days_left=None,
+            stripe_error="No billing account found. Please subscribe first.",
+        )
+
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=url_for("management_dashboard", _external=True),
+        )
+        return redirect(portal_session.url, code=303)
+    except stripe.StripeError as e:
+        return render_template(
+            "subscribe.html",
+            user_email=current_user.email,
+            days_left=None,
+            stripe_error=getattr(e, "user_message", str(e)),
+        )
+
+
 @app.route("/stripe/webhook", methods=["POST"])
 def stripe_webhook():
     payload       = request.get_data()
@@ -1304,13 +1381,16 @@ def stripe_webhook():
     etype = event["type"]
 
     if etype == "checkout.session.completed":
-        sess       = event["data"]["object"]
-        church_ref = sess.get("client_reference_id")
-        sub_id     = sess.get("subscription")
+        sess        = event["data"]["object"]
+        church_ref  = sess.get("client_reference_id")
+        sub_id      = sess.get("subscription")
+        customer_id = sess.get("customer")
         if church_ref and sub_id:
             church = Church.query.get(int(church_ref))
             if church:
                 church.stripe_subscription_id = sub_id
+                if customer_id and not church.stripe_customer_id:
+                    church.stripe_customer_id = customer_id
                 db.session.commit()
                 print(f"Stripe webhook: church_id={church_ref} subscribed ({sub_id})")
 
