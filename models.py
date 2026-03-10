@@ -60,6 +60,7 @@ class Church(db.Model):
     stripe_customer_id     = db.Column(db.String(200), nullable=True)
     billing_exempt         = db.Column(db.Boolean, nullable=False, default=False)
     plan                   = db.Column(db.String(20), nullable=False, default="founders")
+    trial_reminder_sent    = db.Column(db.Boolean, nullable=False, default=False)
 
     @property
     def is_active(self) -> bool:

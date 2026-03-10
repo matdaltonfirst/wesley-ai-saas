@@ -151,6 +151,10 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_customer_id VARCHAR(200)"))
             conn2.commit()
             print("Migration: added churches.stripe_customer_id")
+        if "trial_reminder_sent" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"))
+            conn2.commit()
+            print("Migration: added churches.trial_reminder_sent")
 
     # Backfill trial_ends_at for any existing churches that don't have one yet.
     # Gives them a 14-day grace window from the date this migration runs.
@@ -443,10 +447,36 @@ def nightly_widget_cleanup_job():
         print(f"Nightly widget cleanup: deleted {count} widget conversation(s) older than 30 days.")
 
 
+def trial_reminder_job():
+    """Daily 9 AM job: email churches whose trial ends in 3–5 days (once only)."""
+    with app.app_context():
+        now  = datetime.utcnow()
+        low  = now + timedelta(days=3)
+        high = now + timedelta(days=5)
+        churches = Church.query.filter(
+            Church.trial_ends_at >= low,
+            Church.trial_ends_at <= high,
+            Church.trial_reminder_sent == False,  # noqa: E712
+            Church.stripe_subscription_id == None,  # noqa: E711
+            Church.billing_exempt == False,  # noqa: E712
+        ).all()
+        sent = 0
+        for church in churches:
+            first_user = User.query.filter_by(church_id=church.id).order_by(User.id).first()
+            if first_user:
+                _send_trial_expiring_email(first_user.email, church.name, church.trial_ends_at)
+            church.trial_reminder_sent = True
+            sent += 1
+        if churches:
+            db.session.commit()
+        print(f"Trial reminder job: sent {sent} reminder(s).")
+
+
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
 scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
 scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
+scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
 if not scheduler.running:
     scheduler.start()
 
@@ -523,6 +553,16 @@ def api_signup():
     db.session.commit()
 
     login_user(user)
+
+    # Fire welcome email in background (non-blocking)
+    _church_name     = church.name
+    _trial_ends_at   = church.trial_ends_at
+    threading.Thread(
+        target=_send_welcome_email,
+        args=(email, _church_name, _trial_ends_at),
+        daemon=True,
+    ).start()
+
     return jsonify({"ok": True}), 201
 
 
@@ -613,6 +653,204 @@ def _send_reset_email(to_email: str, reset_url: str) -> None:
         })
     except Exception as exc:
         print(f"Password reset email failed for {to_email}: {exc}")
+
+
+def _send_welcome_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
+    """Send a branded welcome email to a new signup via Resend."""
+    trial_date = trial_ends_at.strftime("%B %d, %Y")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+        <!-- Header -->
+        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
+          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Welcome to Wesley AI, {church_name}! 🎉</h2>
+          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            We're thrilled to have you on board. Wesley AI is your church's AI-powered assistant,
+            grounded in Wesleyan theology and ready to help your congregation any time of day.
+          </p>
+          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Your <strong>14-day free trial</strong> is active until <strong>{trial_date}</strong>.
+            No credit card required to get started — explore everything Wesley AI has to offer.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding-bottom:24px;">
+              <a href="https://app.wesleyai.co"
+                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
+                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
+                Go to your dashboard →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
+            Questions? Reply to this email or reach us at
+            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
+                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
+            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from": "Wesley AI <noreply@wesleyai.co>",
+            "to": [to_email],
+            "subject": f"Welcome to Wesley AI, {church_name}!",
+            "html": html,
+        })
+    except Exception as exc:
+        print(f"Welcome email failed for {to_email}: {exc}")
+
+
+def _send_trial_expiring_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
+    """Send a trial-expiring warning email (4 days before trial ends) via Resend."""
+    trial_date = trial_ends_at.strftime("%B %d, %Y")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+        <!-- Header -->
+        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
+          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Your free trial ends soon</h2>
+          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Hi {church_name}, your Wesley AI free trial expires on <strong>{trial_date}</strong> — just 4 days away.
+          </p>
+          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Subscribe now to keep Wesley AI active for your congregation. Plans start at
+            <strong>$20/month</strong> (or $216/year — save $24).
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding-bottom:24px;">
+              <a href="https://app.wesleyai.co/subscribe"
+                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
+                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
+                Subscribe now →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
+            Questions? Reply to this email or reach us at
+            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
+                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
+            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from": "Wesley AI <noreply@wesleyai.co>",
+            "to": [to_email],
+            "subject": "Your Wesley AI trial ends in 4 days",
+            "html": html,
+        })
+    except Exception as exc:
+        print(f"Trial expiring email failed for {to_email}: {exc}")
+
+
+def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
+    """Send a payment confirmation email after a successful Stripe checkout via Resend."""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+        <!-- Header -->
+        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
+          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Payment confirmed ✓</h2>
+          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Thank you, {church_name}! Your Wesley AI subscription is now active.
+          </p>
+          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            Your congregation now has full access to Wesley AI. You can manage your subscription
+            at any time from your account settings.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding-bottom:24px;">
+              <a href="https://app.wesleyai.co"
+                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
+                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
+                Go to your dashboard →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
+            Questions about your subscription? Reply to this email or reach us at
+            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
+                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
+            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from": "Wesley AI <noreply@wesleyai.co>",
+            "to": [to_email],
+            "subject": "Your Wesley AI subscription is active",
+            "html": html,
+        })
+    except Exception as exc:
+        print(f"Payment confirmation email failed for {to_email}: {exc}")
 
 
 @app.route("/forgot-password")
@@ -1547,6 +1785,17 @@ def stripe_webhook():
                     church.stripe_customer_id = customer_id
                 db.session.commit()
                 print(f"Stripe webhook: church_id={church_ref} subscribed ({sub_id})")
+
+                # Send payment confirmation email (get billing contact from first user)
+                first_user = User.query.filter_by(church_id=church.id).order_by(User.id).first()
+                if first_user:
+                    _cname = church.name
+                    _email = first_user.email
+                    threading.Thread(
+                        target=_send_payment_confirmation_email,
+                        args=(_email, _cname),
+                        daemon=True,
+                    ).start()
 
     elif etype == "customer.subscription.deleted":
         sub    = event["data"]["object"]
