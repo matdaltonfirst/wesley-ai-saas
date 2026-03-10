@@ -127,6 +127,26 @@
     }
     .switch-link a { color: var(--accent); text-decoration: none; font-weight: 500; }
     .switch-link a:hover { text-decoration: underline; }
+    .forgot-link {
+      text-align: right;
+      margin-top: -6px;
+      margin-bottom: 14px;
+      font-size: 0.8rem;
+    }
+    .forgot-link a { color: var(--accent); text-decoration: none; }
+    .forgot-link a:hover { text-decoration: underline; }
+    .success-banner {
+      background: #ecfdf5;
+      border: 1px solid #6ee7b7;
+      color: #065f46;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.84rem;
+      margin-bottom: 16px;
+      display: none;
+      line-height: 1.45;
+    }
+    .success-banner.visible { display: block; }
     @media (max-width: 480px) {
       .auth-card { padding: 28px 20px 24px; }
     }
@@ -146,6 +166,7 @@
 
     <!-- Login -->
     <div class="form-panel {% if mode == 'login' %}active{% endif %}" id="panelLogin">
+      <div class="success-banner" id="resetBanner">✓ Password updated — please sign in.</div>
       <div class="error-msg" id="loginError"></div>
       <div class="field">
         <label for="loginEmail">Email</label>
@@ -155,6 +176,7 @@
         <label for="loginPassword">Password</label>
         <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" />
       </div>
+      <div class="forgot-link"><a href="/forgot-password">Forgot password?</a></div>
       <button class="submit-btn" id="loginBtn">Sign In</button>
       <div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>
     </div>
@@ -181,6 +203,13 @@
   </div>
 
   <script>
+    // ── Show success banner after password reset ───────────────────────────────
+    if (new URLSearchParams(window.location.search).get("reset") === "1") {
+      document.getElementById("resetBanner").classList.add("visible");
+      // Clean the URL without reloading
+      history.replaceState(null, "", "/login");
+    }
+
     // ── Tab switching ─────────────────────────────────────────────────────────
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {

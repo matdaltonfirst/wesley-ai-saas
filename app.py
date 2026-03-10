@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import click
+import resend
 import stripe
 from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -28,6 +29,7 @@ from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conver
 load_dotenv()
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+resend.api_key = os.getenv("RESEND_API_KEY", "")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -162,6 +164,19 @@ with app.app_context():
         if result.rowcount:
             print(f"Migration: set trial_ends_at for {result.rowcount} existing church(es)")
 
+    # Inline migration: add password-reset columns to users table
+    insp_users = sa_inspect(db.engine)
+    existing_user_cols = {c["name"] for c in insp_users.get_columns("users")}
+    with db.engine.connect() as conn_u:
+        if "reset_token" not in existing_user_cols:
+            conn_u.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(100)"))
+            conn_u.commit()
+            print("Migration: added users.reset_token")
+        if "reset_token_expires" not in existing_user_cols:
+            conn_u.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME"))
+            conn_u.commit()
+            print("Migration: added users.reset_token_expires")
+
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
         db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
@@ -192,6 +207,9 @@ else:
 
 if not os.getenv("STRIPE_ANNUAL_PRICE_ID"):
     print("WARNING: STRIPE_ANNUAL_PRICE_ID is not set. Annual billing will not work.")
+
+if not os.getenv("RESEND_API_KEY"):
+    print("WARNING: RESEND_API_KEY is not set. Password reset emails will not be sent.")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -526,6 +544,142 @@ def api_login():
 def logout():
     logout_user()
     return redirect(url_for("login_page"))
+
+
+# ── Password reset ────────────────────────────────────────────────────────────
+
+
+def _send_reset_email(to_email: str, reset_url: str) -> None:
+    """Send a branded HTML password-reset email via Resend."""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+        <!-- Header -->
+        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
+          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Reset your password</h2>
+          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
+            We received a request to reset the password for your Wesley AI account.
+            Click the button below to choose a new password.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding-bottom:24px;">
+              <a href="{reset_url}"
+                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
+                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
+                Reset password →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
+            This link expires in <strong>1 hour</strong>. If you didn't request a password reset,
+            you can safely ignore this email — your password won't change.
+          </p>
+          <p style="margin:0;font-size:0.78rem;color:#b0bec5;">
+            Or copy this URL into your browser:<br />
+            <span style="color:#29abb5;word-break:break-all;">{reset_url}</span>
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
+                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
+            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from": "Wesley AI <noreply@wesleyai.co>",
+            "to": [to_email],
+            "subject": "Reset your Wesley AI password",
+            "html": html,
+        })
+    except Exception as exc:
+        print(f"Password reset email failed for {to_email}: {exc}")
+
+
+@app.route("/forgot-password")
+def forgot_password_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("chat_page"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+def api_forgot_password():
+    data  = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+
+    # Always return success to prevent email enumeration
+    if not email:
+        return jsonify({"ok": True})
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        token = secrets.token_urlsafe(32)
+        user.reset_token         = token
+        user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        db.session.commit()
+        reset_url = url_for("reset_password_page", token=token, _external=True)
+        _send_reset_email(user.email, reset_url)
+
+    return jsonify({"ok": True})
+
+
+@app.route("/reset-password/<token>")
+def reset_password_page(token: str):
+    if current_user.is_authenticated:
+        return redirect(url_for("chat_page"))
+    user = User.query.filter_by(reset_token=token).first()
+    token_valid = (
+        user is not None
+        and user.reset_token_expires is not None
+        and user.reset_token_expires > datetime.utcnow()
+    )
+    return render_template("reset_password.html", token=token, token_valid=token_valid)
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def api_reset_password():
+    data     = request.get_json(silent=True) or {}
+    token    = (data.get("token") or "").strip()
+    password = (data.get("password") or "").strip()
+    confirm  = (data.get("confirm") or "").strip()
+
+    if not token or not password or not confirm:
+        return jsonify({"error": "All fields are required."}), 400
+    if password != confirm:
+        return jsonify({"error": "Passwords do not match."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+
+    user = User.query.filter_by(reset_token=token).first()
+    if not user or user.reset_token_expires is None or user.reset_token_expires <= datetime.utcnow():
+        return jsonify({"error": "This reset link is invalid or has expired."}), 400
+
+    user.password_hash       = generate_password_hash(password, method="pbkdf2:sha256")
+    user.reset_token         = None
+    user.reset_token_expires = None
+    db.session.commit()
+
+    return jsonify({"ok": True})
 
 
 # ── Chat page (main interface) ────────────────────────────────────────────────

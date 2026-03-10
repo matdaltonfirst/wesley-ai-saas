@@ -93,6 +93,10 @@ class User(UserMixin, db.Model):
     church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Password reset
+    reset_token         = db.Column(db.String(100), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
+
 
 class Document(db.Model):
     __tablename__ = "documents"
