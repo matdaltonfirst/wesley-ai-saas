@@ -586,6 +586,34 @@
       font-size: 0.82rem;
       color: var(--text-muted);
     }
+
+    /* ── Responsive (≤ 768px) ─────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .settings-main { padding: 24px 16px 48px; }
+      .settings-card { padding: 20px; }
+    }
+
+    /* ── Responsive (≤ 480px) ─────────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .settings-main          { padding: 16px 12px 40px; }
+      .settings-card          { padding: 16px 14px; }
+      .settings-card-header   { flex-wrap: wrap; gap: 8px; }
+      .settings-page-title    { font-size: 1.2rem; }
+
+      /* Hide the user email in the nav — too wide to fit on a phone */
+      .top-nav-user           { display: none; }
+
+      /* Prevent iOS Safari from auto-zooming when tapping any input */
+      input,
+      .website-url-input      { font-size: 1rem; }
+
+      /* Stack the inline input + button rows so both are full-width */
+      .website-url-row,
+      .staff-invite-row       { flex-direction: column; align-items: stretch; }
+
+      .website-url-row  .website-save-btn,
+      .staff-invite-row .website-save-btn { width: 100%; }
+    }
   </style>
 </head>
 <body class="settings-page">
