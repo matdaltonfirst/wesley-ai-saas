@@ -29,6 +29,30 @@ const botSaveBtn     = document.getElementById("botSaveBtn");
 const botStatusEl    = document.getElementById("botStatus");
 
 // ── Document list ──────────────────────────────────────────────────────────
+function visibilityBadgeHTML(visibility) {
+  if (visibility === "staff_and_chatbot") {
+    return `<span class="doc-visibility-badge staff-chatbot">Staff + Chatbot</span>`;
+  }
+  return `<span class="doc-visibility-badge staff-only">Staff only</span>`;
+}
+
+function visibilityToggleHTML(id, visibility) {
+  const isPublic = visibility === "staff_and_chatbot";
+  return `
+    <button class="doc-visibility-toggle ${isPublic ? "is-public" : ""}"
+            data-id="${id}"
+            data-visibility="${esc(visibility)}"
+            title="${isPublic ? "Click to restrict to staff only" : "Click to also share with chatbot"}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        ${isPublic
+          ? `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`
+          : `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`
+        }
+      </svg>
+    </button>
+  `;
+}
+
 async function loadDocuments() {
   docList.innerHTML = '<div class="doc-empty-full">Loading…</div>';
   try {
@@ -49,6 +73,8 @@ async function loadDocuments() {
           <div class="doc-name-full" title="${esc(d.name)}">${esc(d.name)}</div>
           <div class="doc-size-full">${d.size_kb} KB</div>
         </div>
+        ${visibilityBadgeHTML(d.visibility)}
+        ${visibilityToggleHTML(d.id, d.visibility)}
         <button class="doc-delete-btn" data-id="${d.id}" title="Delete document" aria-label="Delete ${esc(d.name)}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -61,6 +87,15 @@ async function loadDocuments() {
       btn.addEventListener("click", e => {
         e.stopPropagation();
         deleteDocument(parseInt(btn.dataset.id));
+      });
+    });
+
+    docList.querySelectorAll(".doc-visibility-toggle").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const current = btn.dataset.visibility;
+        const next = current === "staff_only" ? "staff_and_chatbot" : "staff_only";
+        toggleVisibility(parseInt(btn.dataset.id), next, btn);
       });
     });
   } catch {
@@ -102,6 +137,44 @@ async function deleteDocument(id) {
     alert(data.error || "Delete failed.");
   } catch {
     alert("Delete failed. Please try again.");
+  }
+}
+
+// ── Visibility toggle ───────────────────────────────────────────────────────
+async function toggleVisibility(id, newVisibility, btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/documents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visibility: newVisibility }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Could not update visibility.");
+      btn.disabled = false;
+      return;
+    }
+    // Update the row in-place without a full reload
+    const row = btn.closest(".doc-item-full");
+    const badge = row.querySelector(".doc-visibility-badge");
+    const isPublic = newVisibility === "staff_and_chatbot";
+    badge.className = `doc-visibility-badge ${isPublic ? "staff-chatbot" : "staff-only"}`;
+    badge.textContent = isPublic ? "Staff + Chatbot" : "Staff only";
+    btn.dataset.visibility = newVisibility;
+    btn.className = `doc-visibility-toggle ${isPublic ? "is-public" : ""}`;
+    btn.title = isPublic ? "Click to restrict to staff only" : "Click to also share with chatbot";
+    btn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        ${isPublic
+          ? `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`
+          : `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`
+        }
+      </svg>`;
+  } catch {
+    alert("Could not update visibility. Please try again.");
+  } finally {
+    btn.disabled = false;
   }
 }
 

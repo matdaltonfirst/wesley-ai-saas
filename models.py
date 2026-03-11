@@ -110,6 +110,8 @@ class Document(db.Model):
     original_name = db.Column(db.String(300), nullable=False)  # user-visible display name
     size_bytes = db.Column(db.Integer, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # "staff_only" = internal use only; "staff_and_chatbot" = also sent to widget chat
+    visibility = db.Column(db.String(20), nullable=False, default="staff_only")
 
 
 class CrawledPage(db.Model):

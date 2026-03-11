@@ -152,6 +152,35 @@
       margin-top: 2px;
     }
 
+    .doc-visibility-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .doc-visibility-badge.staff-only    { background: #1f2937; color: #f9fafb; }
+    .doc-visibility-badge.staff-chatbot { background: #0d9488; color: #f0fdfa; }
+
+    .doc-visibility-toggle {
+      background: none;
+      border: none;
+      color: var(--border);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      transition: color 0.15s, background 0.15s;
+    }
+    .doc-item-full:hover .doc-visibility-toggle { color: var(--text-muted); }
+    .doc-visibility-toggle:hover { color: #0d9488 !important; background: #ccfbf1; }
+    .doc-visibility-toggle.is-public { color: #0d9488; }
+    .doc-visibility-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .doc-delete-btn {
       background: none;
       border: none;

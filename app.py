@@ -168,6 +168,17 @@ with app.app_context():
         if result.rowcount:
             print(f"Migration: set trial_ends_at for {result.rowcount} existing church(es)")
 
+    # Inline migration: add visibility column to documents table
+    insp_docs = sa_inspect(db.engine)
+    existing_doc_cols = {c["name"] for c in insp_docs.get_columns("documents")}
+    with db.engine.connect() as conn_d:
+        if "visibility" not in existing_doc_cols:
+            conn_d.execute(text(
+                "ALTER TABLE documents ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'staff_only'"
+            ))
+            conn_d.commit()
+            print("Migration: added documents.visibility (default 'staff_only')")
+
     # Inline migration: add password-reset + role columns to users table
     insp_users = sa_inspect(db.engine)
     existing_user_cols = {c["name"] for c in insp_users.get_columns("users")}
@@ -305,8 +316,25 @@ def read_docx(filepath: Path, display_name: str) -> list[dict]:
 
 
 def load_church_documents(church_id: int) -> list[dict]:
-    """Load and parse all documents for a church, scoped by church_id."""
+    """Load and parse all documents for a church (staff chat — no visibility filter)."""
     docs = Document.query.filter_by(church_id=church_id).all()
+    church_dir = get_church_dir(church_id)
+    all_chunks = []
+    for doc in docs:
+        filepath = church_dir / doc.filename
+        if not filepath.exists():
+            continue
+        suffix = Path(doc.filename).suffix.lower()
+        if suffix == ".pdf":
+            all_chunks.extend(read_pdf(filepath, doc.original_name))
+        elif suffix == ".docx":
+            all_chunks.extend(read_docx(filepath, doc.original_name))
+    return all_chunks
+
+
+def load_chatbot_documents(church_id: int) -> list[dict]:
+    """Load and parse only documents marked staff_and_chatbot (widget chat)."""
+    docs = Document.query.filter_by(church_id=church_id, visibility="staff_and_chatbot").all()
     church_dir = get_church_dir(church_id)
     all_chunks = []
     for doc in docs:
@@ -1272,6 +1300,7 @@ def list_documents():
                 "name": d.original_name,
                 "size_kb": round(d.size_bytes / 1024, 1),
                 "type": Path(d.original_name).suffix.lower().lstrip("."),
+                "visibility": d.visibility,
             }
             for d in docs
         ]
@@ -1303,11 +1332,16 @@ def upload_document():
     # sanitize display name; fall back to stored name if result is empty
     display_name = secure_filename(original_name) or stored_name
 
+    visibility = request.form.get("visibility", "staff_only")
+    if visibility not in ("staff_only", "staff_and_chatbot"):
+        visibility = "staff_only"
+
     doc = Document(
         church_id=current_user.church_id,
         filename=stored_name,
         original_name=display_name,
         size_bytes=size_bytes,
+        visibility=visibility,
     )
     db.session.add(doc)
     db.session.commit()
@@ -1318,6 +1352,7 @@ def upload_document():
         "name": doc.original_name,
         "size_kb": round(size_bytes / 1024, 1),
         "type": suffix.lstrip("."),
+        "visibility": doc.visibility,
     }), 201
 
 
@@ -1335,6 +1370,23 @@ def delete_document(doc_id):
     db.session.delete(doc)
     db.session.commit()
     return jsonify({"ok": True})
+
+
+@app.route("/api/documents/<int:doc_id>", methods=["PATCH"])
+@login_required
+def update_document_visibility(doc_id):
+    doc = Document.query.filter_by(id=doc_id, church_id=current_user.church_id).first()
+    if not doc:
+        return jsonify({"error": "Document not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    visibility = data.get("visibility")
+    if visibility not in ("staff_only", "staff_and_chatbot"):
+        return jsonify({"error": "Invalid visibility value."}), 400
+
+    doc.visibility = visibility
+    db.session.commit()
+    return jsonify({"ok": True, "visibility": doc.visibility})
 
 
 # ── Chat API (staff dashboard) ────────────────────────────────────────────────
@@ -1800,11 +1852,13 @@ def widget_chat():
         for m in wconv.messages
     ]
 
-    # Use crawled web content ONLY — never staff documents
+    # Combine crawled web content with documents marked staff_and_chatbot
     web_chunks = load_church_web_content(church_id)
+    doc_chunks = load_chatbot_documents(church_id)
+    all_chunks = web_chunks + doc_chunks
     context = ""
-    if web_chunks:
-        scored = find_relevant_chunks(question, web_chunks)
+    if all_chunks:
+        scored = find_relevant_chunks(question, all_chunks)
         if scored:
             context = build_context_block(scored)
 
