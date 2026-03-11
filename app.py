@@ -1915,7 +1915,21 @@ def widget_chat():
     if church.church_city:
         church_ctx += f", located in {church.church_city}"
     church_ctx += f". Your name is {church.bot_name or 'Wesley'}."
-    system_instruction = base_prompt + church_ctx
+
+    # Widget-only addendum: current date for time-sensitive answers + source
+    # confidentiality so visitors never see internal file names or references.
+    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
+    widget_addendum = (
+        f"\n\nToday's date is {today_str}. "
+        "When answering questions about schedules, events, menus, or anything "
+        "time-sensitive, use today's date to give a specific, direct answer — "
+        "do not list every option when only today's is relevant."
+        "\n\nIMPORTANT: Never mention that you are referencing a document, file, "
+        "or uploaded file of any kind. Never reveal or repeat file names (including "
+        ".pdf and .docx filenames). Answer naturally and directly, as if you simply "
+        "know the information."
+    )
+    system_instruction = base_prompt + church_ctx + widget_addendum
 
     try:
         answer = call_gemini(question, context, history, system_instruction)
