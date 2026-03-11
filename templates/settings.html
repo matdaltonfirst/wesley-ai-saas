@@ -802,6 +802,301 @@
       .staff-invite-row .website-save-btn { width: 100%; }
       input, .website-url-input { font-size: 1rem; }
     }
+
+    /* ══════════════════════════════════════════════
+       PLAYGROUND — full-height two-column panel
+    ══════════════════════════════════════════════ */
+    #panel-playground {
+      padding: 0;
+      max-width: none;
+    }
+    #panel-playground.db-panel-active {
+      display: flex;
+      height: 100%;
+      overflow: hidden;
+    }
+    .pg-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left column: config fields ── */
+    .pg-left {
+      width: 360px;
+      min-width: 260px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      padding: 32px 28px 32px;
+      border-right: 1px solid var(--border);
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .pg-left::-webkit-scrollbar { width: 4px; }
+    .pg-left::-webkit-scrollbar-track { background: transparent; }
+    .pg-left::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+
+    .pg-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.022em;
+      margin: 0 0 5px;
+    }
+    .pg-subtitle {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      margin: 0 0 26px;
+      line-height: 1.5;
+    }
+    .pg-fields {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .pg-field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .pg-field-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .pg-sug-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .pg-save-row {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .pg-save-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      font-family: var(--font);
+      padding: 12px 0;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .pg-save-btn:hover { background: var(--accent-hover); }
+    .pg-save-btn:disabled { background: #a0d4d8; cursor: not-allowed; }
+    .pg-save-status {
+      font-size: 0.8rem;
+      margin-top: 8px;
+      min-height: 18px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .pg-save-status.ok  { color: #059669; }
+    .pg-save-status.err { color: #dc2626; }
+
+    /* ── Right column: live preview ── */
+    .pg-right {
+      flex: 1;
+      min-width: 0;
+      background: #edf2f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .pg-preview-label {
+      position: absolute;
+      top: 18px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    /* ── Widget mock-up ── */
+    .pg-widget-frame {
+      width: 360px;
+      max-width: calc(100% - 32px);
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      max-height: calc(100% - 80px);
+    }
+    .pg-widget-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+    .pg-widget-header-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pg-widget-header-icon img {
+      width: 20px;
+      height: 20px;
+      filter: brightness(0) invert(1);
+    }
+    .pg-widget-header-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pg-widget-close {
+      width: 24px;
+      height: 24px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.85);
+      flex-shrink: 0;
+    }
+    .pg-widget-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px 12px;
+    }
+    .pg-widget-body::-webkit-scrollbar { width: 3px; }
+    .pg-widget-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+    .pg-widget-greeting {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .pg-widget-greeting-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pg-widget-greeting-icon img {
+      width: 34px;
+      height: 34px;
+      filter: brightness(0) invert(1);
+    }
+    .pg-widget-welcome {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1a202c;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .pg-widget-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pg-suggestion {
+      background: #f7f8fa;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 0.82rem;
+      font-family: var(--font);
+      color: #2d3748;
+      cursor: default;
+      text-align: left;
+      width: 100%;
+      line-height: 1.4;
+    }
+    .pg-widget-input-area {
+      padding: 10px 12px 12px;
+      border-top: 1px solid #f1f5f9;
+      flex-shrink: 0;
+    }
+    .pg-widget-input-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f7f8fa;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 7px 7px 7px 13px;
+    }
+    .pg-widget-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 0.84rem;
+      font-family: var(--font);
+      color: #94a3b8;
+      outline: none;
+      pointer-events: none;
+    }
+    .pg-widget-send {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: default;
+    }
+    .pg-widget-powered {
+      text-align: center;
+      font-size: 0.67rem;
+      color: #cbd5e0;
+      margin: 7px 0 0;
+    }
+
+    /* ── Playground responsive ── */
+    @media (max-width: 900px) {
+      #panel-playground.db-panel-active {
+        display: block;
+        height: auto;
+        overflow: visible;
+      }
+      .pg-layout {
+        display: block;
+        overflow: visible;
+      }
+      .pg-left {
+        width: 100%;
+        min-width: unset;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        overflow-y: visible;
+      }
+      .pg-right { min-height: 520px; padding: 24px 16px; }
+    }
   </style>
 </head>
 <body class="settings-page">
@@ -1008,12 +1303,15 @@
             Settings
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="customize">
+            <button class="db-nav-item" data-panel="playground">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+                <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+                <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/>
+                <line x1="17" y1="16" x2="23" y2="16"/>
               </svg>
-              Customize
+              Playground
             </button>
             {% if user_role == 'admin' %}
             <button class="db-nav-item" data-panel="team">
@@ -1168,43 +1466,110 @@
         </section>
       </div>
 
-      <!-- ── Customize ── -->
-      <div class="db-panel" id="panel-customize">
-        <div class="db-panel-header">
-          <h1 class="db-panel-title">Customize</h1>
-          <p class="db-panel-subtitle">Personalize your bot's name, greeting, and brand color.</p>
-        </div>
-        <section class="settings-card">
-          <div class="settings-card-header">
-            <h2 class="settings-card-title">Bot Appearance</h2>
-          </div>
-          <div class="bot-fields">
-            <div class="bot-field-row">
-              <label class="website-field-label" for="botName">Bot name</label>
-              <input type="text" id="botName" class="website-url-input" placeholder="Wesley" maxlength="100" autocomplete="off"/>
-            </div>
-            <div class="bot-field-row">
-              <label class="website-field-label" for="botWelcome">Welcome message</label>
-              <input type="text" id="botWelcome" class="website-url-input" placeholder="How can I help you today?" maxlength="500" autocomplete="off"/>
-            </div>
-            <div class="bot-field-row">
-              <label class="website-field-label" for="botCityInput">Church city</label>
-              <input type="text" id="botCityInput" class="website-url-input" placeholder="e.g. Nashville, TN" maxlength="200" autocomplete="off"/>
-            </div>
-            <div class="bot-field-row">
-              <label class="website-field-label">Primary color</label>
-              <div class="color-picker-row">
-                <input type="color" id="botColorPicker" class="bot-color-swatch" value="#0a3d3d"/>
-                <input type="text" id="botColorHex" class="website-url-input color-hex-input" placeholder="#0a3d3d" maxlength="7" autocomplete="off" spellcheck="false"/>
+      <!-- ── Playground ── -->
+      <div class="db-panel" id="panel-playground">
+        <div class="pg-layout">
+
+          <!-- Left column: customisation fields -->
+          <div class="pg-left">
+            <h1 class="pg-title">Playground</h1>
+            <p class="pg-subtitle">Customise your bot and preview exactly what visitors will see on your website.</p>
+
+            <div class="pg-fields">
+
+              <div class="pg-field-row">
+                <label class="pg-field-label" for="pgBotName">Bot name</label>
+                <input type="text" id="pgBotName" class="website-url-input" placeholder="Wesley" maxlength="100" autocomplete="off" />
               </div>
+
+              <div class="pg-field-row">
+                <label class="pg-field-label" for="pgWelcome">Welcome message</label>
+                <input type="text" id="pgWelcome" class="website-url-input" placeholder="How can I help you today?" maxlength="500" autocomplete="off" />
+              </div>
+
+              <div class="pg-field-row">
+                <label class="pg-field-label" for="pgCity">Church city</label>
+                <input type="text" id="pgCity" class="website-url-input" placeholder="e.g. Nashville, TN" maxlength="200" autocomplete="off" />
+              </div>
+
+              <div class="pg-field-row">
+                <label class="pg-field-label">Primary color</label>
+                <div class="color-picker-row">
+                  <input type="color" id="pgColorPicker" class="bot-color-swatch" value="#0a3d3d" />
+                  <input type="text" id="pgColorHex" class="website-url-input color-hex-input" placeholder="#0a3d3d" maxlength="7" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+
+              <div class="pg-field-row">
+                <label class="pg-field-label">Suggested starter questions</label>
+                <div class="pg-sug-fields">
+                  <input type="text" id="pgSug0" class="website-url-input" placeholder="What is our volunteer policy?" maxlength="200" autocomplete="off" />
+                  <input type="text" id="pgSug1" class="website-url-input" placeholder="Help me draft a Sunday bulletin" maxlength="200" autocomplete="off" />
+                  <input type="text" id="pgSug2" class="website-url-input" placeholder="What events are coming up?" maxlength="200" autocomplete="off" />
+                  <input type="text" id="pgSug3" class="website-url-input" placeholder="Write a prayer for our newsletter" maxlength="200" autocomplete="off" />
+                </div>
+              </div>
+
+            </div><!-- /.pg-fields -->
+
+            <div class="pg-save-row">
+              <button class="pg-save-btn" id="pgSaveBtn">Save Changes</button>
+              <div class="pg-save-status" id="pgStatus"></div>
             </div>
-          </div>
-          <div class="bot-save-row">
-            <button class="website-save-btn" id="botSaveBtn">Save</button>
-          </div>
-          <div class="website-status" id="botStatus"></div>
-        </section>
-      </div>
+          </div><!-- /.pg-left -->
+
+          <!-- Right column: live preview -->
+          <div class="pg-right">
+            <div class="pg-preview-label">Live Preview</div>
+            <div class="pg-widget-frame">
+
+              <!-- Widget header -->
+              <div class="pg-widget-header" id="pvHeader" style="background:#0a3d3d">
+                <div class="pg-widget-header-icon">
+                  <img src="/static/WesleyAI.png" alt="Bot" />
+                </div>
+                <span class="pg-widget-header-name" id="pvBotName">Wesley</span>
+                <div class="pg-widget-close">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Widget body -->
+              <div class="pg-widget-body">
+                <div class="pg-widget-greeting">
+                  <div class="pg-widget-greeting-icon" id="pvGreetingIcon" style="background:#0a3d3d20">
+                    <img src="/static/WesleyAI.png" alt="Bot" />
+                  </div>
+                  <p class="pg-widget-welcome" id="pvWelcome">How can I help you today?</p>
+                </div>
+                <div class="pg-widget-suggestions">
+                  <button class="pg-suggestion" id="pvSug0">What is our volunteer policy?</button>
+                  <button class="pg-suggestion" id="pvSug1">Help me draft a Sunday bulletin</button>
+                  <button class="pg-suggestion" id="pvSug2">What events are coming up?</button>
+                  <button class="pg-suggestion" id="pvSug3">Write a prayer for our newsletter</button>
+                </div>
+              </div>
+
+              <!-- Widget input bar -->
+              <div class="pg-widget-input-area">
+                <div class="pg-widget-input-inner">
+                  <input type="text" placeholder="Ask a question…" class="pg-widget-input" disabled />
+                  <button class="pg-widget-send" id="pvSend" style="background:#0a3d3d">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <p class="pg-widget-powered">Powered by Wesley AI</p>
+              </div>
+
+            </div><!-- /.pg-widget-frame -->
+          </div><!-- /.pg-right -->
+
+        </div><!-- /.pg-layout -->
+      </div><!-- /#panel-playground -->
 
       <!-- ── Team (admin only) ── -->
       {% if user_role == 'admin' %}
@@ -1375,7 +1740,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','files','website','embed','customize','team','subscription'];
+    const VALID_PANELS = ['chat-logs','files','website','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -1399,7 +1764,11 @@
         if (section) section.classList.add('db-section-open');
       }
 
-      if (main) main.scrollTop = 0;
+      // Playground fills full height — disable outer scroll; restore it for other panels
+      if (main) {
+        main.style.overflowY = (panelId === 'playground') ? 'hidden' : '';
+        main.scrollTop = 0;
+      }
       history.replaceState(null, '', '#' + panelId);
       closeMobileSidebar();
     }
@@ -1416,8 +1785,9 @@
       });
     });
 
-    // Resolve initial panel from URL hash
+    // Resolve initial panel from URL hash (redirect old #customize to #playground)
     var hash = location.hash.slice(1);
+    if (hash === 'customize') hash = 'playground';
     var initialPanel = VALID_PANELS.indexOf(hash) !== -1 ? hash : 'chat-logs';
     showPanel(initialPanel);
 

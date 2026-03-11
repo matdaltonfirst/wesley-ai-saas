@@ -19,14 +19,15 @@ const copyEmbedBtn    = document.getElementById("copyEmbedBtn");
 const crawlBtn        = document.getElementById("crawlBtn");
 const crawlPagesCount = document.getElementById("crawlPagesCount");
 
-// Bot customisation refs
-const botNameEl      = document.getElementById("botName");
-const botWelcomeEl   = document.getElementById("botWelcome");
-const botCityEl      = document.getElementById("botCityInput");
-const botColorPicker = document.getElementById("botColorPicker");
-const botColorHex    = document.getElementById("botColorHex");
-const botSaveBtn     = document.getElementById("botSaveBtn");
-const botStatusEl    = document.getElementById("botStatus");
+// Playground refs
+const pgNameEl      = document.getElementById("pgBotName");
+const pgWelcomeEl   = document.getElementById("pgWelcome");
+const pgCityEl      = document.getElementById("pgCity");
+const pgColorPicker = document.getElementById("pgColorPicker");
+const pgColorHex    = document.getElementById("pgColorHex");
+const pgSugInputs   = [0,1,2,3].map(i => document.getElementById("pgSug" + i));
+const pgSaveBtn     = document.getElementById("pgSaveBtn");
+const pgStatusEl    = document.getElementById("pgStatus");
 
 // ── Document list ──────────────────────────────────────────────────────────
 function visibilityBadgeHTML(visibility) {
@@ -299,75 +300,120 @@ async function copyEmbedCode() {
   }
 }
 
-// ── Bot customisation ──────────────────────────────────────────────────────
+// ── Playground (Customise + Live Preview) ──────────────────────────────────
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-async function loadBotSettings() {
+function updatePreview() {
+  const name    = pgNameEl    ? (pgNameEl.value.trim()    || "Wesley")                      : "Wesley";
+  const welcome = pgWelcomeEl ? (pgWelcomeEl.value.trim() || "How can I help you today?")   : "How can I help you today?";
+  const rawColor = pgColorHex ? pgColorHex.value.trim() : "#0a3d3d";
+  const color    = HEX_RE.test(rawColor) ? rawColor : "#0a3d3d";
+
+  const pvBotName      = document.getElementById("pvBotName");
+  const pvWelcome      = document.getElementById("pvWelcome");
+  const pvHeader       = document.getElementById("pvHeader");
+  const pvSend         = document.getElementById("pvSend");
+  const pvGreetingIcon = document.getElementById("pvGreetingIcon");
+
+  if (pvBotName)      pvBotName.textContent        = name;
+  if (pvWelcome)      pvWelcome.textContent         = welcome;
+  if (pvHeader)       pvHeader.style.background     = color;
+  if (pvSend)         pvSend.style.background       = color;
+  if (pvGreetingIcon) pvGreetingIcon.style.background = color + "20"; // ~12% tint
+
+  // Reflect starter question values in the preview buttons
+  const defaults = [
+    "What is our volunteer policy?",
+    "Help me draft a Sunday bulletin",
+    "What events are coming up?",
+    "Write a prayer for our newsletter",
+  ];
+  pgSugInputs.forEach((input, i) => {
+    const btn = document.getElementById("pvSug" + i);
+    if (!btn) return;
+    const text = input ? input.value.trim() : "";
+    btn.textContent  = text || defaults[i];
+    btn.style.display = "";
+  });
+}
+
+async function loadPlaygroundSettings() {
   try {
     const res  = await fetch("/api/church/branding");
     if (res.status === 401) { window.location.href = "/login"; return; }
     const data = await res.json();
 
-    botNameEl.value    = data.bot_name    || "";
-    botWelcomeEl.value = data.welcome_message || "";
-    botCityEl.value    = data.church_city || "";
+    if (pgNameEl)    pgNameEl.value    = data.bot_name          || "";
+    if (pgWelcomeEl) pgWelcomeEl.value = data.welcome_message   || "";
+    if (pgCityEl)    pgCityEl.value    = data.church_city       || "";
 
     const color = data.primary_color || "#0a3d3d";
-    botColorHex.value    = color;
-    botColorPicker.value = HEX_RE.test(color) ? color : "#0a3d3d";
+    if (pgColorHex)    pgColorHex.value    = color;
+    if (pgColorPicker) pgColorPicker.value = HEX_RE.test(color) ? color : "#0a3d3d";
+
+    // Starter questions
+    const sugs = data.starter_questions || [];
+    pgSugInputs.forEach((input, i) => { if (input) input.value = sugs[i] || ""; });
+
+    updatePreview();
   } catch {
-    // non-critical — leave fields blank
+    // non-critical — leave fields blank, run preview with defaults
+    updatePreview();
   }
 }
 
-async function saveBotSettings() {
-  const hex = botColorHex.value.trim();
+async function savePlaygroundSettings() {
+  const hex = pgColorHex ? pgColorHex.value.trim() : "";
   if (hex && !HEX_RE.test(hex)) {
-    botStatusEl.textContent = "Invalid color — use format #rrggbb.";
-    botStatusEl.className   = "website-status err";
+    if (pgStatusEl) { pgStatusEl.textContent = "Invalid color — use format #rrggbb."; pgStatusEl.className = "pg-save-status err"; }
     return;
   }
 
-  botSaveBtn.disabled    = true;
-  botSaveBtn.textContent = "Saving…";
-  botStatusEl.textContent = "";
-  botStatusEl.className   = "website-status";
+  if (pgSaveBtn) { pgSaveBtn.disabled = true; pgSaveBtn.textContent = "Saving…"; }
+  if (pgStatusEl) { pgStatusEl.textContent = ""; pgStatusEl.className = "pg-save-status"; }
 
   try {
     const res  = await fetch("/api/church/branding", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bot_name:       botNameEl.value.trim(),
-        welcome_message: botWelcomeEl.value.trim(),
-        primary_color:  hex || "#0a3d3d",
-        church_city:    botCityEl.value.trim(),
+        bot_name:          pgNameEl    ? pgNameEl.value.trim()    : "",
+        welcome_message:   pgWelcomeEl ? pgWelcomeEl.value.trim() : "",
+        primary_color:     hex || "#0a3d3d",
+        church_city:       pgCityEl    ? pgCityEl.value.trim()    : "",
+        starter_questions: pgSugInputs.map(el => el ? el.value.trim() : ""),
       }),
     });
     const data = await res.json();
     if (res.ok) {
-      botStatusEl.textContent = "Saved!";
-      botStatusEl.className   = "website-status ok";
+      if (pgStatusEl) { pgStatusEl.textContent = "Saved!"; pgStatusEl.className = "pg-save-status ok"; }
     } else {
-      botStatusEl.textContent = data.error || "Save failed.";
-      botStatusEl.className   = "website-status err";
+      if (pgStatusEl) { pgStatusEl.textContent = data.error || "Save failed."; pgStatusEl.className = "pg-save-status err"; }
     }
   } catch {
-    botStatusEl.textContent = "Network error. Please try again.";
-    botStatusEl.className   = "website-status err";
+    if (pgStatusEl) { pgStatusEl.textContent = "Network error. Please try again."; pgStatusEl.className = "pg-save-status err"; }
   } finally {
-    botSaveBtn.disabled    = false;
-    botSaveBtn.textContent = "Save";
+    if (pgSaveBtn) { pgSaveBtn.disabled = false; pgSaveBtn.textContent = "Save Changes"; }
   }
 }
 
-// Keep color picker and hex text in sync
-botColorPicker.addEventListener("input", () => {
-  botColorHex.value = botColorPicker.value;
-});
-botColorHex.addEventListener("input", () => {
-  const v = botColorHex.value.trim();
-  if (HEX_RE.test(v)) botColorPicker.value = v;
+// Color picker ↔ hex text sync + live preview
+if (pgColorPicker) {
+  pgColorPicker.addEventListener("input", () => {
+    if (pgColorHex) pgColorHex.value = pgColorPicker.value;
+    updatePreview();
+  });
+}
+if (pgColorHex) {
+  pgColorHex.addEventListener("input", () => {
+    const v = pgColorHex.value.trim();
+    if (HEX_RE.test(v) && pgColorPicker) pgColorPicker.value = v;
+    updatePreview();
+  });
+}
+// Live preview on every text input change
+[pgNameEl, pgWelcomeEl, pgCityEl, ...pgSugInputs].forEach(el => {
+  if (el) el.addEventListener("input", updatePreview);
 });
 
 // ── Widget Conversations ───────────────────────────────────────────────────
@@ -463,11 +509,11 @@ websiteUrlEl.addEventListener("keydown", e => {
 });
 crawlBtn.addEventListener("click", triggerCrawl);
 copyEmbedBtn.addEventListener("click", copyEmbedCode);
-botSaveBtn.addEventListener("click", saveBotSettings);
+if (pgSaveBtn) pgSaveBtn.addEventListener("click", savePlaygroundSettings);
 wconvRefreshBtn.addEventListener("click", loadWidgetConversations);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 loadDocuments();
 loadWebsiteSettings();
-loadBotSettings();
+loadPlaygroundSettings();
 loadWidgetConversations();
