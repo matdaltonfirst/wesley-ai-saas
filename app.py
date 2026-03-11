@@ -1856,11 +1856,34 @@ def widget_chat():
     web_chunks = load_church_web_content(church_id)
     doc_chunks = load_chatbot_documents(church_id)
     all_chunks = web_chunks + doc_chunks
+
+    # ── DEBUG: widget chat context diagnostics ──────────────────────────────
+    print(f"[WIDGET DEBUG] church_id={church_id} question={question!r}")
+    print(f"[WIDGET DEBUG] web_chunks={len(web_chunks)}, doc_chunks={len(doc_chunks)}, total={len(all_chunks)}")
+
+    # Log which documents were actually found by load_chatbot_documents
+    chatbot_docs_in_db = Document.query.filter_by(
+        church_id=church_id, visibility="staff_and_chatbot"
+    ).all()
+    print(f"[WIDGET DEBUG] DB rows with visibility='staff_and_chatbot': {len(chatbot_docs_in_db)}")
+    for d in chatbot_docs_in_db:
+        print(f"[WIDGET DEBUG]   doc id={d.id} name={d.original_name!r} file={d.filename!r} chunks_produced={sum(1 for c in doc_chunks if c.get('source') == d.original_name)}")
+    # ── END DEBUG ───────────────────────────────────────────────────────────
+
     context = ""
     if all_chunks:
         scored = find_relevant_chunks(question, all_chunks)
+        print(f"[WIDGET DEBUG] scored chunks (top matches): {len(scored)}")
+        for score, chunk in scored:
+            print(f"[WIDGET DEBUG]   score={score} source={chunk.get('source')!r} loc={chunk.get('location')!r}")
         if scored:
             context = build_context_block(scored)
+
+    # Log final context sent to Gemini (truncated to 500 chars for readability)
+    if context:
+        print(f"[WIDGET DEBUG] context preview (first 500 chars): {context[:500]!r}")
+    else:
+        print("[WIDGET DEBUG] context is EMPTY — Gemini will answer from base knowledge only")
 
     prompt_row = SystemPrompt.query.get(1)
     base_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
