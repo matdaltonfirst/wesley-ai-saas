@@ -110,11 +110,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); }
   text-decoration: none;
   margin-right: 4px;
 }
-.top-nav-logo {
-  height: 24px;
-  width: auto;
-  filter: brightness(0) invert(1);
+.top-nav-logo-initial {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+  user-select: none;
 }
 .top-nav-church {
   font-size: 0.8rem;
@@ -337,9 +346,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); }
   margin: 0 auto 28px;
 }
 
-.greeting-logo {
-  height: 56px;
-  width: auto;
+.greeting-initial-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  user-select: none;
+  flex-shrink: 0;
 }
 
 .greeting-title {
@@ -820,7 +840,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); }
     padding: 28px 0 20px;
     /* horizontal space comes from .messages 16px padding */
   }
-  .greeting-logo  { height: 40px; }
+  .greeting-initial-avatar { width: 54px; height: 54px; font-size: 1.45rem; }
   .greeting-title { font-size: 1.35rem; letter-spacing: -0.02em; }
   .greeting-sub   { font-size: 0.88rem; max-width: 100%; margin-bottom: 24px; }
 

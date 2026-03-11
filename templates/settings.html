@@ -955,10 +955,16 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    .pg-widget-header-icon img {
-      width: 20px;
-      height: 20px;
-      filter: brightness(0) invert(1);
+    .pg-bot-initial {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      user-select: none;
+    }
+    .pg-bot-initial-lg {
+      font-size: 1.55rem;
     }
     .pg-widget-header-name {
       font-size: 0.95rem;
@@ -1004,11 +1010,7 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    .pg-widget-greeting-icon img {
-      width: 34px;
-      height: 34px;
-      filter: brightness(0) invert(1);
-    }
+    /* greeting icon uses .pg-bot-initial-lg — no img rule needed */
     .pg-widget-welcome {
       font-size: 0.9rem;
       font-weight: 600;
@@ -1115,7 +1117,7 @@
     </button>
     <!-- Brand: logo + church name -->
     <div class="top-nav-brand">
-      <img src="/static/WesleyAI.png" alt="Wesley AI" class="top-nav-logo" />
+      <div class="top-nav-logo-initial">W</div>
       <span class="top-nav-church">{{ church_name }}</span>
     </div>
     <div class="top-nav-divider"></div>
@@ -1526,7 +1528,7 @@
               <!-- Widget header -->
               <div class="pg-widget-header" id="pvHeader" style="background:#0a3d3d">
                 <div class="pg-widget-header-icon">
-                  <img src="/static/WesleyAI.png" alt="Bot" />
+                  <span class="pg-bot-initial">W</span>
                 </div>
                 <span class="pg-widget-header-name" id="pvBotName">Wesley</span>
                 <div class="pg-widget-close">
@@ -1539,8 +1541,8 @@
               <!-- Widget body -->
               <div class="pg-widget-body">
                 <div class="pg-widget-greeting">
-                  <div class="pg-widget-greeting-icon" id="pvGreetingIcon" style="background:#0a3d3d20">
-                    <img src="/static/WesleyAI.png" alt="Bot" />
+                  <div class="pg-widget-greeting-icon" id="pvGreetingIcon" style="background:#0a3d3d">
+                    <span class="pg-bot-initial pg-bot-initial-lg">W</span>
                   </div>
                   <p class="pg-widget-welcome" id="pvWelcome">How can I help you today?</p>
                 </div>

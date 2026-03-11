@@ -319,7 +319,7 @@ function updatePreview() {
   if (pvWelcome)      pvWelcome.textContent         = welcome;
   if (pvHeader)       pvHeader.style.background     = color;
   if (pvSend)         pvSend.style.background       = color;
-  if (pvGreetingIcon) pvGreetingIcon.style.background = color + "20"; // ~12% tint
+  if (pvGreetingIcon) pvGreetingIcon.style.background = color;
 
   // Reflect starter question values in the preview buttons
   const defaults = [
