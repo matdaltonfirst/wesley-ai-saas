@@ -1852,34 +1852,56 @@ def widget_chat():
         for m in wconv.messages
     ]
 
-    # Combine crawled web content with documents marked staff_and_chatbot
+    # ── Build RAG context with document priority ───────────────────────────
+    # Documents marked staff_and_chatbot are ALWAYS included when they exist —
+    # they bypass the score > 0 threshold because the church explicitly enabled
+    # them for the widget. They are sorted by relevance but never filtered out.
+    # Web chunks fill any remaining slots using the normal scoring filter.
+    MAX_DOC_CHUNKS = 5
+    MAX_WEB_CHUNKS = 5
+
     web_chunks = load_church_web_content(church_id)
     doc_chunks = load_chatbot_documents(church_id)
-    all_chunks = web_chunks + doc_chunks
+
+    scored_docs: list[tuple[int, dict]] = []
+    if doc_chunks:
+        keywords = extract_keywords(question)
+        if keywords:
+            scored_docs = sorted(
+                [(score_chunk(c, keywords), c) for c in doc_chunks],
+                key=lambda x: x[0], reverse=True,
+            )[:MAX_DOC_CHUNKS]
+        else:
+            # No keywords extracted — include the first N doc chunks as-is
+            scored_docs = [(0, c) for c in doc_chunks[:MAX_DOC_CHUNKS]]
+
+    scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
 
     # ── DEBUG: widget chat context diagnostics ──────────────────────────────
     print(f"[WIDGET DEBUG] church_id={church_id} question={question!r}")
-    print(f"[WIDGET DEBUG] web_chunks={len(web_chunks)}, doc_chunks={len(doc_chunks)}, total={len(all_chunks)}")
-
-    # Log which documents were actually found by load_chatbot_documents
+    print(f"[WIDGET DEBUG] raw: web_chunks={len(web_chunks)}, doc_chunks={len(doc_chunks)}")
+    print(f"[WIDGET DEBUG] after scoring: scored_docs={len(scored_docs)}, scored_web={len(scored_web)}")
     chatbot_docs_in_db = Document.query.filter_by(
         church_id=church_id, visibility="staff_and_chatbot"
     ).all()
     print(f"[WIDGET DEBUG] DB rows with visibility='staff_and_chatbot': {len(chatbot_docs_in_db)}")
     for d in chatbot_docs_in_db:
-        print(f"[WIDGET DEBUG]   doc id={d.id} name={d.original_name!r} file={d.filename!r} chunks_produced={sum(1 for c in doc_chunks if c.get('source') == d.original_name)}")
+        chunks_produced = sum(1 for c in doc_chunks if c.get("source") == d.original_name)
+        print(f"[WIDGET DEBUG]   doc id={d.id} name={d.original_name!r} file={d.filename!r} chunks_produced={chunks_produced}")
+    for score, chunk in scored_docs:
+        print(f"[WIDGET DEBUG]   → doc chunk included: score={score} source={chunk.get('source')!r} loc={chunk.get('location')!r}")
+    for score, chunk in scored_web:
+        print(f"[WIDGET DEBUG]   → web chunk included: score={score} source={chunk.get('source')!r}")
     # ── END DEBUG ───────────────────────────────────────────────────────────
 
-    context = ""
-    if all_chunks:
-        scored = find_relevant_chunks(question, all_chunks)
-        print(f"[WIDGET DEBUG] scored chunks (top matches): {len(scored)}")
-        for score, chunk in scored:
-            print(f"[WIDGET DEBUG]   score={score} source={chunk.get('source')!r} loc={chunk.get('location')!r}")
-        if scored:
-            context = build_context_block(scored)
+    # Documents go first so Gemini sees church-specific content before web copy
+    context_parts = []
+    if scored_docs:
+        context_parts.append(build_context_block(scored_docs))
+    if scored_web:
+        context_parts.append(build_context_block(scored_web))
+    context = "\n".join(context_parts)
 
-    # Log final context sent to Gemini (truncated to 500 chars for readability)
     if context:
         print(f"[WIDGET DEBUG] context preview (first 500 chars): {context[:500]!r}")
     else:
