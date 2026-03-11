@@ -101,6 +101,57 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); }
 }
 .top-nav-signout:hover { color: var(--sidebar-text-hi); background: var(--sidebar-hover); }
 
+/* ── Top nav brand (logo + church name) ──────────────────────────────────── */
+.top-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  text-decoration: none;
+  margin-right: 4px;
+}
+.top-nav-logo {
+  height: 24px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  flex-shrink: 0;
+}
+.top-nav-church {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sidebar-text-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.top-nav-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--sidebar-border);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+/* Hamburger + new-chat icon in top nav — hidden on desktop, visible on mobile */
+.top-nav-hamburger,
+.top-nav-new-chat {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: none;
+  border: none;
+  color: var(--sidebar-text-hi);
+  cursor: pointer;
+  border-radius: 7px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.top-nav-hamburger:hover,
+.top-nav-new-chat:hover { background: var(--sidebar-hover); }
+.top-nav-new-chat { margin-left: auto; }
+
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-w);
@@ -694,8 +745,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); }
 /* ── Responsive (≤768px — standard iPhone and small tablets) ─────────────── */
 @media (max-width: 768px) {
 
-  /* Show mobile header, hide nothing else */
-  .mobile-header { display: flex; }
+  /* Mobile header is superseded by top-nav hamburger */
+  .mobile-header { display: none; }
+
+  /* Top nav: show hamburger + new-chat icon; hide brand text + divider + user area */
+  .top-nav-hamburger { display: flex; }
+  .top-nav-new-chat  { display: flex; }
+  .top-nav-church    { display: none; }
+  .top-nav-divider   { display: none; }
+  .top-nav-right     { display: none; } /* sign-out accessible via sidebar footer */
 
   /* Sidebar: fixed overlay that slides in from the left */
   .sidebar {

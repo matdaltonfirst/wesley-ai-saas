@@ -97,21 +97,42 @@
 
   <div class="app-wrapper">
 
-    <!-- Top navigation -->
+    <!-- Top navigation (persistent across Chat + Dashboard) -->
     <nav class="top-nav">
+      <!-- Mobile: hamburger to open conversation sidebar -->
+      <button class="top-nav-hamburger" id="hamburgerBtn" aria-label="Open menu">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="2" y1="5"  x2="18" y2="5"/>
+          <line x1="2" y1="10" x2="18" y2="10"/>
+          <line x1="2" y1="15" x2="18" y2="15"/>
+        </svg>
+      </button>
+      <!-- Brand: logo + church name (always visible on desktop) -->
+      <div class="top-nav-brand">
+        <img src="/static/WesleyAI.png" alt="{{ bot_name }}" class="top-nav-logo" />
+        <span class="top-nav-church">{{ church_name }}</span>
+      </div>
+      <div class="top-nav-divider"></div>
+      <!-- Mode tabs -->
       <a href="/" class="top-nav-link active">Chat</a>
       <a href="/dashboard" class="top-nav-link">Dashboard</a>
+      <!-- Mobile: new chat icon (right-aligned) -->
+      <button class="top-nav-new-chat" id="mobileNewChatBtn" aria-label="New chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+      </button>
+      <!-- Desktop: user info + sign out -->
+      <div class="top-nav-right">
+        <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
+        <a href="/logout" class="top-nav-signout">Sign out</a>
+      </div>
     </nav>
 
     <div class="layout">
 
       <!-- Sidebar -->
       <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-          <img src="/static/WesleyAI.png" alt="{{ bot_name }}" class="brand-logo" />
-        </div>
-
-        <div class="sidebar-church" title="{{ church_name }}">{{ church_name }}</div>
 
         <button class="new-chat-btn" id="newChatBtn">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -147,23 +168,6 @@
 
       <!-- Main -->
       <main class="chat-main">
-
-        <!-- Mobile header (hidden on desktop) -->
-        <header class="mobile-header">
-          <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="2" y1="5"  x2="18" y2="5"/>
-              <line x1="2" y1="10" x2="18" y2="10"/>
-              <line x1="2" y1="15" x2="18" y2="15"/>
-            </svg>
-          </button>
-          <img src="/static/WesleyAI.png" alt="{{ bot_name }}" class="mobile-logo" />
-          <button class="mobile-new-btn" id="mobileNewChatBtn" aria-label="New chat">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
-          </button>
-        </header>
 
         <div class="messages" id="messages">
           <div class="greeting" id="greeting">

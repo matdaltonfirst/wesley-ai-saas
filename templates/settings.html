@@ -6,31 +6,28 @@
   <title>Wesley AI — Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
   <style>
-    /* ── Reset body lock from style.css (chat page sets overflow:hidden) ── */
-    html, body { height: 100%; overflow: hidden; }
-    body.settings-page { overflow: hidden; }
-
     /* ══════════════════════════════════════════════
-       LAYOUT
+       LAYOUT — sits inside .app-wrapper flex column
     ══════════════════════════════════════════════ */
     .db-layout {
       display: flex;
-      height: 100vh;
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
     }
 
     /* ══════════════════════════════════════════════
-       SIDEBAR
+       SIDEBAR — same dark teal as chat sidebar
     ══════════════════════════════════════════════ */
     .db-sidebar {
       width: 232px;
       flex-shrink: 0;
-      background: #0d2626;
+      background: var(--sidebar-bg);
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
       overflow: hidden;
-      border-right: 1px solid rgba(255,255,255,0.06);
+      border-right: 1px solid var(--sidebar-border);
     }
 
     .db-sidebar-header {
@@ -73,7 +70,7 @@
     .db-sidebar-nav {
       flex: 1;
       overflow-y: auto;
-      padding: 10px 7px 6px;
+      padding: 14px 7px 6px;
       display: flex;
       flex-direction: column;
       gap: 1px;
@@ -240,7 +237,6 @@
     .db-main {
       flex: 1;
       min-width: 0;
-      height: 100vh;
       overflow-y: auto;
       background: #f5f7f9;
     }
@@ -267,52 +263,30 @@
     }
 
     /* ══════════════════════════════════════════════
-       MOBILE
+       MOBILE — sidebar slides in below the top nav
     ══════════════════════════════════════════════ */
-    .db-mobile-bar {
-      display: none;
-      align-items: center;
-      padding: 11px 14px;
-      background: #0d2626;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .db-mobile-toggle {
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.8);
-      cursor: pointer;
-      padding: 3px;
-      display: flex;
-      align-items: center;
-    }
-    .db-mobile-church {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: #fff;
-    }
     .db-sidebar-overlay {
       display: none;
       position: fixed;
-      inset: 0;
+      top: 44px; /* below shared top nav */
+      left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.45);
       z-index: 49;
     }
 
     @media (max-width: 768px) {
-      .db-layout { flex-direction: column; height: auto; overflow: visible; }
-      html, body { overflow: visible; height: auto; }
-      .db-mobile-bar { display: flex; }
       .db-sidebar {
         position: fixed;
-        top: 0; left: -240px; bottom: 0;
+        top: 44px; /* below shared top nav */
+        left: -240px; bottom: 0;
         z-index: 50;
         transition: left 0.22s ease;
         width: 232px;
+        height: calc(100% - 44px);
+        height: calc(100dvh - 44px);
       }
       .db-sidebar.db-sidebar-open { left: 0; }
       .db-sidebar-overlay.db-sidebar-open { display: block; }
-      .db-main { height: auto; min-height: calc(100vh - 44px); }
       .db-panel { padding: 24px 16px 56px; }
     }
 
@@ -832,17 +806,33 @@
 </head>
 <body class="settings-page">
 
-  <!-- Mobile top bar -->
-  <div class="db-mobile-bar" id="mobileBar">
-    <button class="db-mobile-toggle" id="mobileSidebarToggle" aria-label="Open menu">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <div class="app-wrapper">
+
+  <!-- ── Unified top nav (same as Chat view) ── -->
+  <nav class="top-nav">
+    <!-- Mobile: hamburger to open dashboard sidebar -->
+    <button class="top-nav-hamburger" id="mobileSidebarToggle" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="3" y1="6"  x2="21" y2="6"/>
         <line x1="3" y1="12" x2="21" y2="12"/>
         <line x1="3" y1="18" x2="21" y2="18"/>
       </svg>
     </button>
-    <span class="db-mobile-church">{{ church_name }}</span>
-  </div>
+    <!-- Brand: logo + church name -->
+    <div class="top-nav-brand">
+      <img src="/static/WesleyAI.png" alt="Wesley AI" class="top-nav-logo" />
+      <span class="top-nav-church">{{ church_name }}</span>
+    </div>
+    <div class="top-nav-divider"></div>
+    <!-- Mode tabs -->
+    <a href="/" class="top-nav-link">Chat</a>
+    <a href="/dashboard" class="top-nav-link active">Dashboard</a>
+    <!-- Desktop: user info + sign out -->
+    <div class="top-nav-right">
+      <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
+      <a href="/logout" class="top-nav-signout">Sign out</a>
+    </div>
+  </nav>
 
   <div class="db-sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -850,18 +840,6 @@
 
     <!-- ══════════ SIDEBAR ══════════ -->
     <aside class="db-sidebar" id="dbSidebar">
-
-      <div class="db-sidebar-header">
-        <div class="db-logo">
-          <div class="db-logo-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </div>
-          <span class="db-logo-text">Wesley AI</span>
-        </div>
-        <div class="db-church-name">{{ church_name }}</div>
-      </div>
 
       <nav class="db-sidebar-nav" id="dbSidebarNav">
 
@@ -1062,6 +1040,7 @@
 
       </nav>
 
+      <!-- Footer: user email on desktop sidebar; sign out is in top nav -->
       <div class="db-sidebar-footer">
         <span class="db-user-email">{{ user_email }}</span>
         <a href="/logout" class="db-signout">Sign out</a>
@@ -1459,5 +1438,7 @@
   </script>
 
   <script src="/static/dashboard.js"></script>
+
+  </div><!-- /.app-wrapper -->
 </body>
 </html>
