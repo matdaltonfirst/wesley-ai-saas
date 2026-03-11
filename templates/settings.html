@@ -6,68 +6,333 @@
   <title>Wesley AI — Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
   <style>
-    /* ── Settings page layout ── */
-    /* style.css locks html+body to overflow:hidden for the chat page;
-       reset both here so the settings page scrolls normally. */
-    html {
-      height: auto;
-      overflow: visible;
-    }
-    body.settings-page {
-      overflow-y: auto;
-      height: auto;
-      min-height: 100vh;
-    }
-    body.settings-page .top-nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
+    /* ── Reset body lock from style.css (chat page sets overflow:hidden) ── */
+    html, body { height: 100%; overflow: hidden; }
+    body.settings-page { overflow: hidden; }
 
-    .settings-main {
-      padding: 40px 24px 64px;
-      background: var(--bg);
-      min-height: calc(100vh - 44px);
-    }
-
-    .settings-content {
-      max-width: 720px;
-      margin: 0 auto;
-    }
-
-    .settings-page-header {
+    /* ══════════════════════════════════════════════
+       LAYOUT
+    ══════════════════════════════════════════════ */
+    .db-layout {
       display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      margin-bottom: 32px;
-      flex-wrap: wrap;
-      gap: 8px;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .settings-page-title {
-      font-size: 1.5rem;
+    /* ══════════════════════════════════════════════
+       SIDEBAR
+    ══════════════════════════════════════════════ */
+    .db-sidebar {
+      width: 232px;
+      flex-shrink: 0;
+      background: #0d2626;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .db-sidebar-header {
+      padding: 18px 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
+    }
+
+    .db-logo {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 10px;
+    }
+    .db-logo-icon {
+      width: 26px;
+      height: 26px;
+      background: var(--accent);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .db-logo-text {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+    .db-church-name {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.42);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Sidebar nav scroll area ── */
+    .db-sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 7px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .db-sidebar-nav::-webkit-scrollbar { width: 3px; }
+    .db-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+    .db-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    /* ── Test Bot standalone ── */
+    .db-nav-standalone {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: rgba(255,255,255,0.78);
+      font-size: 0.862rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 0.13s, color 0.13s;
+      margin-bottom: 6px;
+    }
+    .db-nav-standalone:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .db-nav-standalone .ext-icon { margin-left: auto; opacity: 0.3; }
+
+    /* ── Section wrappers ── */
+    .db-nav-section { margin-bottom: 1px; }
+
+    .db-section-header {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      padding: 5px 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      border-radius: 6px;
+      transition: color 0.13s;
+    }
+    .db-section-header:hover { color: rgba(255,255,255,0.58); }
+
+    .db-section-chevron {
+      margin-left: auto;
+      opacity: 0.45;
+      transition: transform 0.18s;
+      flex-shrink: 0;
+    }
+    .db-nav-section.db-section-open .db-section-chevron { transform: rotate(90deg); }
+
+    .db-section-items {
+      display: none;
+      flex-direction: column;
+      gap: 1px;
+      padding-bottom: 4px;
+    }
+    .db-nav-section.db-section-open .db-section-items { display: flex; }
+
+    /* ── Nav items (buttons that switch panels) ── */
+    .db-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 10px 7px 16px;
+      border-radius: 7px;
+      color: rgba(255,255,255,0.62);
+      font-size: 0.855rem;
+      font-weight: 400;
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      font-family: var(--font);
+      text-decoration: none;
+      transition: background 0.13s, color 0.13s;
+    }
+    .db-nav-item:hover:not(.db-nav-coming-soon) {
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+    }
+    .db-nav-item.db-nav-active {
+      background: rgba(255,255,255,0.11);
+      color: #fff;
+      font-weight: 500;
+    }
+    .db-nav-item svg { flex-shrink: 0; opacity: 0.6; }
+    .db-nav-item.db-nav-active svg { opacity: 1; }
+
+    /* ── Coming Soon items ── */
+    .db-nav-coming-soon {
+      opacity: 0.38;
+      cursor: default;
+      pointer-events: none;
+    }
+    .cs-badge {
+      margin-left: auto;
+      font-size: 0.6rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.13);
+      color: rgba(255,255,255,0.65);
+      padding: 2px 6px;
+      border-radius: 10px;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── External link items (Staff Chat, etc.) ── */
+    .db-nav-item-link {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 10px 7px 16px;
+      border-radius: 7px;
+      color: rgba(255,255,255,0.62);
+      font-size: 0.855rem;
+      font-weight: 400;
+      text-decoration: none;
+      transition: background 0.13s, color 0.13s;
+    }
+    .db-nav-item-link:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .db-nav-item-link svg { flex-shrink: 0; opacity: 0.6; }
+    .db-nav-item-link .ext-icon { margin-left: auto; opacity: 0.28; }
+
+    /* ── Sidebar footer ── */
+    .db-sidebar-footer {
+      padding: 11px 14px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .db-user-email {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.35);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .db-signout {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.35);
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: color 0.13s;
+    }
+    .db-signout:hover { color: rgba(255,255,255,0.72); }
+
+    /* ══════════════════════════════════════════════
+       MAIN PANEL AREA
+    ══════════════════════════════════════════════ */
+    .db-main {
+      flex: 1;
+      min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: #f5f7f9;
+    }
+
+    .db-panel {
+      display: none;
+      padding: 40px 36px 72px;
+      max-width: 800px;
+    }
+    .db-panel.db-panel-active { display: block; }
+
+    .db-panel-header { margin-bottom: 26px; }
+    .db-panel-title {
+      font-size: 1.3rem;
       font-weight: 700;
       color: var(--text);
-      letter-spacing: -0.025em;
+      letter-spacing: -0.022em;
+    }
+    .db-panel-subtitle {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.5;
     }
 
-    /* ── Cards ── */
+    /* ══════════════════════════════════════════════
+       MOBILE
+    ══════════════════════════════════════════════ */
+    .db-mobile-bar {
+      display: none;
+      align-items: center;
+      padding: 11px 14px;
+      background: #0d2626;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .db-mobile-toggle {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      cursor: pointer;
+      padding: 3px;
+      display: flex;
+      align-items: center;
+    }
+    .db-mobile-church {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .db-sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 49;
+    }
+
+    @media (max-width: 768px) {
+      .db-layout { flex-direction: column; height: auto; overflow: visible; }
+      html, body { overflow: visible; height: auto; }
+      .db-mobile-bar { display: flex; }
+      .db-sidebar {
+        position: fixed;
+        top: 0; left: -240px; bottom: 0;
+        z-index: 50;
+        transition: left 0.22s ease;
+        width: 232px;
+      }
+      .db-sidebar.db-sidebar-open { left: 0; }
+      .db-sidebar-overlay.db-sidebar-open { display: block; }
+      .db-main { height: auto; min-height: calc(100vh - 44px); }
+      .db-panel { padding: 24px 16px 56px; }
+    }
+
+    /* ══════════════════════════════════════════════
+       CARDS  (all original styles preserved)
+    ══════════════════════════════════════════════ */
     .settings-card {
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 24px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
-
     .settings-card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 16px;
     }
-
     .settings-card-title {
       font-size: 1rem;
       font-weight: 600;
@@ -113,7 +378,6 @@
       gap: 6px;
       min-height: 48px;
     }
-
     .doc-item-full {
       display: flex;
       align-items: center;
@@ -229,20 +493,18 @@
     }
     .refresh-btn-sm:hover { color: var(--text); border-color: var(--accent); background: var(--surface); }
 
-    /* ── Website chatbot section ── */
+    /* ── Website / form fields ── */
     .website-field-label {
       font-size: 0.8rem;
       font-weight: 500;
       color: var(--text-muted);
       margin-bottom: 6px;
     }
-
     .website-url-row {
       display: flex;
       gap: 8px;
       align-items: center;
     }
-
     .website-url-input {
       flex: 1;
       min-width: 0;
@@ -289,53 +551,7 @@
     .website-status.ok  { color: #059669; }
     .website-status.err { color: #dc2626; }
 
-    .embed-block {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid var(--border);
-    }
-
-    .embed-block-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .embed-block-title {
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .website-copy-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 6px;
-      padding: 5px 12px;
-      font-size: 0.78rem;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .website-copy-btn:hover { background: #e8f7f8; color: var(--accent); border-color: var(--accent); }
-
-    .website-embed-code {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      color: #8ecdd2;
-      font-family: "SFMono-Regular", "Consolas", monospace;
-      font-size: 0.78rem;
-      padding: 12px 14px;
-      overflow-x: auto;
-      white-space: pre;
-      cursor: default;
-      user-select: all;
-      line-height: 1.5;
-    }
-
+    /* ── Crawl row ── */
     .crawl-row {
       display: flex;
       align-items: center;
@@ -344,12 +560,7 @@
       flex-wrap: wrap;
       gap: 8px;
     }
-
-    .crawl-pages-count {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-
+    .crawl-pages-count { font-size: 0.82rem; color: var(--text-muted); }
     .crawl-btn {
       display: inline-flex;
       align-items: center;
@@ -366,10 +577,55 @@
     }
     .crawl-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: #e8f7f8; }
     .crawl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
     @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
 
-    /* ── Customize Your Bot card ── */
+    /* ── Embed code block ── */
+    .embed-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .embed-block-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .website-copy-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .website-copy-btn:hover { background: #e8f7f8; color: var(--accent); border-color: var(--accent); }
+    .website-embed-code {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #8ecdd2;
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      font-size: 0.78rem;
+      padding: 12px 14px;
+      overflow-x: auto;
+      white-space: pre;
+      cursor: default;
+      user-select: all;
+      line-height: 1.5;
+    }
+    .embed-instructions {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 18px;
+    }
+    .embed-instructions a { color: var(--accent); }
+
+    /* ── Bot customization ── */
     .bot-fields { display: flex; flex-direction: column; gap: 16px; }
     .bot-field-row { display: flex; flex-direction: column; gap: 5px; }
     .color-picker-row { display: flex; align-items: center; gap: 10px; }
@@ -390,13 +646,9 @@
       font-family: "SFMono-Regular", "Consolas", monospace;
       letter-spacing: 0.04em;
     }
-    .bot-save-row {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 20px;
-    }
+    .bot-save-row { display: flex; justify-content: flex-end; margin-top: 20px; }
 
-    /* ── Manage Subscription card ── */
+    /* ── Subscription card ── */
     .portal-btn {
       display: inline-flex;
       align-items: center;
@@ -419,7 +671,6 @@
       min-height: 48px;
       margin-bottom: 16px;
     }
-
     .staff-item {
       display: flex;
       align-items: center;
@@ -429,7 +680,6 @@
       border: 1px solid var(--border);
       background: var(--surface);
     }
-
     .staff-avatar {
       width: 32px;
       height: 32px;
@@ -444,10 +694,7 @@
       flex-shrink: 0;
       letter-spacing: 0.02em;
     }
-    .staff-avatar.pending-avatar {
-      background: #94a3b8;
-    }
-
+    .staff-avatar.pending-avatar { background: #94a3b8; }
     .staff-info { flex: 1; min-width: 0; }
     .staff-email {
       font-size: 0.88rem;
@@ -457,12 +704,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .staff-meta {
-      font-size: 0.73rem;
-      color: var(--text-muted);
-      margin-top: 1px;
-    }
-
+    .staff-meta { font-size: 0.73rem; color: var(--text-muted); margin-top: 1px; }
     .staff-role-badge {
       font-size: 0.67rem;
       font-weight: 700;
@@ -472,10 +714,9 @@
       flex-shrink: 0;
       text-transform: uppercase;
     }
-    .staff-role-badge.admin { background: #dcfce7; color: #166534; }
-    .staff-role-badge.staff { background: #dbeafe; color: #1e40af; }
+    .staff-role-badge.admin   { background: #dcfce7; color: #166534; }
+    .staff-role-badge.staff   { background: #dbeafe; color: #1e40af; }
     .staff-role-badge.pending { background: #fef9c3; color: #854d0e; }
-
     .staff-remove-btn {
       background: none;
       border: none;
@@ -490,7 +731,6 @@
     }
     .staff-item:hover .staff-remove-btn { color: var(--text-muted); }
     .staff-remove-btn:hover { color: #dc2626 !important; background: #fee2e2; }
-
     .staff-empty {
       padding: 20px 12px;
       font-size: 0.875rem;
@@ -500,7 +740,6 @@
       border-radius: 8px;
       border: 1px dashed var(--border);
     }
-
     .staff-invite-row {
       display: flex;
       gap: 8px;
@@ -510,14 +749,8 @@
       margin-top: 4px;
     }
 
-    /* ── Website Conversations card ── */
-    .wconv-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-height: 48px;
-    }
-
+    /* ── Widget conversations ── */
+    .wconv-list { display: flex; flex-direction: column; gap: 6px; min-height: 48px; }
     .wconv-empty {
       padding: 20px 12px;
       font-size: 0.875rem;
@@ -527,7 +760,6 @@
       border-radius: 8px;
       border: 1px dashed var(--border);
     }
-
     .wconv-item {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -536,7 +768,6 @@
       transition: border-color 0.15s;
     }
     .wconv-item:hover { border-color: var(--border-focus); }
-
     .wconv-row {
       display: flex;
       align-items: center;
@@ -545,14 +776,7 @@
       cursor: pointer;
       user-select: none;
     }
-
-    .wconv-date {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
+    .wconv-date { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
     .wconv-preview {
       flex: 1;
       min-width: 0;
@@ -562,22 +786,9 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
-    .wconv-count {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .wconv-chevron {
-      color: var(--text-muted);
-      flex-shrink: 0;
-      transition: transform 0.18s;
-      font-size: 0.7rem;
-    }
+    .wconv-count { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .wconv-chevron { color: var(--text-muted); flex-shrink: 0; transition: transform 0.18s; font-size: 0.7rem; }
     .wconv-item.wconv-open .wconv-chevron { transform: rotate(90deg); }
-
     .wconv-thread {
       display: none;
       flex-direction: column;
@@ -586,12 +797,7 @@
       border-top: 1px solid var(--border);
     }
     .wconv-item.wconv-open .wconv-thread { display: flex; }
-
-    .wconv-msg {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+    .wconv-msg { display: flex; flex-direction: column; gap: 2px; }
     .wconv-msg-role {
       font-size: 0.68rem;
       font-weight: 700;
@@ -600,7 +806,7 @@
       color: var(--text-muted);
       margin-top: 8px;
     }
-    .wconv-msg-role.user  { color: var(--accent); }
+    .wconv-msg-role.user      { color: var(--accent); }
     .wconv-msg-role.assistant { color: #64748b; }
     .wconv-msg-content {
       font-size: 0.875rem;
@@ -609,189 +815,344 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .wconv-loading { padding: 10px 12px; font-size: 0.82rem; color: var(--text-muted); }
 
-    .wconv-loading {
-      padding: 10px 12px;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-
-    /* ── Responsive (≤ 768px) ─────────────────────────────────────────────── */
-    @media (max-width: 768px) {
-      .settings-main { padding: 24px 16px 48px; }
-      .settings-card { padding: 20px; }
-    }
-
-    /* ── Responsive (≤ 480px) ─────────────────────────────────────────────── */
+    /* ── Responsive tweaks ── */
     @media (max-width: 480px) {
-      .settings-main          { padding: 16px 12px 40px; }
-      .settings-card          { padding: 16px 14px; }
-      .settings-card-header   { flex-wrap: wrap; gap: 8px; }
-      .settings-page-title    { font-size: 1.2rem; }
-
-      /* Hide the user email in the nav — too wide to fit on a phone */
-      .top-nav-user           { display: none; }
-
-      /* Prevent iOS Safari from auto-zooming when tapping any input */
-      input,
-      .website-url-input      { font-size: 1rem; }
-
-      /* Stack the inline input + button rows so both are full-width */
+      .db-panel { padding: 18px 12px 48px; }
+      .settings-card { padding: 18px 14px; }
+      .settings-card-header { flex-wrap: wrap; gap: 8px; }
       .website-url-row,
-      .staff-invite-row       { flex-direction: column; align-items: stretch; }
-
+      .staff-invite-row { flex-direction: column; align-items: stretch; }
       .website-url-row  .website-save-btn,
       .staff-invite-row .website-save-btn { width: 100%; }
+      input, .website-url-input { font-size: 1rem; }
     }
   </style>
 </head>
 <body class="settings-page">
 
-  <!-- Top navigation -->
-  <nav class="top-nav">
-    <a href="/" class="top-nav-link">Chat</a>
-    <a href="/dashboard" class="top-nav-link active">Dashboard</a>
-    <div class="top-nav-right">
-      <span class="top-nav-user">{{ user_email }}</span>
-      <a href="/logout" class="top-nav-signout">Sign out</a>
-    </div>
-  </nav>
+  <!-- Mobile top bar -->
+  <div class="db-mobile-bar" id="mobileBar">
+    <button class="db-mobile-toggle" id="mobileSidebarToggle" aria-label="Open menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <span class="db-mobile-church">{{ church_name }}</span>
+  </div>
 
-  <main class="settings-main">
-    <div class="settings-content">
+  <div class="db-sidebar-overlay" id="sidebarOverlay"></div>
 
-      <div class="settings-page-header">
-        <h1 class="settings-page-title">{{ church_name }}</h1>
+  <div class="db-layout">
+
+    <!-- ══════════ SIDEBAR ══════════ -->
+    <aside class="db-sidebar" id="dbSidebar">
+
+      <div class="db-sidebar-header">
+        <div class="db-logo">
+          <div class="db-logo-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <span class="db-logo-text">Wesley AI</span>
+        </div>
+        <div class="db-church-name">{{ church_name }}</div>
       </div>
 
-      <!-- Documents card -->
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Documents</h2>
-          <label class="upload-label" for="fileUpload">
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/>
+      <nav class="db-sidebar-nav" id="dbSidebarNav">
+
+        <!-- Test Bot (standalone link) -->
+        <a href="/" class="db-nav-standalone" title="Open staff chat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Test Bot
+          <svg class="ext-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </a>
+
+        <!-- ── Activity ── -->
+        <div class="db-nav-section db-section-open" data-section="activity">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Upload PDF or DOCX
-          </label>
-          <input type="file" id="fileUpload" accept=".pdf,.docx" style="display:none" />
-        </div>
-
-        <div class="upload-progress" id="uploadProgress"></div>
-
-        <div class="doc-list-full" id="docList">
-          <div class="doc-empty-full">Loading…</div>
-        </div>
-
-        <div class="card-footer-row">
-          <button class="refresh-btn-sm" id="refreshBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            Refresh
+            Activity
           </button>
-        </div>
-      </section>
-
-      <!-- Customize Your Bot card -->
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Customize Your Bot</h2>
-        </div>
-
-        <div class="bot-fields">
-
-          <div class="bot-field-row">
-            <label class="website-field-label" for="botName">Bot name</label>
-            <input
-              type="text"
-              id="botName"
-              class="website-url-input"
-              placeholder="Wesley"
-              maxlength="100"
-              autocomplete="off"
-            />
-          </div>
-
-          <div class="bot-field-row">
-            <label class="website-field-label" for="botWelcome">Welcome message</label>
-            <input
-              type="text"
-              id="botWelcome"
-              class="website-url-input"
-              placeholder="How can I help you today?"
-              maxlength="500"
-              autocomplete="off"
-            />
-          </div>
-
-          <div class="bot-field-row">
-            <label class="website-field-label" for="botCityInput">Church city</label>
-            <input
-              type="text"
-              id="botCityInput"
-              class="website-url-input"
-              placeholder="e.g. Nashville, TN"
-              maxlength="200"
-              autocomplete="off"
-            />
-          </div>
-
-          <div class="bot-field-row">
-            <label class="website-field-label">Primary color</label>
-            <div class="color-picker-row">
-              <input type="color" id="botColorPicker" class="bot-color-swatch" value="#0a3d3d" />
-              <input
-                type="text"
-                id="botColorHex"
-                class="website-url-input color-hex-input"
-                placeholder="#0a3d3d"
-                maxlength="7"
-                autocomplete="off"
-                spellcheck="false"
-              />
+          <div class="db-section-items">
+            <button class="db-nav-item" data-panel="chat-logs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              Chat Logs
+            </button>
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              Leads
+              <span class="cs-badge">Soon</span>
             </div>
           </div>
-
         </div>
 
-        <div class="bot-save-row">
-          <button class="website-save-btn" id="botSaveBtn">Save</button>
-        </div>
-        <div class="website-status" id="botStatus"></div>
-
-      </section>
-
-      <!-- Website Chatbot card -->
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Website Chatbot</h2>
-        </div>
-
-        <div class="website-field-label">Church website URL</div>
-        <div class="website-url-row">
-          <input
-            type="url"
-            id="websiteUrl"
-            class="website-url-input"
-            placeholder="https://yourchurch.org"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="website-save-btn" id="websiteSaveBtn">Save</button>
-        </div>
-
-        <div class="website-status" id="websiteStatus">Loading…</div>
-
-        <!-- Shown only when a URL is saved -->
-        <div id="websiteEmbedSection" style="display:none">
-          <div class="embed-block">
-            <div class="embed-block-header">
-              <span class="embed-block-title">Embed code</span>
-              <button class="website-copy-btn" id="copyEmbedBtn">Copy</button>
+        <!-- ── Analytics ── -->
+        <div class="db-nav-section" data-section="analytics">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            Analytics
+          </button>
+          <div class="db-section-items">
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6"  y1="20" x2="6"  y2="14"/>
+              </svg>
+              Chats
+              <span class="cs-badge">Soon</span>
             </div>
-            <div class="website-embed-code" id="embedCode" title="Click to select all"></div>
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Topics
+              <span class="cs-badge">Soon</span>
+            </div>
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9"  y1="9"  x2="9.01"  y2="9"/>
+                <line x1="15" y1="9"  x2="15.01" y2="9"/>
+              </svg>
+              Sentiment
+              <span class="cs-badge">Soon</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Data Sources ── -->
+        <div class="db-nav-section db-section-open" data-section="data-sources">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            Data Sources
+          </button>
+          <div class="db-section-items">
+            <button class="db-nav-item" data-panel="files">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              Files
+            </button>
+            <button class="db-nav-item" data-panel="website">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+              Website
+            </button>
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="17" y1="10" x2="3" y2="10"/>
+                <line x1="21" y1="6"  x2="3" y2="6"/>
+                <line x1="21" y1="14" x2="3" y2="14"/>
+                <line x1="17" y1="18" x2="3" y2="18"/>
+              </svg>
+              Text Snippets
+              <span class="cs-badge">Soon</span>
+            </div>
+            <div class="db-nav-item db-nav-coming-soon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              Q&amp;A
+              <span class="cs-badge">Soon</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Deploy ── -->
+        <div class="db-nav-section db-section-open" data-section="deploy">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            Deploy
+          </button>
+          <div class="db-section-items">
+            <button class="db-nav-item" data-panel="embed">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              Embed Code
+            </button>
+            <a href="/" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              Staff Chat
+              <svg class="ext-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- ── Settings ── -->
+        <div class="db-nav-section db-section-open" data-section="settings-section">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            Settings
+          </button>
+          <div class="db-section-items">
+            <button class="db-nav-item" data-panel="customize">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              Customize
+            </button>
+            {% if user_role == 'admin' %}
+            <button class="db-nav-item" data-panel="team">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              Team
+            </button>
+            {% endif %}
+            {% if has_stripe_sub %}
+            <button class="db-nav-item" data-panel="subscription">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                <line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+              Subscription
+            </button>
+            {% endif %}
+          </div>
+        </div>
+
+      </nav>
+
+      <div class="db-sidebar-footer">
+        <span class="db-user-email">{{ user_email }}</span>
+        <a href="/logout" class="db-signout">Sign out</a>
+      </div>
+    </aside><!-- /.db-sidebar -->
+
+    <!-- ══════════ MAIN PANELS ══════════ -->
+    <main class="db-main" id="dbMain">
+
+      <!-- ── Chat Logs ── -->
+      <div class="db-panel" id="panel-chat-logs">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Chat Logs</h1>
+          <p class="db-panel-subtitle">Conversations started from your public website widget.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Website Conversations</h2>
+            <button class="refresh-btn-sm" id="wconvRefreshBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <div class="wconv-list" id="wconvList">
+            <div class="wconv-empty">Loading…</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── Files ── -->
+      <div class="db-panel" id="panel-files">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Files</h1>
+          <p class="db-panel-subtitle">Upload PDFs and DOCX files to give your bot additional knowledge.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Documents</h2>
+            <label class="upload-label" for="fileUpload">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="7" y1="1" x2="7" y2="13"/>
+                <line x1="1" y1="7" x2="13" y2="7"/>
+              </svg>
+              Upload PDF or DOCX
+            </label>
+            <input type="file" id="fileUpload" accept=".pdf,.docx" style="display:none" />
+          </div>
+          <div class="upload-progress" id="uploadProgress"></div>
+          <div class="doc-list-full" id="docList">
+            <div class="doc-empty-full">Loading…</div>
+          </div>
+          <div class="card-footer-row">
+            <button class="refresh-btn-sm" id="refreshBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── Website ── -->
+      <div class="db-panel" id="panel-website">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Website</h1>
+          <p class="db-panel-subtitle">Crawl your church website so the widget chatbot can answer questions from it.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Website Chatbot</h2>
+          </div>
+          <div class="website-field-label">Church website URL</div>
+          <div class="website-url-row">
+            <input
+              type="url"
+              id="websiteUrl"
+              class="website-url-input"
+              placeholder="https://yourchurch.org"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="website-save-btn" id="websiteSaveBtn">Save</button>
+          </div>
+          <div class="website-status" id="websiteStatus">Loading…</div>
+          <!-- Shown once a URL is saved -->
+          <div id="websiteCrawlSection" style="display:none">
             <div class="crawl-row">
               <span class="crawl-pages-count" id="crawlPagesCount"></span>
               <button class="crawl-btn" id="crawlBtn">
@@ -803,96 +1164,141 @@
               </button>
             </div>
           </div>
+        </section>
+      </div>
+
+      <!-- ── Embed Code ── -->
+      <div class="db-panel" id="panel-embed">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Embed Code</h1>
+          <p class="db-panel-subtitle">Add the Wesley AI widget to your church website with one line of code.</p>
         </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Website Widget</h2>
+          </div>
+          <p class="embed-instructions">
+            Paste this snippet into the <code>&lt;head&gt;</code> or just before the closing <code>&lt;/body&gt;</code>
+            tag of every page where you want the chat widget to appear.
+          </p>
+          <div class="embed-block-header">
+            <span class="embed-block-title">Embed snippet</span>
+            <button class="website-copy-btn" id="copyEmbedBtn">Copy</button>
+          </div>
+          <div class="website-embed-code" id="embedCode" title="Click to select all">&lt;script src="https://app.wesleyai.co/widget.js" data-church-id="{{ church_id }}"&gt;&lt;/script&gt;</div>
+        </section>
+      </div>
 
-      </section>
-
-      <!-- Manage Subscription card — only shown when an active Stripe sub exists -->
-      {% if has_stripe_sub %}
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Subscription</h2>
+      <!-- ── Customize ── -->
+      <div class="db-panel" id="panel-customize">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Customize</h1>
+          <p class="db-panel-subtitle">Personalize your bot's name, greeting, and brand color.</p>
         </div>
-        <p style="font-size:0.87rem;color:var(--text-muted);margin:0 0 18px;line-height:1.6;">
-          Update your payment method, download invoices, or cancel your subscription — all handled securely by Stripe.
-        </p>
-        <a href="/billing/portal" class="portal-btn">
-          Manage subscription
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px;">
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </a>
-      </section>
-      {% endif %}
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Bot Appearance</h2>
+          </div>
+          <div class="bot-fields">
+            <div class="bot-field-row">
+              <label class="website-field-label" for="botName">Bot name</label>
+              <input type="text" id="botName" class="website-url-input" placeholder="Wesley" maxlength="100" autocomplete="off"/>
+            </div>
+            <div class="bot-field-row">
+              <label class="website-field-label" for="botWelcome">Welcome message</label>
+              <input type="text" id="botWelcome" class="website-url-input" placeholder="How can I help you today?" maxlength="500" autocomplete="off"/>
+            </div>
+            <div class="bot-field-row">
+              <label class="website-field-label" for="botCityInput">Church city</label>
+              <input type="text" id="botCityInput" class="website-url-input" placeholder="e.g. Nashville, TN" maxlength="200" autocomplete="off"/>
+            </div>
+            <div class="bot-field-row">
+              <label class="website-field-label">Primary color</label>
+              <div class="color-picker-row">
+                <input type="color" id="botColorPicker" class="bot-color-swatch" value="#0a3d3d"/>
+                <input type="text" id="botColorHex" class="website-url-input color-hex-input" placeholder="#0a3d3d" maxlength="7" autocomplete="off" spellcheck="false"/>
+              </div>
+            </div>
+          </div>
+          <div class="bot-save-row">
+            <button class="website-save-btn" id="botSaveBtn">Save</button>
+          </div>
+          <div class="website-status" id="botStatus"></div>
+        </section>
+      </div>
 
-      <!-- Team card — admin only -->
+      <!-- ── Team (admin only) ── -->
       {% if user_role == 'admin' %}
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Team</h2>
-          <button class="refresh-btn-sm" id="staffRefreshBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            Refresh
-          </button>
+      <div class="db-panel" id="panel-team">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Team</h1>
+          <p class="db-panel-subtitle">Invite staff members to access the dashboard.</p>
         </div>
-
-        <div class="staff-list" id="staffList">
-          <div class="staff-empty">Loading…</div>
-        </div>
-
-        <!-- Invite form -->
-        <div class="staff-invite-row">
-          <input
-            type="email"
-            id="staffInviteEmail"
-            class="website-url-input"
-            placeholder="colleague@church.org"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="website-save-btn" id="staffInviteBtn">Send Invite</button>
-        </div>
-        <div class="website-status" id="staffInviteStatus"></div>
-      </section>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Team Members</h2>
+            <button class="refresh-btn-sm" id="staffRefreshBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <div class="staff-list" id="staffList">
+            <div class="staff-empty">Loading…</div>
+          </div>
+          <div class="staff-invite-row">
+            <input type="email" id="staffInviteEmail" class="website-url-input" placeholder="colleague@church.org" autocomplete="off" spellcheck="false"/>
+            <button class="website-save-btn" id="staffInviteBtn">Send Invite</button>
+          </div>
+          <div class="website-status" id="staffInviteStatus"></div>
+        </section>
+      </div>
       {% endif %}
 
-      <!-- Website Conversations card -->
-      <section class="settings-card">
-        <div class="settings-card-header">
-          <h2 class="settings-card-title">Website Conversations</h2>
-          <button class="refresh-btn-sm" id="wconvRefreshBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      <!-- ── Subscription (Stripe users only) ── -->
+      {% if has_stripe_sub %}
+      <div class="db-panel" id="panel-subscription">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Subscription</h1>
+          <p class="db-panel-subtitle">Manage your billing, payment method, and invoices.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Billing</h2>
+          </div>
+          <p style="font-size:0.87rem;color:var(--text-muted);margin:0 0 18px;line-height:1.6;">
+            Update your payment method, download invoices, or cancel your subscription — all handled securely by Stripe.
+          </p>
+          <a href="/billing/portal" class="portal-btn">
+            Manage subscription
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px;">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
             </svg>
-            Refresh
-          </button>
-        </div>
-        <div class="wconv-list" id="wconvList">
-          <div class="wconv-empty">Loading…</div>
-        </div>
-      </section>
+          </a>
+        </section>
+      </div>
+      {% endif %}
 
-    </div><!-- /.settings-content -->
-  </main>
+    </main><!-- /.db-main -->
+
+  </div><!-- /.db-layout -->
 
   <script>window.CHURCH_ID = {{ church_id }};</script>
+
+  <!-- ── Team management (unchanged IIFE) ── -->
   <script>
-  // ── Team card ─────────────────────────────────────────────────────────────
   (function () {
     const staffList    = document.getElementById('staffList');
     const refreshBtn   = document.getElementById('staffRefreshBtn');
     const inviteEmail  = document.getElementById('staffInviteEmail');
     const inviteBtn    = document.getElementById('staffInviteBtn');
     const inviteStatus = document.getElementById('staffInviteStatus');
-    if (!staffList) return; // not shown for staff role
+    if (!staffList) return;
 
-    function initials(email) {
-      return email.slice(0, 2).toUpperCase();
-    }
+    function initials(email) { return email.slice(0, 2).toUpperCase(); }
 
     function renderStaff(staff, pendingInvites) {
       staffList.innerHTML = '';
@@ -901,7 +1307,6 @@
         return;
       }
       staff.forEach(function (u) {
-        const isCurrentUser = u.email === {{ user_email | tojson }};
         const div = document.createElement('div');
         div.className = 'staff-item';
         div.innerHTML =
@@ -931,18 +1336,12 @@
           '<div style="width:24px;flex-shrink:0;"></div>';
         staffList.appendChild(div);
       });
-
-      // Remove buttons
       staffList.querySelectorAll('.staff-remove-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          const uid = btn.dataset.id;
           if (!confirm('Remove this staff member?')) return;
-          fetch('/api/staff/' + uid, { method: 'DELETE' })
+          fetch('/api/staff/' + btn.dataset.id, { method: 'DELETE' })
             .then(function (r) { return r.json(); })
-            .then(function (d) {
-              if (d.ok) loadStaff();
-              else alert(d.error || 'Could not remove staff member.');
-            });
+            .then(function (d) { if (d.ok) loadStaff(); else alert(d.error || 'Could not remove staff member.'); });
         });
       });
     }
@@ -993,6 +1392,72 @@
     loadStaff();
   })();
   </script>
+
+  <!-- ── Panel switching + sidebar collapse ── -->
+  <script>
+  (function () {
+    const VALID_PANELS = ['chat-logs','files','website','embed','customize','team','subscription'];
+    const main = document.getElementById('dbMain');
+    const sidebar = document.getElementById('dbSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    // Show a panel and mark its nav item active
+    function showPanel(panelId) {
+      document.querySelectorAll('.db-panel').forEach(function (p) {
+        p.classList.remove('db-panel-active');
+      });
+      const panel = document.getElementById('panel-' + panelId);
+      if (panel) panel.classList.add('db-panel-active');
+
+      document.querySelectorAll('.db-nav-item[data-panel]').forEach(function (b) {
+        b.classList.remove('db-nav-active');
+      });
+      const navItem = document.querySelector('.db-nav-item[data-panel="' + panelId + '"]');
+      if (navItem) {
+        navItem.classList.add('db-nav-active');
+        // Ensure the parent section is open
+        const section = navItem.closest('.db-nav-section');
+        if (section) section.classList.add('db-section-open');
+      }
+
+      if (main) main.scrollTop = 0;
+      history.replaceState(null, '', '#' + panelId);
+      closeMobileSidebar();
+    }
+
+    // Wire up panel buttons
+    document.querySelectorAll('.db-nav-item[data-panel]').forEach(function (btn) {
+      btn.addEventListener('click', function () { showPanel(btn.dataset.panel); });
+    });
+
+    // Section collapse / expand
+    document.querySelectorAll('.db-section-header').forEach(function (header) {
+      header.addEventListener('click', function () {
+        header.closest('.db-nav-section').classList.toggle('db-section-open');
+      });
+    });
+
+    // Resolve initial panel from URL hash
+    var hash = location.hash.slice(1);
+    var initialPanel = VALID_PANELS.indexOf(hash) !== -1 ? hash : 'chat-logs';
+    showPanel(initialPanel);
+
+    // Mobile sidebar toggle
+    function closeMobileSidebar() {
+      sidebar.classList.remove('db-sidebar-open');
+      overlay.classList.remove('db-sidebar-open');
+    }
+    var mobileToggle = document.getElementById('mobileSidebarToggle');
+    if (mobileToggle) {
+      mobileToggle.addEventListener('click', function () {
+        sidebar.classList.toggle('db-sidebar-open');
+        overlay.classList.toggle('db-sidebar-open');
+      });
+    }
+    overlay.addEventListener('click', closeMobileSidebar);
+  })();
+  </script>
+
   <script src="/static/dashboard.js"></script>
 </body>
 </html>

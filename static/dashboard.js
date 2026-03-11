@@ -13,7 +13,7 @@ const uploadProgress  = document.getElementById("uploadProgress");
 const websiteUrlEl    = document.getElementById("websiteUrl");
 const websiteSaveBtn  = document.getElementById("websiteSaveBtn");
 const websiteStatusEl = document.getElementById("websiteStatus");
-const embedSection    = document.getElementById("websiteEmbedSection");
+const websiteCrawlSection = document.getElementById("websiteCrawlSection");
 const embedCodeEl     = document.getElementById("embedCode");
 const copyEmbedBtn    = document.getElementById("copyEmbedBtn");
 const crawlBtn        = document.getElementById("crawlBtn");
@@ -208,11 +208,11 @@ async function loadWebsiteSettings() {
       crawlPagesCount.textContent = data.page_count
         ? `${data.page_count.toLocaleString()} pages indexed`
         : "0 pages indexed";
-      embedSection.style.display = "";
+      if (websiteCrawlSection) websiteCrawlSection.style.display = "";
     } else {
       websiteStatusEl.textContent = "Enter your church website URL to enable the chatbot widget.";
       websiteStatusEl.className = "website-status";
-      embedSection.style.display = "none";
+      if (websiteCrawlSection) websiteCrawlSection.style.display = "none";
     }
   } catch {
     websiteStatusEl.textContent = "Could not load website settings.";
