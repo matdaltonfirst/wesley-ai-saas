@@ -139,8 +139,9 @@ def _build_system_prompt(church, widget: bool = False) -> str:
     a plain-text-only instruction (visitor-facing responses must not contain
     markdown symbols that the widget cannot render).
     """
+    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
     prompt_row = SystemPrompt.query.get(1)
-    base = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+    base = f"Today's date is {today_str}.\n\n" + (prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT)
 
     ctx = f"\n\nYou are installed at {church.name}"
     if church.church_city:
@@ -150,10 +151,8 @@ def _build_system_prompt(church, widget: bool = False) -> str:
     if not widget:
         return base + ctx
 
-    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
     addendum = (
-        f"\n\nToday's date is {today_str}. "
-        "When answering questions about schedules, events, menus, or anything "
+        "\n\nWhen answering questions about schedules, events, menus, or anything "
         "time-sensitive, use today's date to give a specific, direct answer — "
         "do not list every option when only today's is relevant."
         "\n\nIMPORTANT: Never mention that you are referencing a document, file, "
