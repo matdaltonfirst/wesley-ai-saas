@@ -51,6 +51,7 @@ class Church(db.Model):
     primary_color = db.Column(db.String(7), nullable=False, default="#0a3d3d")
     church_city = db.Column(db.String(200), nullable=True)
     starter_questions = db.Column(db.Text, nullable=True)  # JSON-encoded list of strings
+    bot_subtitle = db.Column(db.String(200), nullable=True)
 
     # Onboarding
     onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)

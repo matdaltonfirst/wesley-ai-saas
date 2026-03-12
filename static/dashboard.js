@@ -21,6 +21,7 @@ const crawlPagesCount = document.getElementById("crawlPagesCount");
 
 // Playground refs
 const pgNameEl      = document.getElementById("pgBotName");
+const pgSubtitleEl  = document.getElementById("pgBotSubtitle");
 const pgWelcomeEl   = document.getElementById("pgWelcome");
 const pgCityEl      = document.getElementById("pgCity");
 const pgColorPicker = document.getElementById("pgColorPicker");
@@ -310,10 +311,11 @@ let _previewWidget = null;
 function getCurrentConfig() {
   const rawColor = pgColorHex ? pgColorHex.value.trim() : "#0a3d3d";
   return {
-    bot_name:          pgNameEl    ? (pgNameEl.value.trim()    || "Wesley")                    : "Wesley",
-    welcome_message:   pgWelcomeEl ? (pgWelcomeEl.value.trim() || "How can I help you today?") : "How can I help you today?",
+    bot_name:          pgNameEl      ? (pgNameEl.value.trim()      || "Wesley")                        : "Wesley",
+    bot_subtitle:      pgSubtitleEl  ? pgSubtitleEl.value.trim()                                       : "",
+    welcome_message:   pgWelcomeEl   ? (pgWelcomeEl.value.trim()   || "How can I help you today?")     : "How can I help you today?",
     primary_color:     HEX_RE.test(rawColor) ? rawColor : "#0a3d3d",
-    church_city:       pgCityEl    ? pgCityEl.value.trim() : "",
+    church_city:       pgCityEl      ? pgCityEl.value.trim()  : "",
     starter_questions: pgSugInputs.map(el => el ? el.value.trim() : ""),
   };
 }
@@ -346,9 +348,10 @@ async function loadPlaygroundSettings() {
     if (res.status === 401) { window.location.href = "/login"; return; }
     const data = await res.json();
 
-    if (pgNameEl)    pgNameEl.value    = data.bot_name          || "";
-    if (pgWelcomeEl) pgWelcomeEl.value = data.welcome_message   || "";
-    if (pgCityEl)    pgCityEl.value    = data.church_city       || "";
+    if (pgNameEl)     pgNameEl.value     = data.bot_name        || "";
+    if (pgSubtitleEl) pgSubtitleEl.value = data.bot_subtitle    || "";
+    if (pgWelcomeEl)  pgWelcomeEl.value  = data.welcome_message || "";
+    if (pgCityEl)     pgCityEl.value     = data.church_city     || "";
 
     const color = data.primary_color || "#0a3d3d";
     if (pgColorHex)    pgColorHex.value    = color;
@@ -380,10 +383,11 @@ async function savePlaygroundSettings() {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bot_name:          pgNameEl    ? pgNameEl.value.trim()    : "",
-        welcome_message:   pgWelcomeEl ? pgWelcomeEl.value.trim() : "",
+        bot_name:          pgNameEl      ? pgNameEl.value.trim()      : "",
+        bot_subtitle:      pgSubtitleEl  ? pgSubtitleEl.value.trim()  : "",
+        welcome_message:   pgWelcomeEl   ? pgWelcomeEl.value.trim()   : "",
         primary_color:     hex || "#0a3d3d",
-        church_city:       pgCityEl    ? pgCityEl.value.trim()    : "",
+        church_city:       pgCityEl      ? pgCityEl.value.trim()      : "",
         starter_questions: pgSugInputs.map(el => el ? el.value.trim() : ""),
       }),
     });
@@ -415,7 +419,7 @@ if (pgColorHex) {
   });
 }
 // Live preview on every text input change
-[pgNameEl, pgWelcomeEl, pgCityEl, ...pgSugInputs].forEach(el => {
+[pgNameEl, pgSubtitleEl, pgWelcomeEl, pgCityEl, ...pgSugInputs].forEach(el => {
   if (el) el.addEventListener("input", updatePreview);
 });
 

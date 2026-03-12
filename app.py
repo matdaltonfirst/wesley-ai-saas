@@ -160,6 +160,10 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN starter_questions TEXT"))
             conn2.commit()
             print("Migration: added churches.starter_questions")
+        if "bot_subtitle" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"))
+            conn2.commit()
+            print("Migration: added churches.bot_subtitle")
 
     # Backfill trial_ends_at for any existing churches that don't have one yet.
     # Gives them a 14-day grace window from the date this migration runs.
@@ -1576,6 +1580,7 @@ def get_church_branding():
         sugs = []
     return jsonify({
         "bot_name":         church.bot_name or "Wesley",
+        "bot_subtitle":     church.bot_subtitle or "Ask me anything about our church",
         "welcome_message":  church.welcome_message or "How can I help you today?",
         "primary_color":    church.primary_color or "#0a3d3d",
         "church_city":      church.church_city or "",
@@ -1590,6 +1595,7 @@ def save_church_branding():
     church = current_user.church
 
     bot_name = (data.get("bot_name") or "").strip()
+    bot_subtitle = (data.get("bot_subtitle") or "").strip()
     welcome_message = (data.get("welcome_message") or "").strip()
     primary_color = (data.get("primary_color") or "").strip()
     church_city = (data.get("church_city") or "").strip()
@@ -1606,6 +1612,7 @@ def save_church_branding():
     clean_sugs = [str(s).strip()[:200] for s in raw_sugs if str(s).strip()][:4]
 
     church.bot_name = bot_name[:100]
+    church.bot_subtitle = bot_subtitle[:200] if bot_subtitle else None
     church.welcome_message = welcome_message[:500]
     church.primary_color = primary_color if primary_color else "#0a3d3d"
     church.church_city = church_city[:200] if church_city else None
@@ -1805,7 +1812,9 @@ def _widget_js_response():
     resp = make_response(send_from_directory("static", "widget-core.js"))
     resp.headers["Content-Type"] = "application/javascript; charset=utf-8"
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Cache-Control"] = "public, max-age=3600"
+    # no-cache so church sites always validate against the server and get
+    # the latest widget code immediately without needing a cache-busting URL.
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
     return resp
 
 
@@ -1852,6 +1861,7 @@ def widget_branding():
 
     resp = jsonify({
         "bot_name":          church.bot_name or "Wesley",
+        "bot_subtitle":      church.bot_subtitle or "Ask me anything about our church",
         "welcome_message":   church.welcome_message or "How can I help you today?",
         "primary_color":     church.primary_color or "#0a3d3d",
         "church_city":       church.church_city or "",

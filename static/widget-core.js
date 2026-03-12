@@ -2,6 +2,7 @@
  * Single source of truth for the Wesley AI widget UI.
  *
  * EMBED MODE:   Auto-inits when script tag has data-church-id attribute.
+ *               Fetches /api/widget/branding on load and applies saved config.
  *               Renders a floating FAB + expandable chat panel on the page.
  *
  * PREVIEW MODE: Instantiated as new WesleyWidget({ previewMode:true, container, config }).
@@ -44,9 +45,14 @@
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
     "line-height:1;letter-spacing:-0.01em;user-select:none;}",
 
+    /* Name + subtitle stack */
+    ".wai-pv-name-stack{min-width:0;}",
     ".wai-pv-bot-name{font-size:0.95rem;font-weight:700;color:#fff;",
     "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;",
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}",
+    ".wai-pv-subtitle{font-size:0.72rem;color:rgba(255,255,255,0.7);",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
+    "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
 
     ".wai-pv-close{width:24px;height:24px;background:rgba(255,255,255,0.2);",
     "border-radius:50%;display:flex;align-items:center;justify-content:center;",
@@ -183,7 +189,7 @@
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}",
     ".wai-brand a{color:#29abb5;text-decoration:none;}",
 
-    /* Starter question chips (embed open state) */
+    /* Starter question chips (shown when panel first opens) */
     ".wai-sug-wrap{display:flex;flex-direction:column;gap:6px;padding:4px 0;}",
     ".wai-sug-btn{background:#f0f9fa;border:1px solid #c9e8eb;border-radius:10px;",
     "padding:8px 12px;font-size:0.82rem;",
@@ -225,6 +231,8 @@
     var ch = ((name || "W").trim().charAt(0) || "W");
     return ch.toUpperCase();
   }
+
+  var DEFAULT_SUBTITLE = "Ask me anything about our church";
 
   var SUGGESTION_DEFAULTS = [
     "What is our volunteer policy?",
@@ -270,12 +278,13 @@
   // ════════════════════════════════════════════════════════════════════════════
 
   WesleyWidget.prototype._buildPreview = function () {
-    var cfg   = this._config;
-    var color = cfg.primary_color   || "#0a3d3d";
-    var name  = cfg.bot_name        || "Wesley";
-    var msg   = cfg.welcome_message || "How can I help you today?";
-    var sugs  = cfg.starter_questions || [];
-    var ini   = initial(name);
+    var cfg      = this._config;
+    var color    = cfg.primary_color   || "#0a3d3d";
+    var name     = cfg.bot_name        || "Wesley";
+    var subtitle = cfg.bot_subtitle    || DEFAULT_SUBTITLE;
+    var msg      = cfg.welcome_message || "How can I help you today?";
+    var sugs     = cfg.starter_questions || [];
+    var ini      = initial(name);
 
     var sugHTML = "";
     for (var i = 0; i < 4; i++) {
@@ -289,7 +298,10 @@
       '<div class="wai-pv-header" id="wai-pv-hdr">',
       '  <div class="wai-pv-header-left">',
       '    <div class="wai-pv-avatar-sm" id="wai-pv-av-sm">' + esc(ini) + '</div>',
-      '    <div class="wai-pv-bot-name" id="wai-pv-name">' + esc(name) + '</div>',
+      '    <div class="wai-pv-name-stack">',
+      '      <div class="wai-pv-bot-name" id="wai-pv-name">' + esc(name) + '</div>',
+      '      <div class="wai-pv-subtitle" id="wai-pv-subtitle">' + esc(subtitle) + '</div>',
+      '    </div>',
       '  </div>',
       '  <div class="wai-pv-close">&#10005;</div>',
       '</div>',
@@ -318,7 +330,7 @@
       '</div>',
     ].join("\n");
 
-    // Apply initial color
+    // Apply initial colors
     frame.querySelector("#wai-pv-hdr").style.background    = color;
     frame.querySelector("#wai-pv-av-lg").style.background  = color;
     frame.querySelector("#wai-pv-send").style.background   = color;
@@ -334,6 +346,7 @@
     this._refs.avatarSm = frame.querySelector("#wai-pv-av-sm");
     this._refs.avatarLg = frame.querySelector("#wai-pv-av-lg");
     this._refs.botName  = frame.querySelector("#wai-pv-name");
+    this._refs.subtitle = frame.querySelector("#wai-pv-subtitle");
     this._refs.welcome  = frame.querySelector("#wai-pv-welcome");
     this._refs.sugsEl   = frame.querySelector("#wai-pv-sugs");
     this._refs.sendBtn  = frame.querySelector("#wai-pv-send");
@@ -343,25 +356,27 @@
    * Live-update the preview with new branding values.
    * Patches DOM nodes in place — no re-mount, no flash.
    *
-   * @param {object} cfg  Branding config with same shape as /api/church/branding response.
+   * @param {object} cfg  Branding config (same shape as /api/church/branding response).
    */
   WesleyWidget.prototype.update = function (cfg) {
     if (!this._previewMode) return;
     this._config = cfg || {};
 
-    var color = cfg.primary_color   || "#0a3d3d";
-    var name  = cfg.bot_name        || "Wesley";
-    var msg   = cfg.welcome_message || "How can I help you today?";
-    var sugs  = cfg.starter_questions || [];
-    var ini   = initial(name);
+    var color    = cfg.primary_color   || "#0a3d3d";
+    var name     = cfg.bot_name        || "Wesley";
+    var subtitle = cfg.bot_subtitle    || DEFAULT_SUBTITLE;
+    var msg      = cfg.welcome_message || "How can I help you today?";
+    var sugs     = cfg.starter_questions || [];
+    var ini      = initial(name);
 
     var r = this._refs;
-    if (!r.frame) return; // safety guard
+    if (!r.frame) return;
 
     if (r.header)   r.header.style.background  = color;
     if (r.avatarLg) { r.avatarLg.style.background = color; r.avatarLg.textContent = ini; }
     if (r.avatarSm) r.avatarSm.textContent = ini;  // bg stays rgba(255,255,255,0.22)
     if (r.botName)  r.botName.textContent  = name;
+    if (r.subtitle) r.subtitle.textContent = subtitle;
     if (r.welcome)  r.welcome.textContent  = msg;
     if (r.sendBtn)  r.sendBtn.style.background = color;
 
@@ -378,11 +393,12 @@
   // ════════════════════════════════════════════════════════════════════════════
 
   WesleyWidget.prototype._buildEmbed = function () {
-    var self  = this;
-    var cfg   = this._config;
-    var color = cfg.primary_color || "#0a3d3d";
-    var name  = cfg.bot_name      || "Wesley";
-    var ini   = initial(name);
+    var self     = this;
+    var cfg      = this._config;
+    var color    = cfg.primary_color || "#0a3d3d";
+    var name     = cfg.bot_name      || "Wesley";
+    var subtitle = cfg.bot_subtitle  || DEFAULT_SUBTITLE;
+    var ini      = initial(name);
 
     // ── Floating button ──────────────────────────────────────────────────────
     var btn = document.createElement("button");
@@ -409,7 +425,7 @@
       '    <div class="wai-avatar" id="wai-e-av">' + esc(ini) + '</div>',
       '    <div>',
       '      <div class="wai-title" id="wai-e-title">' + esc(name) + '</div>',
-      '      <div class="wai-subtitle">Ask me anything about our church</div>',
+      '      <div class="wai-subtitle" id="wai-e-subtitle">' + esc(subtitle) + '</div>',
       '    </div>',
       '  </div>',
       '  <button class="wai-close" id="wai-e-close" aria-label="Close chat">',
@@ -448,12 +464,13 @@
     document.body.appendChild(panel);
 
     // Cache refs
-    this._refs.header = panel.querySelector("#wai-e-hdr");
-    this._refs.avatar = panel.querySelector("#wai-e-av");
-    this._refs.title  = panel.querySelector("#wai-e-title");
-    this._refs.msgs   = panel.querySelector("#wai-e-msgs");
-    this._refs.input  = panel.querySelector("#wai-e-input");
-    this._refs.send   = panel.querySelector("#wai-e-send");
+    this._refs.header   = panel.querySelector("#wai-e-hdr");
+    this._refs.avatar   = panel.querySelector("#wai-e-av");
+    this._refs.title    = panel.querySelector("#wai-e-title");
+    this._refs.subtitle = panel.querySelector("#wai-e-subtitle");
+    this._refs.msgs     = panel.querySelector("#wai-e-msgs");
+    this._refs.input    = panel.querySelector("#wai-e-input");
+    this._refs.send     = panel.querySelector("#wai-e-send");
 
     // Restore session from previous page navigation (same tab)
     if (this._SESSION_KEY) {
@@ -481,7 +498,8 @@
     });
     this._refs.send.addEventListener("click", function () { self._sendMessage(); });
 
-    // Fetch live branding asynchronously; defaults are already applied above.
+    // Fetch live branding from server asynchronously.
+    // Defaults are already applied above; this updates to saved config.
     if (this._churchId && this._apiBase) {
       fetch(this._apiBase + "/api/widget/branding?church_id=" + encodeURIComponent(this._churchId))
         .then(function (r) { return r.json(); })
@@ -493,19 +511,21 @@
     }
   };
 
-  /** Patch the embed UI after branding is fetched. */
+  /** Patch the embed UI after branding is fetched from the server. */
   WesleyWidget.prototype._applyEmbedBranding = function () {
-    var cfg   = this._config;
-    var color = cfg.primary_color || "#0a3d3d";
-    var name  = cfg.bot_name      || "Wesley";
-    var ini   = initial(name);
-    var r     = this._refs;
+    var cfg      = this._config;
+    var color    = cfg.primary_color || "#0a3d3d";
+    var name     = cfg.bot_name      || "Wesley";
+    var subtitle = cfg.bot_subtitle  || DEFAULT_SUBTITLE;
+    var ini      = initial(name);
+    var r        = this._refs;
 
-    if (r.btn)    r.btn.style.background    = color;
-    if (r.header) r.header.style.background = color;
-    if (r.avatar) { r.avatar.textContent = ini; }  // bg stays rgba(255,255,255,0.22)
-    if (r.title)  r.title.textContent  = name;
-    if (r.send)   r.send.style.background   = color;
+    if (r.btn)      r.btn.style.background      = color;
+    if (r.header)   r.header.style.background   = color;
+    if (r.avatar)   { r.avatar.textContent = ini; }  // bg stays rgba(255,255,255,0.22)
+    if (r.title)    r.title.textContent    = name;
+    if (r.subtitle) r.subtitle.textContent = subtitle;
+    if (r.send)     r.send.style.background     = color;
   };
 
   WesleyWidget.prototype._embedOpen = function () {
