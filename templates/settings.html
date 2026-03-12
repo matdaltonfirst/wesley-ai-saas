@@ -926,157 +926,14 @@
       pointer-events: none;
     }
 
-    /* ── Widget mock-up ── */
-    .pg-widget-frame {
-      width: 360px;
-      max-width: calc(100% - 32px);
-      background: #fff;
-      border-radius: 18px;
-      box-shadow: 0 8px 48px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      max-height: calc(100% - 80px);
-    }
-    .pg-widget-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-      flex-shrink: 0;
-    }
-    .pg-widget-header-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.22);
+    /* ── Widget preview mount point ── */
+    /* The .wai-preview-frame inside #pg-widget-mount is rendered by widget-core.js */
+    #pg-widget-mount {
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
-    }
-    .pg-bot-initial {
-      font-size: 0.9rem;
-      font-weight: 800;
-      color: #fff;
-      line-height: 1;
-      letter-spacing: -0.01em;
-      user-select: none;
-    }
-    .pg-bot-initial-lg {
-      font-size: 1.55rem;
-    }
-    .pg-widget-header-name {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #fff;
-      flex: 1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .pg-widget-close {
-      width: 24px;
-      height: 24px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: rgba(255,255,255,0.85);
-      flex-shrink: 0;
-    }
-    .pg-widget-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px 16px 12px;
-    }
-    .pg-widget-body::-webkit-scrollbar { width: 3px; }
-    .pg-widget-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
-    .pg-widget-greeting {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      margin-bottom: 16px;
-    }
-    .pg-widget-greeting-icon {
-      width: 58px;
-      height: 58px;
-      border-radius: 50%;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    /* greeting icon uses .pg-bot-initial-lg — no img rule needed */
-    .pg-widget-welcome {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #1a202c;
-      line-height: 1.4;
-      margin: 0;
-    }
-    .pg-widget-suggestions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .pg-suggestion {
-      background: #f7f8fa;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 9px 13px;
-      font-size: 0.82rem;
-      font-family: var(--font);
-      color: #2d3748;
-      cursor: default;
-      text-align: left;
       width: 100%;
-      line-height: 1.4;
-    }
-    .pg-widget-input-area {
-      padding: 10px 12px 12px;
-      border-top: 1px solid #f1f5f9;
-      flex-shrink: 0;
-    }
-    .pg-widget-input-inner {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #f7f8fa;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 7px 7px 7px 13px;
-    }
-    .pg-widget-input {
-      flex: 1;
-      border: none;
-      background: transparent;
-      font-size: 0.84rem;
-      font-family: var(--font);
-      color: #94a3b8;
-      outline: none;
-      pointer-events: none;
-    }
-    .pg-widget-send {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      border: none;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      cursor: default;
-    }
-    .pg-widget-powered {
-      text-align: center;
-      font-size: 0.67rem;
-      color: #cbd5e0;
-      margin: 7px 0 0;
+      height: 100%;
     }
 
     /* ── Playground responsive ── */
@@ -1520,54 +1377,10 @@
             </div>
           </div><!-- /.pg-left -->
 
-          <!-- Right column: live preview -->
+          <!-- Right column: live preview (rendered by WesleyWidget from widget-core.js) -->
           <div class="pg-right">
             <div class="pg-preview-label">Live Preview</div>
-            <div class="pg-widget-frame">
-
-              <!-- Widget header -->
-              <div class="pg-widget-header" id="pvHeader" style="background:#0a3d3d">
-                <div class="pg-widget-header-icon">
-                  <span class="pg-bot-initial">W</span>
-                </div>
-                <span class="pg-widget-header-name" id="pvBotName">Wesley</span>
-                <div class="pg-widget-close">
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </div>
-              </div>
-
-              <!-- Widget body -->
-              <div class="pg-widget-body">
-                <div class="pg-widget-greeting">
-                  <div class="pg-widget-greeting-icon" id="pvGreetingIcon" style="background:#0a3d3d">
-                    <span class="pg-bot-initial pg-bot-initial-lg">W</span>
-                  </div>
-                  <p class="pg-widget-welcome" id="pvWelcome">How can I help you today?</p>
-                </div>
-                <div class="pg-widget-suggestions">
-                  <button class="pg-suggestion" id="pvSug0">What is our volunteer policy?</button>
-                  <button class="pg-suggestion" id="pvSug1">Help me draft a Sunday bulletin</button>
-                  <button class="pg-suggestion" id="pvSug2">What events are coming up?</button>
-                  <button class="pg-suggestion" id="pvSug3">Write a prayer for our newsletter</button>
-                </div>
-              </div>
-
-              <!-- Widget input bar -->
-              <div class="pg-widget-input-area">
-                <div class="pg-widget-input-inner">
-                  <input type="text" placeholder="Ask a question…" class="pg-widget-input" disabled />
-                  <button class="pg-widget-send" id="pvSend" style="background:#0a3d3d">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
-                    </svg>
-                  </button>
-                </div>
-                <p class="pg-widget-powered">Powered by Wesley AI</p>
-              </div>
-
-            </div><!-- /.pg-widget-frame -->
+            <div id="pg-widget-mount"></div>
           </div><!-- /.pg-right -->
 
         </div><!-- /.pg-layout -->
@@ -1809,6 +1622,7 @@
   })();
   </script>
 
+  <script src="/widget-core.js"></script>
   <script src="/static/dashboard.js"></script>
 
   </div><!-- /.app-wrapper -->

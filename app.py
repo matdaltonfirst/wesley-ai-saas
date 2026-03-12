@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import uuid
 import string
 import secrets
@@ -155,6 +156,10 @@ with app.app_context():
             conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"))
             conn2.commit()
             print("Migration: added churches.trial_reminder_sent")
+        if "starter_questions" not in existing_cols2:
+            conn2.execute(text("ALTER TABLE churches ADD COLUMN starter_questions TEXT"))
+            conn2.commit()
+            print("Migration: added churches.starter_questions")
 
     # Backfill trial_ends_at for any existing churches that don't have one yet.
     # Gives them a 14-day grace window from the date this migration runs.
@@ -1565,11 +1570,16 @@ _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 @login_required
 def get_church_branding():
     church = current_user.church
+    try:
+        sugs = json.loads(church.starter_questions) if church.starter_questions else []
+    except (ValueError, TypeError):
+        sugs = []
     return jsonify({
-        "bot_name":       church.bot_name or "Wesley",
-        "welcome_message": church.welcome_message or "How can I help you today?",
-        "primary_color":  church.primary_color or "#0a3d3d",
-        "church_city":    church.church_city or "",
+        "bot_name":         church.bot_name or "Wesley",
+        "welcome_message":  church.welcome_message or "How can I help you today?",
+        "primary_color":    church.primary_color or "#0a3d3d",
+        "church_city":      church.church_city or "",
+        "starter_questions": sugs,
     })
 
 
@@ -1583,6 +1593,7 @@ def save_church_branding():
     welcome_message = (data.get("welcome_message") or "").strip()
     primary_color = (data.get("primary_color") or "").strip()
     church_city = (data.get("church_city") or "").strip()
+    raw_sugs = data.get("starter_questions") or []
 
     if not bot_name:
         return jsonify({"error": "Bot name cannot be empty."}), 400
@@ -1591,10 +1602,14 @@ def save_church_branding():
     if primary_color and not _HEX_COLOR_RE.match(primary_color):
         return jsonify({"error": "Primary color must be a valid hex color (e.g. #1a2b3c)."}), 400
 
+    # Sanitise starter questions: keep only non-empty strings, max 4, max 200 chars each
+    clean_sugs = [str(s).strip()[:200] for s in raw_sugs if str(s).strip()][:4]
+
     church.bot_name = bot_name[:100]
     church.welcome_message = welcome_message[:500]
     church.primary_color = primary_color if primary_color else "#0a3d3d"
     church.church_city = church_city[:200] if church_city else None
+    church.starter_questions = json.dumps(clean_sugs) if clean_sugs else None
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -1785,12 +1800,65 @@ def admin_reset_password(church_id):
 # ── Widget JS (public, CORS) ──────────────────────────────────────────────────
 
 
-@app.route("/widget.js")
-def serve_widget():
-    resp = make_response(send_from_directory("static", "widget.js"))
+def _widget_js_response():
+    """Serve widget-core.js with appropriate headers for public embedding."""
+    resp = make_response(send_from_directory("static", "widget-core.js"))
     resp.headers["Content-Type"] = "application/javascript; charset=utf-8"
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
+
+
+@app.route("/widget.js")
+def serve_widget():
+    return _widget_js_response()
+
+
+@app.route("/widget-core.js")
+def serve_widget_core():
+    return _widget_js_response()
+
+
+# ── Widget Branding API (public, CORS) ────────────────────────────────────────
+
+
+@app.route("/api/widget/branding", methods=["GET", "OPTIONS"])
+def widget_branding():
+    """Public endpoint returning church branding config for embedded widgets."""
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    church_id = request.args.get("church_id", "").strip()
+    if not church_id:
+        return jsonify({"error": "church_id is required"}), 400
+
+    try:
+        church_id_int = int(church_id)
+    except ValueError:
+        return jsonify({"error": "Invalid church_id"}), 400
+
+    church = Church.query.get(church_id_int)
+    if not church:
+        return jsonify({"error": "Church not found"}), 404
+
+    try:
+        sugs = json.loads(church.starter_questions) if church.starter_questions else []
+    except (ValueError, TypeError):
+        sugs = []
+
+    resp = jsonify({
+        "bot_name":          church.bot_name or "Wesley",
+        "welcome_message":   church.welcome_message or "How can I help you today?",
+        "primary_color":     church.primary_color or "#0a3d3d",
+        "church_city":       church.church_city or "",
+        "starter_questions": sugs,
+    })
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "public, max-age=60"
     return resp
 
 

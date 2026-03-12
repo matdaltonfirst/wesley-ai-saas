@@ -303,38 +303,41 @@ async function copyEmbedCode() {
 // ── Playground (Customise + Live Preview) ──────────────────────────────────
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-function updatePreview() {
-  const name    = pgNameEl    ? (pgNameEl.value.trim()    || "Wesley")                      : "Wesley";
-  const welcome = pgWelcomeEl ? (pgWelcomeEl.value.trim() || "How can I help you today?")   : "How can I help you today?";
+/** Singleton WesleyWidget instance used for the playground preview. */
+let _previewWidget = null;
+
+/** Build a branding config object from the current form field values. */
+function getCurrentConfig() {
   const rawColor = pgColorHex ? pgColorHex.value.trim() : "#0a3d3d";
-  const color    = HEX_RE.test(rawColor) ? rawColor : "#0a3d3d";
+  return {
+    bot_name:          pgNameEl    ? (pgNameEl.value.trim()    || "Wesley")                    : "Wesley",
+    welcome_message:   pgWelcomeEl ? (pgWelcomeEl.value.trim() || "How can I help you today?") : "How can I help you today?",
+    primary_color:     HEX_RE.test(rawColor) ? rawColor : "#0a3d3d",
+    church_city:       pgCityEl    ? pgCityEl.value.trim() : "",
+    starter_questions: pgSugInputs.map(el => el ? el.value.trim() : ""),
+  };
+}
 
-  const pvBotName      = document.getElementById("pvBotName");
-  const pvWelcome      = document.getElementById("pvWelcome");
-  const pvHeader       = document.getElementById("pvHeader");
-  const pvSend         = document.getElementById("pvSend");
-  const pvGreetingIcon = document.getElementById("pvGreetingIcon");
+/**
+ * Sync the live preview panel with the current form values.
+ * On first call, mounts a WesleyWidget in preview mode into #pg-widget-mount.
+ * On subsequent calls, patches the existing widget via .update().
+ */
+function updatePreview() {
+  const config  = getCurrentConfig();
+  const mountEl = document.getElementById("pg-widget-mount");
+  if (!mountEl) return;
 
-  if (pvBotName)      pvBotName.textContent        = name;
-  if (pvWelcome)      pvWelcome.textContent         = welcome;
-  if (pvHeader)       pvHeader.style.background     = color;
-  if (pvSend)         pvSend.style.background       = color;
-  if (pvGreetingIcon) pvGreetingIcon.style.background = color;
-
-  // Reflect starter question values in the preview buttons
-  const defaults = [
-    "What is our volunteer policy?",
-    "Help me draft a Sunday bulletin",
-    "What events are coming up?",
-    "Write a prayer for our newsletter",
-  ];
-  pgSugInputs.forEach((input, i) => {
-    const btn = document.getElementById("pvSug" + i);
-    if (!btn) return;
-    const text = input ? input.value.trim() : "";
-    btn.textContent  = text || defaults[i];
-    btn.style.display = "";
-  });
+  if (!_previewWidget) {
+    // WesleyWidget is provided by widget-core.js, loaded before this script.
+    _previewWidget = new WesleyWidget({
+      previewMode: true,
+      container:   mountEl,
+      config:      config,
+    });
+  } else {
+    _previewWidget.update(config);
+  }
 }
 
 async function loadPlaygroundSettings() {
