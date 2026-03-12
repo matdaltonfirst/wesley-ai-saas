@@ -1424,14 +1424,17 @@ def chat():
         db.session.add(conv)
         db.session.flush()  # get conv.id
 
-    # Save the user message
-    db.session.add(Message(conversation_id=conv.id, role="user", content=question))
-
-    # Build history from DB (all previous messages for this conversation)
+    # Build history BEFORE adding the new user message to avoid the autoflush
+    # pitfall: accessing conv.messages triggers a SELECT, which autoflush would
+    # include the just-added user message in — duplicating the question as two
+    # consecutive user turns and causing Gemini to reject the request.
     history = [
         {"role": m.role, "content": m.content}
         for m in conv.messages
     ]
+
+    # Save the user message (after history snapshot so it's not duplicated)
+    db.session.add(Message(conversation_id=conv.id, role="user", content=question))
 
     # RAG context
     chunks = load_church_documents(current_user.church_id)
@@ -1919,16 +1922,20 @@ def widget_chat():
         db.session.add(wconv)
         db.session.flush()  # get wconv.id
 
-    # Save the user message
-    db.session.add(WidgetMessage(
-        widget_conversation_id=wconv.id, role="user", content=question
-    ))
-
-    # Build history from DB (all previous messages in this session)
+    # Build history BEFORE adding the new user message.
+    # SQLAlchemy autoflush fires before any SELECT (including lazy relationship
+    # loads), so if we added the user message first, it would be included in
+    # wconv.messages and appear twice in the Gemini content list — causing a
+    # "consecutive user turns" error that rolls back the whole transaction.
     history = [
         {"role": m.role, "content": m.content}
         for m in wconv.messages
     ]
+
+    # Save the user message (after history snapshot so it's not duplicated)
+    db.session.add(WidgetMessage(
+        widget_conversation_id=wconv.id, role="user", content=question
+    ))
 
     # ── Build RAG context with document priority ───────────────────────────
     # Documents marked staff_and_chatbot are ALWAYS included when they exist —
@@ -2024,7 +2031,12 @@ def widget_chat():
         widget_conversation_id=wconv.id, role="assistant", content=answer
     ))
     wconv.updated_at = datetime.utcnow()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"[WIDGET] DB commit failed: {e}")
+        return cors_err("Failed to save conversation. Please try again.", 500)
 
     resp = jsonify({"answer": answer, "session_id": session_id})
     resp.headers["Access-Control-Allow-Origin"] = "*"
