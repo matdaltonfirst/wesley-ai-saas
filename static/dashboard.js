@@ -308,13 +308,17 @@ const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 let _previewWidget = null;
 
 /** Build a branding config object from the current form field values. */
+const DEFAULT_BOT_NAME = "Wesley";
+const DEFAULT_WELCOME  = "How can I help you today?";
+const DEFAULT_COLOR    = "#0a3d3d";
+
 function getCurrentConfig() {
-  const rawColor = pgColorHex ? pgColorHex.value.trim() : "#0a3d3d";
+  const rawColor = pgColorHex ? pgColorHex.value.trim() : DEFAULT_COLOR;
   return {
-    bot_name:          pgNameEl      ? (pgNameEl.value.trim()      || "Wesley")                        : "Wesley",
-    bot_subtitle:      pgSubtitleEl  ? pgSubtitleEl.value.trim()                                       : "",
-    welcome_message:   pgWelcomeEl   ? (pgWelcomeEl.value.trim()   || "How can I help you today?")     : "How can I help you today?",
-    primary_color:     HEX_RE.test(rawColor) ? rawColor : "#0a3d3d",
+    bot_name:          pgNameEl      ? (pgNameEl.value.trim()      || DEFAULT_BOT_NAME) : DEFAULT_BOT_NAME,
+    bot_subtitle:      pgSubtitleEl  ? pgSubtitleEl.value.trim()                        : "",
+    welcome_message:   pgWelcomeEl   ? (pgWelcomeEl.value.trim()   || DEFAULT_WELCOME)  : DEFAULT_WELCOME,
+    primary_color:     HEX_RE.test(rawColor) ? rawColor : DEFAULT_COLOR,
     church_city:       pgCityEl      ? pgCityEl.value.trim()  : "",
     starter_questions: pgSugInputs.map(el => el ? el.value.trim() : ""),
   };
@@ -464,7 +468,7 @@ async function toggleWidgetConv(id, itemEl) {
     }
     threadEl.innerHTML = msgs.map(m => `
       <div class="wconv-msg">
-        <div class="wconv-msg-role ${esc(m.role)}">${m.role === "user" ? "Visitor" : "Wesley"}</div>
+        <div class="wconv-msg-role ${esc(m.role)}">${m.role === "user" ? "Visitor" : (pgNameEl && pgNameEl.value.trim() || "Wesley")}</div>
         <div class="wconv-msg-content">${esc(m.content)}</div>
       </div>
     `).join("");

@@ -206,26 +206,33 @@ async function loadConversation(convId) {
   }
 }
 
+// ── Suggestion icons paired with the 4 default starter questions ───────────
+const SUG_ICONS = ["📋", "📝", "📅", "🙏"];
+
 // ── New chat ───────────────────────────────────────────────────────────────
 function newChat() {
-  const botName       = window.BOT_NAME       || "Wesley AI";
-  const welcomeMsg    = window.WELCOME_MESSAGE || "How can I help you today?";
+  const botName    = window.BOT_NAME       || "Wesley";
+  const welcomeMsg = window.WELCOME_MESSAGE || "How can I help you today?";
+  const starters   = (window.STARTER_QUESTIONS && window.STARTER_QUESTIONS.length)
+    ? window.STARTER_QUESTIONS
+    : ["What is our volunteer policy?", "Help me draft a Sunday bulletin",
+       "What events are coming up?", "Write a prayer for our newsletter"];
+  const initial    = (botName.trim().charAt(0) || "W").toUpperCase();
+
+  const sugsHTML = starters.slice(0, 4).map((q, i) =>
+    `<button class="suggestion-btn"><span class="sug-icon">${SUG_ICONS[i] || "💬"}</span><span>${esc(q)}</span></button>`
+  ).join("");
 
   currentConversationId = null;
   messagesEl.innerHTML = `
     <div class="greeting" id="greeting">
       <div class="greeting-glow"></div>
       <div class="greeting-icon">
-        <img src="/static/WesleyAI.png" alt="${esc(botName)}" class="greeting-logo" />
+        <div class="greeting-initial-avatar">${esc(initial)}</div>
       </div>
       <h1 class="greeting-title">${esc(welcomeMsg)}</h1>
       <p class="greeting-sub">I can answer questions, find information in your church documents, help draft communications, assist with planning, and more.</p>
-      <div class="suggestions">
-        <button class="suggestion-btn"><span class="sug-icon">📋</span><span>What is our volunteer policy?</span></button>
-        <button class="suggestion-btn"><span class="sug-icon">📝</span><span>Help me draft a Sunday bulletin</span></button>
-        <button class="suggestion-btn"><span class="sug-icon">📅</span><span>What events are coming up?</span></button>
-        <button class="suggestion-btn"><span class="sug-icon">🙏</span><span>Write a prayer for our newsletter</span></button>
-      </div>
+      <div class="suggestions">${sugsHTML}</div>
     </div>`;
   bindSuggestions();
   loadConversations();

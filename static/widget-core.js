@@ -232,6 +232,10 @@
     return ch.toUpperCase();
   }
 
+  // ── Branding defaults (must match the Python constants in app.py) ───────────
+  var DEFAULT_BOT_NAME = "Wesley";
+  var DEFAULT_WELCOME  = "How can I help you today?";
+  var DEFAULT_COLOR    = "#0a3d3d";
   var DEFAULT_SUBTITLE = "Ask me anything about our church";
 
   var SUGGESTION_DEFAULTS = [
@@ -279,10 +283,10 @@
 
   WesleyWidget.prototype._buildPreview = function () {
     var cfg      = this._config;
-    var color    = cfg.primary_color   || "#0a3d3d";
-    var name     = cfg.bot_name        || "Wesley";
+    var color    = cfg.primary_color   || DEFAULT_COLOR;
+    var name     = cfg.bot_name        || DEFAULT_BOT_NAME;
     var subtitle = cfg.bot_subtitle    || DEFAULT_SUBTITLE;
-    var msg      = cfg.welcome_message || "How can I help you today?";
+    var msg      = cfg.welcome_message || DEFAULT_WELCOME;
     var sugs     = cfg.starter_questions || [];
     var ini      = initial(name);
 
@@ -362,10 +366,10 @@
     if (!this._previewMode) return;
     this._config = cfg || {};
 
-    var color    = cfg.primary_color   || "#0a3d3d";
-    var name     = cfg.bot_name        || "Wesley";
+    var color    = cfg.primary_color   || DEFAULT_COLOR;
+    var name     = cfg.bot_name        || DEFAULT_BOT_NAME;
     var subtitle = cfg.bot_subtitle    || DEFAULT_SUBTITLE;
-    var msg      = cfg.welcome_message || "How can I help you today?";
+    var msg      = cfg.welcome_message || DEFAULT_WELCOME;
     var sugs     = cfg.starter_questions || [];
     var ini      = initial(name);
 
@@ -395,8 +399,8 @@
   WesleyWidget.prototype._buildEmbed = function () {
     var self     = this;
     var cfg      = this._config;
-    var color    = cfg.primary_color || "#0a3d3d";
-    var name     = cfg.bot_name      || "Wesley";
+    var color    = cfg.primary_color || DEFAULT_COLOR;
+    var name     = cfg.bot_name      || DEFAULT_BOT_NAME;
     var subtitle = cfg.bot_subtitle  || DEFAULT_SUBTITLE;
     var ini      = initial(name);
 
@@ -514,8 +518,8 @@
   /** Patch the embed UI after branding is fetched from the server. */
   WesleyWidget.prototype._applyEmbedBranding = function () {
     var cfg      = this._config;
-    var color    = cfg.primary_color || "#0a3d3d";
-    var name     = cfg.bot_name      || "Wesley";
+    var color    = cfg.primary_color || DEFAULT_COLOR;
+    var name     = cfg.bot_name      || DEFAULT_BOT_NAME;
     var subtitle = cfg.bot_subtitle  || DEFAULT_SUBTITLE;
     var ini      = initial(name);
     var r        = this._refs;
@@ -537,8 +541,8 @@
     // Show greeting + suggestions on first open only
     if (!this._refs.msgs.children.length) {
       var cfg  = this._config;
-      var name = cfg.bot_name        || "Wesley";
-      var msg  = cfg.welcome_message || "How can I help you today?";
+      var name = cfg.bot_name        || DEFAULT_BOT_NAME;
+      var msg  = cfg.welcome_message || DEFAULT_WELCOME;
       var sugs = cfg.starter_questions || [];
 
       this._appendBot(
@@ -577,7 +581,7 @@
   };
 
   WesleyWidget.prototype._appendBot = function (html) {
-    var ini = initial(this._config.bot_name || "Wesley");
+    var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
     var row = document.createElement("div");
     row.className = "wai-msg wai-msg-bot";
     row.innerHTML =
@@ -597,7 +601,7 @@
   };
 
   WesleyWidget.prototype._showTyping = function () {
-    var ini = initial(this._config.bot_name || "Wesley");
+    var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
     var row = document.createElement("div");
     row.className = "wai-msg wai-msg-bot";
     row.id = "wai-e-typing";

@@ -71,9 +71,29 @@ def unauthorized():
     return redirect(url_for("login_page"))
 
 
+# ── Platform constants (override via environment variables) ───────────────────
+
+APP_URL       = os.getenv("APP_URL",       "https://app.wesleyai.co")
+FROM_EMAIL    = os.getenv("FROM_EMAIL",    "Wesley AI <noreply@wesleyai.co>")
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "info@wesleyai.co")
+GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.5-flash")
+
+# ── Branding defaults (single source of truth shared with the JS via API) ─────
+
+DEFAULT_BOT_NAME = "Wesley"
+DEFAULT_WELCOME  = "How can I help you today?"
+DEFAULT_COLOR    = "#0a3d3d"
+DEFAULT_SUBTITLE = "Ask me anything about our church"
+DEFAULT_STARTERS = [
+    "What is our volunteer policy?",
+    "Help me draft a Sunday bulletin",
+    "What events are coming up?",
+    "Write a prayer for our newsletter",
+]
+
 # ── Super admin + default prompt ──────────────────────────────────────────────
 
-SUPER_ADMIN_EMAIL = "info@wesleyai.co"
+SUPER_ADMIN_EMAIL = os.getenv("SUPER_ADMIN_EMAIL", "info@wesleyai.co")
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are Wesley, a helpful AI assistant for United Methodist churches. "
@@ -87,6 +107,64 @@ DEFAULT_SYSTEM_PROMPT = (
 
 def is_super_admin() -> bool:
     return current_user.is_authenticated and current_user.email == SUPER_ADMIN_EMAIL
+
+
+def _build_branding_dict(church) -> dict:
+    """Return the standard branding JSON dict for a Church record.
+
+    Single source of truth for the branding payload — used by both the
+    authenticated ``/api/church/branding`` endpoint and the public
+    ``/api/widget/branding`` endpoint so the two can never diverge.
+    """
+    try:
+        sugs = json.loads(church.starter_questions) if church.starter_questions else []
+    except (ValueError, TypeError):
+        sugs = []
+    return {
+        "bot_name":          church.bot_name       or DEFAULT_BOT_NAME,
+        "bot_subtitle":      church.bot_subtitle    or DEFAULT_SUBTITLE,
+        "welcome_message":   church.welcome_message or DEFAULT_WELCOME,
+        "primary_color":     church.primary_color   or DEFAULT_COLOR,
+        "church_city":       church.church_city     or "",
+        "starter_questions": sugs,
+    }
+
+
+def _build_system_prompt(church, widget: bool = False) -> str:
+    """Assemble the full Gemini system instruction for a given church.
+
+    Both ``chat()`` (staff) and ``widget_chat()`` (public) call this helper
+    so the church-identity block can never drift between the two code paths.
+    Pass ``widget=True`` to add date-awareness, source-confidentiality, and
+    a plain-text-only instruction (visitor-facing responses must not contain
+    markdown symbols that the widget cannot render).
+    """
+    prompt_row = SystemPrompt.query.get(1)
+    base = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+
+    ctx = f"\n\nYou are installed at {church.name}"
+    if church.church_city:
+        ctx += f", located in {church.church_city}"
+    ctx += f". Your name is {church.bot_name or DEFAULT_BOT_NAME}."
+
+    if not widget:
+        return base + ctx
+
+    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
+    addendum = (
+        f"\n\nToday's date is {today_str}. "
+        "When answering questions about schedules, events, menus, or anything "
+        "time-sensitive, use today's date to give a specific, direct answer — "
+        "do not list every option when only today's is relevant."
+        "\n\nIMPORTANT: Never mention that you are referencing a document, file, "
+        "or uploaded file of any kind. Never reveal or repeat file names (including "
+        ".pdf and .docx filenames). Answer naturally and directly, as if you simply "
+        "know the information."
+        "\n\nRespond in plain text only. Do not use markdown formatting such as "
+        "headings (##), bullet points (-), bold (**text**), italic (*text*), "
+        "or any other markdown syntax. Write in natural, conversational sentences."
+    )
+    return base + ctx + addendum
 
 
 with app.app_context():
@@ -439,7 +517,7 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
     contents.append(types.Content(role="user", parts=[types.Part(text=current_text)]))
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=GEMINI_MODEL,
         contents=contents,
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
@@ -542,7 +620,9 @@ if not scheduler.running:
 # ── Billing helpers ───────────────────────────────────────────────────────────
 
 # Email domains that are permanently exempt from billing checks.
-EXEMPT_DOMAINS = {"wesleyai.co", "daltonfumc.com"}
+# Add extra domains via the BILLING_EXEMPT_DOMAINS env var (comma-separated).
+_extra_exempt  = {d.strip() for d in os.getenv("BILLING_EXEMPT_DOMAINS", "daltonfumc.com").split(",") if d.strip()}
+EXEMPT_DOMAINS = {"wesleyai.co"} | _extra_exempt
 
 
 def _is_billing_exempt(email: str) -> bool:
@@ -649,62 +729,14 @@ def logout():
 
 def _send_reset_email(to_email: str, reset_url: str) -> None:
     """Send a branded HTML password-reset email via Resend."""
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-
-        <!-- Header -->
-        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
-          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Reset your password</h2>
-          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            We received a request to reset the password for your Wesley AI account.
-            Click the button below to choose a new password.
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td align="center" style="padding-bottom:24px;">
-              <a href="{reset_url}"
-                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
-                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
-                Reset password →
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:0 0 8px;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
-            This link expires in <strong>1 hour</strong>. If you didn't request a password reset,
-            you can safely ignore this email — your password won't change.
-          </p>
-          <p style="margin:0;font-size:0.78rem;color:#b0bec5;">
-            Or copy this URL into your browser:<br />
-            <span style="color:#29abb5;word-break:break-all;">{reset_url}</span>
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
-                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
-          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
-            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
+    html = render_template(
+        "emails/reset_password.html",
+        reset_url=reset_url,
+        support_email=SUPPORT_EMAIL,
+    )
     try:
         resend.Emails.send({
-            "from": "Wesley AI <noreply@wesleyai.co>",
+            "from": FROM_EMAIL,
             "to": [to_email],
             "subject": "Reset your Wesley AI password",
             "html": html,
@@ -715,63 +747,16 @@ def _send_reset_email(to_email: str, reset_url: str) -> None:
 
 def _send_welcome_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
     """Send a branded welcome email to a new signup via Resend."""
-    trial_date = trial_ends_at.strftime("%B %d, %Y")
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-
-        <!-- Header -->
-        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
-          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Welcome to Wesley AI, {church_name}! 🎉</h2>
-          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            We're thrilled to have you on board. Wesley AI is your church's AI-powered assistant,
-            grounded in Wesleyan theology and ready to help your congregation any time of day.
-          </p>
-          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Your <strong>14-day free trial</strong> is active until <strong>{trial_date}</strong>.
-            No credit card required to get started — explore everything Wesley AI has to offer.
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td align="center" style="padding-bottom:24px;">
-              <a href="https://app.wesleyai.co"
-                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
-                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
-                Go to your dashboard →
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
-            Questions? Reply to this email or reach us at
-            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
-                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
-          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
-            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
+    html = render_template(
+        "emails/welcome.html",
+        church_name=church_name,
+        trial_date=trial_ends_at.strftime("%B %d, %Y"),
+        app_url=APP_URL,
+        support_email=SUPPORT_EMAIL,
+    )
     try:
         resend.Emails.send({
-            "from": "Wesley AI <noreply@wesleyai.co>",
+            "from": FROM_EMAIL,
             "to": [to_email],
             "subject": f"Welcome to Wesley AI, {church_name}!",
             "html": html,
@@ -782,62 +767,16 @@ def _send_welcome_email(to_email: str, church_name: str, trial_ends_at: datetime
 
 def _send_trial_expiring_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
     """Send a trial-expiring warning email (4 days before trial ends) via Resend."""
-    trial_date = trial_ends_at.strftime("%B %d, %Y")
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-
-        <!-- Header -->
-        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
-          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Your free trial ends soon</h2>
-          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Hi {church_name}, your Wesley AI free trial expires on <strong>{trial_date}</strong> — just 4 days away.
-          </p>
-          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Subscribe now to keep Wesley AI active for your congregation. Plans start at
-            <strong>$20/month</strong> (or $216/year — save $24).
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td align="center" style="padding-bottom:24px;">
-              <a href="https://app.wesleyai.co/subscribe"
-                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
-                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
-                Subscribe now →
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
-            Questions? Reply to this email or reach us at
-            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
-                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
-          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
-            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
+    html = render_template(
+        "emails/trial_expiring.html",
+        church_name=church_name,
+        trial_date=trial_ends_at.strftime("%B %d, %Y"),
+        app_url=APP_URL,
+        support_email=SUPPORT_EMAIL,
+    )
     try:
         resend.Emails.send({
-            "from": "Wesley AI <noreply@wesleyai.co>",
+            "from": FROM_EMAIL,
             "to": [to_email],
             "subject": "Your Wesley AI trial ends in 4 days",
             "html": html,
@@ -848,61 +787,15 @@ def _send_trial_expiring_email(to_email: str, church_name: str, trial_ends_at: d
 
 def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
     """Send a payment confirmation email after a successful Stripe checkout via Resend."""
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-
-        <!-- Header -->
-        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
-          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">Payment confirmed ✓</h2>
-          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Thank you, {church_name}! Your Wesley AI subscription is now active.
-          </p>
-          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Your congregation now has full access to Wesley AI. You can manage your subscription
-            at any time from your account settings.
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td align="center" style="padding-bottom:24px;">
-              <a href="https://app.wesleyai.co"
-                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
-                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
-                Go to your dashboard →
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:0;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
-            Questions about your subscription? Reply to this email or reach us at
-            <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>.
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
-                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
-          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
-            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
+    html = render_template(
+        "emails/payment_confirmation.html",
+        church_name=church_name,
+        app_url=APP_URL,
+        support_email=SUPPORT_EMAIL,
+    )
     try:
         resend.Emails.send({
-            "from": "Wesley AI <noreply@wesleyai.co>",
+            "from": FROM_EMAIL,
             "to": [to_email],
             "subject": "Your Wesley AI subscription is active",
             "html": html,
@@ -913,64 +806,15 @@ def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
 
 def _send_invite_email(to_email: str, church_name: str, invite_url: str) -> None:
     """Send a branded staff invitation email via Resend."""
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4fbfb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4fbfb;padding:40px 16px;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-
-        <!-- Header -->
-        <tr><td style="background:#0c3d43;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-          <span style="color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:#fff;padding:36px 32px 28px;border:1px solid #cce6e8;border-top:none;">
-          <h2 style="margin:0 0 12px;font-size:1.1rem;font-weight:700;color:#1f2328;">You've been invited to join {church_name}</h2>
-          <p style="margin:0 0 16px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            A church admin has invited you to access <strong>{church_name}</strong>'s Wesley AI dashboard.
-          </p>
-          <p style="margin:0 0 24px;font-size:0.93rem;color:#656d76;line-height:1.6;">
-            Click the button below to set your password and activate your account.
-            This invitation link expires in <strong>7 days</strong>.
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td align="center" style="padding-bottom:24px;">
-              <a href="{invite_url}"
-                 style="display:inline-block;padding:13px 32px;background:#29abb5;color:#fff;
-                        text-decoration:none;border-radius:9px;font-weight:600;font-size:0.95rem;">
-                Accept invitation →
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:0 0 8px;font-size:0.8rem;color:#94a3b8;line-height:1.6;">
-            If you weren't expecting this invitation, you can safely ignore this email.
-          </p>
-          <p style="margin:0;font-size:0.78rem;color:#b0bec5;">
-            Or copy this URL into your browser:<br />
-            <span style="color:#29abb5;word-break:break-all;">{invite_url}</span>
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f0fafa;border:1px solid #cce6e8;border-top:none;
-                        border-radius:0 0 12px 12px;padding:16px 32px;text-align:center;">
-          <p style="margin:0;font-size:0.75rem;color:#94a3b8;">
-            Wesley AI &nbsp;·&nbsp; <a href="mailto:info@wesleyai.co" style="color:#29abb5;text-decoration:none;">info@wesleyai.co</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
+    html = render_template(
+        "emails/invite.html",
+        church_name=church_name,
+        invite_url=invite_url,
+        support_email=SUPPORT_EMAIL,
+    )
     try:
         resend.Emails.send({
-            "from": "Wesley AI <noreply@wesleyai.co>",
+            "from": FROM_EMAIL,
             "to": [to_email],
             "subject": f"You've been invited to join {church_name} on Wesley AI",
             "html": html,
@@ -1058,13 +902,15 @@ def chat_page():
     check = _require_active()
     if check:
         return check
+    branding = _build_branding_dict(church)
     return render_template(
         "dashboard.html",
         church_name=church.name,
         user_email=current_user.email,
-        bot_name=church.bot_name or "Wesley",
-        welcome_message=church.welcome_message or "How can I help you today?",
-        primary_color=church.primary_color or "#0a3d3d",
+        bot_name=branding["bot_name"],
+        welcome_message=branding["welcome_message"],
+        primary_color=branding["primary_color"],
+        starter_questions=json.dumps(branding["starter_questions"]),
     )
 
 
@@ -1116,16 +962,17 @@ def management_dashboard():
     if check:
         return check
     church = current_user.church
+    branding = _build_branding_dict(church)
     return render_template(
         "settings.html",
         church_name=church.name,
         church_id=current_user.church_id,
         user_email=current_user.email,
         user_role=current_user.role,
-        bot_name=church.bot_name or "Wesley",
-        welcome_message=church.welcome_message or "How can I help you today?",
-        primary_color=church.primary_color or "#0a3d3d",
-        church_city=church.church_city or "",
+        bot_name=branding["bot_name"],
+        welcome_message=branding["welcome_message"],
+        primary_color=branding["primary_color"],
+        church_city=branding["church_city"],
         has_stripe_sub=bool(church.stripe_subscription_id),
     )
 
@@ -1452,16 +1299,7 @@ def chat():
                     seen.add(key)
                     candidate_sources.append({"file": chunk["source"], "location": chunk["location"]})
 
-    prompt_row = SystemPrompt.query.get(1)
-    base_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
-
-    # Append church-specific identity so the bot knows exactly where it is installed
-    church = current_user.church
-    church_ctx = f"\n\nYou are installed at {church.name}"
-    if church.church_city:
-        church_ctx += f", located in {church.church_city}"
-    church_ctx += f". Your name is {church.bot_name or 'Wesley'}."
-    system_instruction = base_prompt + church_ctx
+    system_instruction = _build_system_prompt(current_user.church, widget=False)
 
     try:
         answer = call_gemini(question, context, history, system_instruction)
@@ -1576,19 +1414,7 @@ _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 @app.route("/api/church/branding", methods=["GET"])
 @login_required
 def get_church_branding():
-    church = current_user.church
-    try:
-        sugs = json.loads(church.starter_questions) if church.starter_questions else []
-    except (ValueError, TypeError):
-        sugs = []
-    return jsonify({
-        "bot_name":         church.bot_name or "Wesley",
-        "bot_subtitle":     church.bot_subtitle or "Ask me anything about our church",
-        "welcome_message":  church.welcome_message or "How can I help you today?",
-        "primary_color":    church.primary_color or "#0a3d3d",
-        "church_city":      church.church_city or "",
-        "starter_questions": sugs,
-    })
+    return jsonify(_build_branding_dict(current_user.church))
 
 
 @app.route("/api/church/branding", methods=["POST"])
@@ -1617,7 +1443,7 @@ def save_church_branding():
     church.bot_name = bot_name[:100]
     church.bot_subtitle = bot_subtitle[:200] if bot_subtitle else None
     church.welcome_message = welcome_message[:500]
-    church.primary_color = primary_color if primary_color else "#0a3d3d"
+    church.primary_color = primary_color if primary_color else DEFAULT_COLOR
     church.church_city = church_city[:200] if church_city else None
     church.starter_questions = json.dumps(clean_sugs) if clean_sugs else None
     db.session.commit()
@@ -1857,19 +1683,7 @@ def widget_branding():
     if not church:
         return jsonify({"error": "Church not found"}), 404
 
-    try:
-        sugs = json.loads(church.starter_questions) if church.starter_questions else []
-    except (ValueError, TypeError):
-        sugs = []
-
-    resp = jsonify({
-        "bot_name":          church.bot_name or "Wesley",
-        "bot_subtitle":      church.bot_subtitle or "Ask me anything about our church",
-        "welcome_message":   church.welcome_message or "How can I help you today?",
-        "primary_color":     church.primary_color or "#0a3d3d",
-        "church_city":       church.church_city or "",
-        "starter_questions": sugs,
-    })
+    resp = jsonify(_build_branding_dict(church))
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "public, max-age=60"
     return resp
@@ -1962,23 +1776,6 @@ def widget_chat():
 
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
 
-    # ── DEBUG: widget chat context diagnostics ──────────────────────────────
-    print(f"[WIDGET DEBUG] church_id={church_id} question={question!r}")
-    print(f"[WIDGET DEBUG] raw: web_chunks={len(web_chunks)}, doc_chunks={len(doc_chunks)}")
-    print(f"[WIDGET DEBUG] after scoring: scored_docs={len(scored_docs)}, scored_web={len(scored_web)}")
-    chatbot_docs_in_db = Document.query.filter_by(
-        church_id=church_id, visibility="staff_and_chatbot"
-    ).all()
-    print(f"[WIDGET DEBUG] DB rows with visibility='staff_and_chatbot': {len(chatbot_docs_in_db)}")
-    for d in chatbot_docs_in_db:
-        chunks_produced = sum(1 for c in doc_chunks if c.get("source") == d.original_name)
-        print(f"[WIDGET DEBUG]   doc id={d.id} name={d.original_name!r} file={d.filename!r} chunks_produced={chunks_produced}")
-    for score, chunk in scored_docs:
-        print(f"[WIDGET DEBUG]   → doc chunk included: score={score} source={chunk.get('source')!r} loc={chunk.get('location')!r}")
-    for score, chunk in scored_web:
-        print(f"[WIDGET DEBUG]   → web chunk included: score={score} source={chunk.get('source')!r}")
-    # ── END DEBUG ───────────────────────────────────────────────────────────
-
     # Documents go first so Gemini sees church-specific content before web copy
     context_parts = []
     if scored_docs:
@@ -1987,34 +1784,7 @@ def widget_chat():
         context_parts.append(build_context_block(scored_web))
     context = "\n".join(context_parts)
 
-    if context:
-        print(f"[WIDGET DEBUG] context preview (first 500 chars): {context[:500]!r}")
-    else:
-        print("[WIDGET DEBUG] context is EMPTY — Gemini will answer from base knowledge only")
-
-    prompt_row = SystemPrompt.query.get(1)
-    base_prompt = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
-
-    # Inject church identity so the widget bot knows where it's installed
-    church_ctx = f"\n\nYou are installed at {church.name}"
-    if church.church_city:
-        church_ctx += f", located in {church.church_city}"
-    church_ctx += f". Your name is {church.bot_name or 'Wesley'}."
-
-    # Widget-only addendum: current date for time-sensitive answers + source
-    # confidentiality so visitors never see internal file names or references.
-    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
-    widget_addendum = (
-        f"\n\nToday's date is {today_str}. "
-        "When answering questions about schedules, events, menus, or anything "
-        "time-sensitive, use today's date to give a specific, direct answer — "
-        "do not list every option when only today's is relevant."
-        "\n\nIMPORTANT: Never mention that you are referencing a document, file, "
-        "or uploaded file of any kind. Never reveal or repeat file names (including "
-        ".pdf and .docx filenames). Answer naturally and directly, as if you simply "
-        "know the information."
-    )
-    system_instruction = base_prompt + church_ctx + widget_addendum
+    system_instruction = _build_system_prompt(church, widget=True)
 
     try:
         answer = call_gemini(question, context, history, system_instruction)

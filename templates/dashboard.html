@@ -222,8 +222,9 @@
 
   <!-- Branding globals for app.js -->
   <script>
-    window.BOT_NAME       = {{ bot_name | tojson }};
-    window.WELCOME_MESSAGE = {{ welcome_message | tojson }};
+    window.BOT_NAME          = {{ bot_name | tojson }};
+    window.WELCOME_MESSAGE   = {{ welcome_message | tojson }};
+    window.STARTER_QUESTIONS = {{ starter_questions | safe }};
   </script>
   <script src="/static/app.js"></script>
 </body>
