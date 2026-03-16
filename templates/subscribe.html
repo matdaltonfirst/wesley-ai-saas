@@ -326,6 +326,7 @@
       </ul>
 
       <form method="POST" action="/stripe/checkout" id="checkoutForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="hidden" name="billing_cycle" id="billingCycle" value="monthly" />
         <button type="submit" class="sub-btn" id="subBtn">Subscribe Monthly →</button>
       </form>

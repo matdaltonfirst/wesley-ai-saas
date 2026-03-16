@@ -15,7 +15,7 @@ from pathlib import Path
 import click
 import resend
 import stripe
-from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response, send_from_directory, session, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -71,6 +71,23 @@ _widget_chat_limiter = _RateLimiter(max_requests=30, window_seconds=60)
 # Widget branding: 60 requests/minute per IP (lightweight)
 _widget_branding_limiter = _RateLimiter(max_requests=60, window_seconds=60)
 
+
+# ── CSRF protection (for HTML form POSTs) ─────────────────────────────────────
+
+def _csrf_token() -> str:
+    """Return (and lazily create) a per-session CSRF token."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return session["csrf_token"]
+
+
+def _validate_csrf() -> None:
+    """Abort 403 if the submitted CSRF token doesn't match the session token."""
+    token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken", "")
+    if not token or not secrets.compare_digest(token, session.get("csrf_token", "")):
+        abort(403)
+
+
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 resend.api_key = os.getenv("RESEND_API_KEY", "")
 
@@ -100,6 +117,9 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
 db.init_app(app)
+
+# Make csrf_token() available in all Jinja2 templates
+app.jinja_env.globals["csrf_token"] = _csrf_token
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
@@ -1940,6 +1960,7 @@ def subscribe_page():
 @app.route("/stripe/checkout", methods=["POST"])
 @login_required
 def stripe_checkout():
+    _validate_csrf()
     if not stripe.api_key:
         return "STRIPE_SECRET_KEY is not configured.", 500
 
