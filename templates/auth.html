@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wesley AI — {% if mode == 'signup' %}Create Account{% else %}Sign In{% endif %}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -236,6 +237,8 @@
       el.classList.remove("visible");
     }
 
+    const _csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
     // ── Login ─────────────────────────────────────────────────────────────────
     document.getElementById("loginBtn").addEventListener("click", async () => {
       clearError("loginError");
@@ -250,7 +253,7 @@
       try {
         const res  = await fetch("/api/auth/login", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRFToken": _csrfToken },
           body: JSON.stringify({ email, password }),
         });
         const data = await res.json();
@@ -282,7 +285,7 @@
       try {
         const res  = await fetch("/api/auth/signup", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRFToken": _csrfToken },
           body: JSON.stringify({ church_name, email, password }),
         });
         const data = await res.json();

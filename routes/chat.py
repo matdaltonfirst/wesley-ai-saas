@@ -22,6 +22,8 @@ def chat():
         return jsonify({"error": "No question provided"}), 400
 
     question = data["question"].strip()
+    if len(question) > 2000:
+        return jsonify({"error": "Message is too long. Please keep questions under 2,000 characters."}), 400
     conversation_id = data.get("conversation_id")
 
     if conversation_id:

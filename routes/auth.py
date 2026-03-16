@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Church, Invite
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_reset_email, send_welcome_email, send_invite_email
+from helpers import validate_csrf_json
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -82,6 +83,10 @@ def accept_invite_page(token: str):
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
 def api_signup():
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = (data.get("password") or "").strip()
@@ -89,8 +94,14 @@ def api_signup():
 
     if not email or not password or not church_name:
         return jsonify({"error": "Email, password, and church name are required."}), 400
+    if len(email) > 254:
+        return jsonify({"error": "Email address is too long."}), 400
+    if len(church_name) > 200:
+        return jsonify({"error": "Church name must be 200 characters or fewer."}), 400
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if len(password) > 128:
+        return jsonify({"error": "Password must be 128 characters or fewer."}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "An account with that email already exists."}), 400
 
@@ -124,6 +135,10 @@ def api_signup():
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
 def api_login():
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = (data.get("password") or "").strip()
@@ -138,6 +153,10 @@ def api_login():
 
 @auth_bp.route("/api/auth/forgot-password", methods=["POST"])
 def api_forgot_password():
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
     data  = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
 
@@ -158,6 +177,10 @@ def api_forgot_password():
 
 @auth_bp.route("/api/auth/reset-password", methods=["POST"])
 def api_reset_password():
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
     data     = request.get_json(silent=True) or {}
     token    = (data.get("token") or "").strip()
     password = (data.get("password") or "").strip()
@@ -185,6 +208,10 @@ def api_reset_password():
 @auth_bp.route("/api/invite/accept", methods=["POST"])
 def api_accept_invite():
     """Create a staff account from a valid invite token."""
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
     data     = request.get_json(silent=True) or {}
     token    = (data.get("token") or "").strip()
     password = (data.get("password") or "").strip()

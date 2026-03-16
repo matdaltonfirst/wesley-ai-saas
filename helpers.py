@@ -109,6 +109,19 @@ def validate_csrf() -> None:
         abort(403)
 
 
+def validate_csrf_json():
+    """Check CSRF for JSON API endpoints.
+
+    Returns ``(None, None)`` when the token is valid, or a ``(response, status)``
+    tuple that the caller should immediately return to the client.
+    """
+    from flask import jsonify  # local import avoids circular dependency at module level
+    token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken", "")
+    if not token or not secrets.compare_digest(token, session.get("csrf_token", "")):
+        return jsonify({"error": "CSRF validation failed."}), 403
+    return None, None
+
+
 # ── Gemini ───────────────────────────────────────────────────────────────────
 
 def friendly_gemini_error(exc: Exception) -> tuple[str, int]:

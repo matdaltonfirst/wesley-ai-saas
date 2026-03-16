@@ -80,6 +80,8 @@ def save_church_settings():
     url = (data.get("website_url") or "").strip().rstrip("/")
     if url and not url.startswith(("http://", "https://")):
         return jsonify({"error": "URL must start with http:// or https://"}), 400
+    if len(url) > 500:
+        return jsonify({"error": "URL must be 500 characters or fewer."}), 400
     current_user.church.website_url = url or None
     db.session.commit()
     return jsonify({"ok": True})

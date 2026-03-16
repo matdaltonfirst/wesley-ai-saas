@@ -152,6 +152,10 @@ def widget_chat():
 
     if not church_id_raw or not question:
         return cors_err("church_id and question are required.")
+    if len(question) > 2000:
+        return cors_err("Message is too long. Please keep questions under 2,000 characters.")
+    if session_id and len(session_id) > 64:
+        return cors_err("Invalid session_id.")
 
     try:
         church_id = int(church_id_raw)
