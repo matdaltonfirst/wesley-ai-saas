@@ -200,9 +200,8 @@ def _bfs_crawl(
 
 
 def _log(msg: str, level: str = "info") -> None:
-    """Log to both Python logger and stdout (visible in Railway log viewer)."""
-    print(f"[Wesley Crawler] {msg}", flush=True)
-    getattr(log, level)(msg)
+    """Log via Python logger (visible in Railway log viewer via basicConfig)."""
+    getattr(log, level)("[Wesley Crawler] %s", msg)
 
 
 # ── Playwright crawler ────────────────────────────────────────────────────────

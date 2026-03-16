@@ -2,10 +2,14 @@ import os
 import re
 import json
 import uuid
+import time
 import string
 import secrets
+import logging
 import threading
+from collections import defaultdict
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
 import click
@@ -20,6 +24,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from sqlalchemy import text, inspect as sa_inspect
+from sqlalchemy.orm import joinedload
 import pdfplumber
 from docx import Document as DocxDocument
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -28,6 +33,43 @@ from apscheduler.triggers.cron import CronTrigger
 from models import db, User, Church, Document, SystemPrompt, CrawledPage, Conversation, Message, WidgetConversation, WidgetMessage, Invite
 
 load_dotenv()
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+
+log = logging.getLogger("wesley")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+
+# ── In-memory rate limiter (per-IP, no extra dependency) ─────────────────────
+
+class _RateLimiter:
+    """Simple sliding-window rate limiter keyed by IP address."""
+
+    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self._hits: dict[str, list[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def is_limited(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            timestamps = self._hits[key]
+            # Prune old entries
+            self._hits[key] = [t for t in timestamps if now - t < self.window]
+            if len(self._hits[key]) >= self.max_requests:
+                return True
+            self._hits[key].append(now)
+            return False
+
+# Widget chat: 30 requests/minute per IP
+_widget_chat_limiter = _RateLimiter(max_requests=30, window_seconds=60)
+# Widget branding: 60 requests/minute per IP (lightweight)
+_widget_branding_limiter = _RateLimiter(max_requests=60, window_seconds=60)
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 resend.api_key = os.getenv("RESEND_API_KEY", "")
@@ -48,7 +90,11 @@ MAX_UPLOAD_MB = 32
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
+_secret = os.getenv("SECRET_KEY", "")
+if not _secret:
+    _secret = secrets.token_hex(32)
+    print("WARNING: SECRET_KEY is not set. Generated a random key — sessions will not persist across restarts.")
+app.config["SECRET_KEY"] = _secret
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DATA_DIR / 'wesley.db'}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
@@ -168,7 +214,7 @@ def _build_system_prompt(church, widget: bool = False) -> str:
 
 with app.app_context():
     db.create_all()
-    print("db.create_all() completed — all tables present.")
+    log.info("db.create_all() completed — all tables present.")
 
     # Inline migration: add Phase 2 columns to existing churches table if absent
     insp = sa_inspect(db.engine)
@@ -177,11 +223,11 @@ with app.app_context():
         if "website_url" not in existing_cols:
             conn.execute(text("ALTER TABLE churches ADD COLUMN website_url VARCHAR(500)"))
             conn.commit()
-            print("Migration: added churches.website_url")
+            log.info("Migration: added churches.website_url")
         if "last_crawled_at" not in existing_cols:
             conn.execute(text("ALTER TABLE churches ADD COLUMN last_crawled_at DATETIME"))
             conn.commit()
-            print("Migration: added churches.last_crawled_at")
+            log.info("Migration: added churches.last_crawled_at")
 
     # Inline migration: branding columns added to churches table
     insp2 = sa_inspect(db.engine)
@@ -190,57 +236,57 @@ with app.app_context():
         if "bot_name" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_name VARCHAR(100) NOT NULL DEFAULT 'Wesley'"))
             conn2.commit()
-            print("Migration: added churches.bot_name")
+            log.info("Migration: added churches.bot_name")
         if "welcome_message" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN welcome_message VARCHAR(500) NOT NULL DEFAULT 'How can I help you today?'"))
             conn2.commit()
-            print("Migration: added churches.welcome_message")
+            log.info("Migration: added churches.welcome_message")
         if "primary_color" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN primary_color VARCHAR(7) NOT NULL DEFAULT '#0a3d3d'"))
             conn2.commit()
-            print("Migration: added churches.primary_color")
+            log.info("Migration: added churches.primary_color")
         if "church_city" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN church_city VARCHAR(200)"))
             conn2.commit()
-            print("Migration: added churches.church_city")
+            log.info("Migration: added churches.church_city")
         if "onboarding_complete" not in existing_cols2:
             # DEFAULT 1 so all *existing* churches are treated as already onboarded;
             # new churches created via SQLAlchemy use the model default (False).
             conn2.execute(text("ALTER TABLE churches ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT 1"))
             conn2.commit()
-            print("Migration: added churches.onboarding_complete")
+            log.info("Migration: added churches.onboarding_complete")
         if "trial_ends_at" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_ends_at DATETIME"))
             conn2.commit()
-            print("Migration: added churches.trial_ends_at")
+            log.info("Migration: added churches.trial_ends_at")
         if "stripe_subscription_id" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_subscription_id VARCHAR(200)"))
             conn2.commit()
-            print("Migration: added churches.stripe_subscription_id")
+            log.info("Migration: added churches.stripe_subscription_id")
         if "billing_exempt" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN billing_exempt BOOLEAN NOT NULL DEFAULT 0"))
             conn2.commit()
-            print("Migration: added churches.billing_exempt")
+            log.info("Migration: added churches.billing_exempt")
         if "plan" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'founders'"))
             conn2.commit()
-            print("Migration: added churches.plan")
+            log.info("Migration: added churches.plan")
         if "stripe_customer_id" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_customer_id VARCHAR(200)"))
             conn2.commit()
-            print("Migration: added churches.stripe_customer_id")
+            log.info("Migration: added churches.stripe_customer_id")
         if "trial_reminder_sent" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"))
             conn2.commit()
-            print("Migration: added churches.trial_reminder_sent")
+            log.info("Migration: added churches.trial_reminder_sent")
         if "starter_questions" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN starter_questions TEXT"))
             conn2.commit()
-            print("Migration: added churches.starter_questions")
+            log.info("Migration: added churches.starter_questions")
         if "bot_subtitle" not in existing_cols2:
             conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"))
             conn2.commit()
-            print("Migration: added churches.bot_subtitle")
+            log.info("Migration: added churches.bot_subtitle")
 
     # Backfill trial_ends_at for any existing churches that don't have one yet.
     # Gives them a 14-day grace window from the date this migration runs.
@@ -252,7 +298,7 @@ with app.app_context():
         )
         conn3.commit()
         if result.rowcount:
-            print(f"Migration: set trial_ends_at for {result.rowcount} existing church(es)")
+            log.info("Migration: set trial_ends_at for %d existing church(es)", result.rowcount)
 
     # Inline migration: add visibility column to documents table
     insp_docs = sa_inspect(db.engine)
@@ -263,7 +309,7 @@ with app.app_context():
                 "ALTER TABLE documents ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'staff_only'"
             ))
             conn_d.commit()
-            print("Migration: added documents.visibility (default 'staff_only')")
+            log.info("Migration: added documents.visibility (default 'staff_only')")
 
     # Inline migration: add password-reset + role columns to users table
     insp_users = sa_inspect(db.engine)
@@ -272,22 +318,22 @@ with app.app_context():
         if "reset_token" not in existing_user_cols:
             conn_u.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(100)"))
             conn_u.commit()
-            print("Migration: added users.reset_token")
+            log.info("Migration: added users.reset_token")
         if "reset_token_expires" not in existing_user_cols:
             conn_u.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME"))
             conn_u.commit()
-            print("Migration: added users.reset_token_expires")
+            log.info("Migration: added users.reset_token_expires")
         if "role" not in existing_user_cols:
             # DEFAULT 'admin' so all existing users become admins
             conn_u.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'"))
             conn_u.commit()
-            print("Migration: added users.role")
+            log.info("Migration: added users.role")
 
     # Seed the master system prompt on first run (id=1 is the single canonical row)
     if not SystemPrompt.query.get(1):
         db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
         db.session.commit()
-        print("System prompt seeded with default.")
+        log.info("System prompt seeded with default.")
 
 # ── Flask CLI commands ────────────────────────────────────────────────────────
 
@@ -307,15 +353,15 @@ def init_db_command():
 
 _api_key = os.getenv("GEMINI_API_KEY")
 if not _api_key:
-    print("WARNING: GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.")
+    log.warning("GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.")
 else:
-    print(f"Gemini API key loaded ({_api_key[:8]}…)")
+    log.info("Gemini API key loaded (%s…)", _api_key[:8])
 
 if not os.getenv("STRIPE_ANNUAL_PRICE_ID"):
-    print("WARNING: STRIPE_ANNUAL_PRICE_ID is not set. Annual billing will not work.")
+    log.warning("STRIPE_ANNUAL_PRICE_ID is not set. Annual billing will not work.")
 
 if not os.getenv("RESEND_API_KEY"):
-    print("WARNING: RESEND_API_KEY is not set. Password reset emails will not be sent.")
+    log.warning("RESEND_API_KEY is not set. Password reset emails will not be sent.")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -357,7 +403,7 @@ def read_pdf(filepath: Path, display_name: str) -> list[dict]:
                         "location": f"Page {page_num}",
                     })
     except Exception as e:
-        print(f"Error reading PDF {filepath.name}: {e}")
+        log.error("Error reading PDF %s: %s", filepath.name, e)
     return chunks
 
 
@@ -397,7 +443,7 @@ def read_docx(filepath: Path, display_name: str) -> list[dict]:
 
         flush_chunk()
     except Exception as e:
-        print(f"Error reading DOCX {filepath.name}: {e}")
+        log.error("Error reading DOCX %s: %s", filepath.name, e)
     return chunks
 
 
@@ -531,15 +577,15 @@ def nightly_crawl_job():
     with app.app_context():
         from crawler import crawl_church_website
         churches = Church.query.filter(Church.website_url.isnot(None)).all()
-        print(f"Nightly crawl: found {len(churches)} church(es) to crawl.")
+        log.info("Nightly crawl: found %d church(es) to crawl.", len(churches))
         for church in churches:
             if not church.website_url:
                 continue
             try:
                 result = crawl_church_website(church.id, church.website_url)
-                print(f"Nightly crawl church_id={church.id} ({church.name}): {result}")
+                log.info("Nightly crawl church_id=%d (%s): %s", church.id, church.name, result)
             except Exception as exc:
-                print(f"Nightly crawl error church_id={church.id}: {exc}")
+                log.error("Nightly crawl error church_id=%d: %s", church.id, exc)
 
 
 def nightly_cleanup_job():
@@ -551,7 +597,7 @@ def nightly_cleanup_job():
         for conv in old_convs:
             db.session.delete(conv)
         db.session.commit()
-        print(f"Nightly cleanup: deleted {count} staff conversation(s) older than 14 days.")
+        log.info("Nightly cleanup: deleted %d staff conversation(s) older than 14 days.", count)
 
 
 def nightly_widget_cleanup_job():
@@ -563,7 +609,7 @@ def nightly_widget_cleanup_job():
         for wconv in old:
             db.session.delete(wconv)
         db.session.commit()
-        print(f"Nightly widget cleanup: deleted {count} widget conversation(s) older than 30 days.")
+        log.info("Nightly widget cleanup: deleted %d widget conversation(s) older than 30 days.", count)
 
 
 def trial_reminder_job():
@@ -588,7 +634,7 @@ def trial_reminder_job():
             sent += 1
         if churches:
             db.session.commit()
-        print(f"Trial reminder job: sent {sent} reminder(s).")
+        log.info("Trial reminder job: sent %d reminder(s).", sent)
 
 
 def invite_cleanup_job():
@@ -603,7 +649,7 @@ def invite_cleanup_job():
         for invite in old:
             db.session.delete(invite)
         db.session.commit()
-        print(f"Invite cleanup: deleted {count} expired invite(s).")
+        log.info("Invite cleanup: deleted %d expired invite(s).", count)
 
 
 scheduler = BackgroundScheduler(daemon=True)
@@ -741,7 +787,7 @@ def _send_reset_email(to_email: str, reset_url: str) -> None:
             "html": html,
         })
     except Exception as exc:
-        print(f"Password reset email failed for {to_email}: {exc}")
+        log.error("Password reset email failed for %s: %s", to_email, exc)
 
 
 def _send_welcome_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
@@ -761,7 +807,7 @@ def _send_welcome_email(to_email: str, church_name: str, trial_ends_at: datetime
             "html": html,
         })
     except Exception as exc:
-        print(f"Welcome email failed for {to_email}: {exc}")
+        log.error("Welcome email failed for %s: %s", to_email, exc)
 
 
 def _send_trial_expiring_email(to_email: str, church_name: str, trial_ends_at: datetime) -> None:
@@ -781,7 +827,7 @@ def _send_trial_expiring_email(to_email: str, church_name: str, trial_ends_at: d
             "html": html,
         })
     except Exception as exc:
-        print(f"Trial expiring email failed for {to_email}: {exc}")
+        log.error("Trial expiring email failed for %s: %s", to_email, exc)
 
 
 def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
@@ -800,7 +846,7 @@ def _send_payment_confirmation_email(to_email: str, church_name: str) -> None:
             "html": html,
         })
     except Exception as exc:
-        print(f"Payment confirmation email failed for {to_email}: {exc}")
+        log.error("Payment confirmation email failed for %s: %s", to_email, exc)
 
 
 def _send_invite_email(to_email: str, church_name: str, invite_url: str) -> None:
@@ -819,7 +865,7 @@ def _send_invite_email(to_email: str, church_name: str, invite_url: str) -> None
             "html": html,
         })
     except Exception as exc:
-        print(f"Invite email failed for {to_email}: {exc}")
+        log.error("Invite email failed for %s: %s", to_email, exc)
 
 
 @app.route("/forgot-password")
@@ -1367,6 +1413,7 @@ def get_conversation_messages(conv_id):
 def list_widget_conversations():
     wconvs = (
         WidgetConversation.query
+        .options(joinedload(WidgetConversation.messages))
         .filter_by(church_id=current_user.church_id)
         .order_by(WidgetConversation.updated_at.desc())
         .all()
@@ -1669,6 +1716,11 @@ def widget_branding():
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return resp
 
+    if _widget_branding_limiter.is_limited(request.remote_addr or "unknown"):
+        resp = jsonify({"error": "Rate limit exceeded. Please try again later."})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 429
+
     church_id = request.args.get("church_id", "").strip()
     if not church_id:
         return jsonify({"error": "church_id is required"}), 400
@@ -1700,6 +1752,11 @@ def widget_chat():
         resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return resp
+
+    if _widget_chat_limiter.is_limited(request.remote_addr or "unknown"):
+        resp = jsonify({"error": "Rate limit exceeded. Please try again later."})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 429
 
     data = request.get_json(silent=True) or {}
     church_id_raw = data.get("church_id")
@@ -1804,7 +1861,7 @@ def widget_chat():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"[WIDGET] DB commit failed: {e}")
+        log.error("[WIDGET] DB commit failed: %s", e)
         return cors_err("Failed to save conversation. Please try again.", 500)
 
     resp = jsonify({"answer": answer, "session_id": session_id})
@@ -1857,7 +1914,7 @@ def trigger_crawl():
         with app.app_context():
             from crawler import crawl_church_website
             result = crawl_church_website(church_id, crawl_url)
-            print(f"Manual crawl church_id={church_id}: {result}")
+            log.info("Manual crawl church_id=%d: %s", church_id, result)
 
     t = threading.Thread(target=run_crawl, daemon=True)
     t.start()
@@ -2003,13 +2060,18 @@ def stripe_webhook():
         sub_id      = sess.get("subscription")
         customer_id = sess.get("customer")
         if church_ref and sub_id:
-            church = Church.query.get(int(church_ref))
+            try:
+                church_id_int = int(church_ref)
+            except (ValueError, TypeError):
+                log.error("Stripe webhook: invalid client_reference_id=%r", church_ref)
+                return jsonify({"ok": True})
+            church = Church.query.get(church_id_int)
             if church:
                 church.stripe_subscription_id = sub_id
                 if customer_id and not church.stripe_customer_id:
                     church.stripe_customer_id = customer_id
                 db.session.commit()
-                print(f"Stripe webhook: church_id={church_ref} subscribed ({sub_id})")
+                log.info("Stripe webhook: church_id=%s subscribed (%s)", church_ref, sub_id)
 
                 # Send payment confirmation email (get billing contact from first user)
                 first_user = User.query.filter_by(church_id=church.id).order_by(User.id).first()
@@ -2029,10 +2091,10 @@ def stripe_webhook():
         if church:
             church.stripe_subscription_id = None
             db.session.commit()
-            print(f"Stripe webhook: subscription {sub_id} cancelled")
+            log.info("Stripe webhook: subscription %s cancelled", sub_id)
 
     return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true"))

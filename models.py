@@ -23,7 +23,7 @@ class Conversation(db.Model):
 class Message(db.Model):
     __tablename__ = "messages"
     id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey("conversations.id"), nullable=False)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("conversations.id"), nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -154,7 +154,7 @@ class WidgetMessage(db.Model):
     __tablename__ = "widget_messages"
     id = db.Column(db.Integer, primary_key=True)
     widget_conversation_id = db.Column(
-        db.Integer, db.ForeignKey("widget_conversations.id"), nullable=False
+        db.Integer, db.ForeignKey("widget_conversations.id"), nullable=False, index=True
     )
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
