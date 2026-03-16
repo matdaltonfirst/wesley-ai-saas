@@ -72,6 +72,50 @@ _widget_chat_limiter = _RateLimiter(max_requests=30, window_seconds=60)
 _widget_branding_limiter = _RateLimiter(max_requests=60, window_seconds=60)
 
 
+# ── In-memory document chunk cache ───────────────────────────────────────────
+# Keyed by (doc_id, uploaded_at_iso). Since uploaded_at never changes for a
+# given document row, entries are permanently valid until the document is
+# deleted (at which point we proactively evict). Capped at 200 entries to
+# bound memory usage (~50–100 KB per typical document = ~10–20 MB max).
+
+_doc_cache: dict[tuple, list[dict]] = {}
+_doc_cache_lock = threading.Lock()
+_DOC_CACHE_MAX = 200
+
+
+def _parse_doc_chunks(doc, filepath: "Path") -> list[dict]:
+    """Return parsed chunks for a document, reading from cache when possible."""
+    cache_key = (doc.id, doc.uploaded_at.isoformat())
+    with _doc_cache_lock:
+        if cache_key in _doc_cache:
+            return _doc_cache[cache_key]
+
+    suffix = filepath.suffix.lower()
+    if suffix == ".pdf":
+        chunks = read_pdf(filepath, doc.original_name)
+    elif suffix == ".docx":
+        chunks = read_docx(filepath, doc.original_name)
+    else:
+        chunks = []
+
+    with _doc_cache_lock:
+        if len(_doc_cache) >= _DOC_CACHE_MAX:
+            # Evict oldest half when cap is hit
+            evict_keys = list(_doc_cache.keys())[: _DOC_CACHE_MAX // 2]
+            for k in evict_keys:
+                del _doc_cache[k]
+        _doc_cache[cache_key] = chunks
+
+    return chunks
+
+
+def _evict_doc_cache(doc_id: int, uploaded_at) -> None:
+    """Remove a document's parsed chunks from the cache after deletion."""
+    cache_key = (doc_id, uploaded_at.isoformat())
+    with _doc_cache_lock:
+        _doc_cache.pop(cache_key, None)
+
+
 # ── CSRF protection (for HTML form POSTs) ─────────────────────────────────────
 
 def _csrf_token() -> str:
@@ -476,11 +520,7 @@ def load_church_documents(church_id: int) -> list[dict]:
         filepath = church_dir / doc.filename
         if not filepath.exists():
             continue
-        suffix = Path(doc.filename).suffix.lower()
-        if suffix == ".pdf":
-            all_chunks.extend(read_pdf(filepath, doc.original_name))
-        elif suffix == ".docx":
-            all_chunks.extend(read_docx(filepath, doc.original_name))
+        all_chunks.extend(_parse_doc_chunks(doc, filepath))
     return all_chunks
 
 
@@ -493,11 +533,7 @@ def load_chatbot_documents(church_id: int) -> list[dict]:
         filepath = church_dir / doc.filename
         if not filepath.exists():
             continue
-        suffix = Path(doc.filename).suffix.lower()
-        if suffix == ".pdf":
-            all_chunks.extend(read_pdf(filepath, doc.original_name))
-        elif suffix == ".docx":
-            all_chunks.extend(read_docx(filepath, doc.original_name))
+        all_chunks.extend(_parse_doc_chunks(doc, filepath))
     return all_chunks
 
 
@@ -1288,6 +1324,7 @@ def delete_document(doc_id):
     if filepath.exists():
         filepath.unlink()
 
+    _evict_doc_cache(doc.id, doc.uploaded_at)
     db.session.delete(doc)
     db.session.commit()
     return jsonify({"ok": True})
