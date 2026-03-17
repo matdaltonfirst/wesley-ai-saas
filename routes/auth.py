@@ -4,7 +4,7 @@ import secrets
 import threading
 from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for
+from flask import Blueprint, current_app, request, jsonify, render_template, redirect, url_for
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -124,11 +124,13 @@ def api_signup():
 
     _church_name   = church.name
     _trial_ends_at = church.trial_ends_at
-    threading.Thread(
-        target=send_welcome_email,
-        args=(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL),
-        daemon=True,
-    ).start()
+    _app = current_app._get_current_object()
+
+    def _send_welcome():
+        with _app.app_context():
+            send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
+
+    threading.Thread(target=_send_welcome, daemon=True).start()
 
     return jsonify({"ok": True}), 201
 

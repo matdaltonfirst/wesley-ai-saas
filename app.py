@@ -12,11 +12,12 @@ from pathlib import Path
 import click
 import resend
 import stripe
-from flask import Flask
+from flask import Flask, request, jsonify, redirect, url_for
 from flask_login import LoginManager
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from sqlalchemy import text, inspect as sa_inspect
+from sqlalchemy.pool import StaticPool
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -71,74 +72,123 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 resend.api_key = os.getenv("RESEND_API_KEY", "")
 
-# ── App setup ────────────────────────────────────────────────────────────────
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+# ── Application factory ──────────────────────────────────────────────────────
 
-_secret = os.getenv("SECRET_KEY", "")
-if not _secret:
-    _secret = secrets.token_hex(32)
-    print("WARNING: SECRET_KEY is not set. Generated a random key — sessions will not persist across restarts.")
-app.config["SECRET_KEY"] = _secret
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DATA_DIR / 'wesley.db'}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+def create_app(testing: bool = False) -> Flask:
+    """Create and configure the Flask application.
 
-# Store paths and rate limiters in app config so route modules can access them
-app.config["UPLOADS_DIR"] = UPLOADS_DIR
-app.config["WIDGET_CHAT_LIMITER"] = _RateLimiter(max_requests=30, window_seconds=60)
-app.config["WIDGET_BRANDING_LIMITER"] = _RateLimiter(max_requests=60, window_seconds=60)
+    Args:
+        testing: When True, uses an in-memory SQLite database, bypasses CSRF
+                 checks, and skips schema migrations and scheduled jobs.
+    """
+    _app = Flask(__name__, static_folder="static", template_folder="templates")
+    _app.wsgi_app = ProxyFix(_app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-db.init_app(app)
+    if testing:
+        _app.config.update({
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+            "SECRET_KEY": "testing-secret-key-not-for-production",
+            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            # StaticPool ensures all app contexts share the same in-memory
+            # SQLite connection, so data seeded in fixture setup remains
+            # visible inside test-client requests (which open their own context).
+            "SQLALCHEMY_ENGINE_OPTIONS": {
+                "connect_args": {"check_same_thread": False},
+                "poolclass": StaticPool,
+            },
+            "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
+            "UPLOADS_DIR": UPLOADS_DIR,
+            "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
+            "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
+        })
+    else:
+        _secret = os.getenv("SECRET_KEY", "")
+        if not _secret:
+            _secret = secrets.token_hex(32)
+            print("WARNING: SECRET_KEY is not set. Generated a random key — sessions will not persist across restarts.")
+        _app.config.update({
+            "SECRET_KEY": _secret,
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{DATA_DIR / 'wesley.db'}",
+            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
+            "UPLOADS_DIR": UPLOADS_DIR,
+            "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
+            "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
+        })
 
-# Make csrf_token() available in all Jinja2 templates
-app.jinja_env.globals["csrf_token"] = csrf_token
+    db.init_app(_app)
 
-login_manager = LoginManager(app)
-login_manager.login_view = "auth.login_page"
+    # Make csrf_token() available in all Jinja2 templates
+    _app.jinja_env.globals["csrf_token"] = csrf_token
+
+    _lm = LoginManager(_app)
+    _lm.login_view = "auth.login_page"
+
+    @_lm.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+
+    @_lm.unauthorized_handler
+    def unauthorized():
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Authentication required."}), 401
+        return redirect(url_for("auth.login_page"))
+
+    # ── Register Blueprints ──────────────────────────────────────────────────
+
+    from routes.auth import auth_bp
+    from routes.pages import pages_bp
+    from routes.chat import chat_bp
+    from routes.documents_routes import documents_bp
+    from routes.widget import widget_bp
+    from routes.settings import settings_bp
+    from routes.admin import admin_bp
+    from routes.stripe_routes import stripe_bp
+
+    _app.register_blueprint(auth_bp)
+    _app.register_blueprint(pages_bp)
+    _app.register_blueprint(chat_bp)
+    _app.register_blueprint(documents_bp)
+    _app.register_blueprint(widget_bp)
+    _app.register_blueprint(settings_bp)
+    _app.register_blueprint(admin_bp)
+    _app.register_blueprint(stripe_bp)
+
+    # ── Flask CLI commands ───────────────────────────────────────────────────
+
+    @_app.cli.command("init-db")
+    def init_db_command():
+        """Explicitly create all database tables. Safe to run on an existing DB."""
+        db.create_all()
+        click.echo("init-db: all tables created (or already exist).")
+        from sqlalchemy import inspect as sa_inspect2
+        tables = sa_inspect2(db.engine).get_table_names()
+        click.echo(f"init-db: tables in DB → {', '.join(sorted(tables))}")
+
+    # ── Database init + migrations ───────────────────────────────────────────
+
+    with _app.app_context():
+        db.create_all()
+        log.info("db.create_all() completed — all tables present.")
+
+        if not testing:
+            _run_migrations()
+
+        # Seed the master system prompt on first run
+        if not SystemPrompt.query.get(1):
+            db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
+            db.session.commit()
+            log.info("System prompt seeded with default.")
+
+    return _app
 
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+def _run_migrations() -> None:
+    """Run all inline schema migrations for existing databases."""
 
-
-@login_manager.unauthorized_handler
-def unauthorized():
-    from flask import request, jsonify, redirect, url_for
-    if request.path.startswith("/api/"):
-        return jsonify({"error": "Authentication required."}), 401
-    return redirect(url_for("auth.login_page"))
-
-
-# ── Register Blueprints ──────────────────────────────────────────────────────
-
-from routes.auth import auth_bp
-from routes.pages import pages_bp
-from routes.chat import chat_bp
-from routes.documents_routes import documents_bp
-from routes.widget import widget_bp
-from routes.settings import settings_bp
-from routes.admin import admin_bp
-from routes.stripe_routes import stripe_bp
-
-app.register_blueprint(auth_bp)
-app.register_blueprint(pages_bp)
-app.register_blueprint(chat_bp)
-app.register_blueprint(documents_bp)
-app.register_blueprint(widget_bp)
-app.register_blueprint(settings_bp)
-app.register_blueprint(admin_bp)
-app.register_blueprint(stripe_bp)
-
-# ── Database init + migrations ───────────────────────────────────────────────
-
-with app.app_context():
-    db.create_all()
-    log.info("db.create_all() completed — all tables present.")
-
-    # Inline migration: add Phase 2 columns to existing churches table if absent
+    # ── churches table ───────────────────────────────────────────────────────
     insp = sa_inspect(db.engine)
     existing_cols = {c["name"] for c in insp.get_columns("churches")}
     with db.engine.connect() as conn:
@@ -151,62 +201,29 @@ with app.app_context():
             conn.commit()
             log.info("Migration: added churches.last_crawled_at")
 
-    # Inline migration: branding columns added to churches table
     insp2 = sa_inspect(db.engine)
     existing_cols2 = {c["name"] for c in insp2.get_columns("churches")}
     with db.engine.connect() as conn2:
-        if "bot_name" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_name VARCHAR(100) NOT NULL DEFAULT 'Wesley'"))
-            conn2.commit()
-            log.info("Migration: added churches.bot_name")
-        if "welcome_message" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN welcome_message VARCHAR(500) NOT NULL DEFAULT 'How can I help you today?'"))
-            conn2.commit()
-            log.info("Migration: added churches.welcome_message")
-        if "primary_color" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN primary_color VARCHAR(7) NOT NULL DEFAULT '#0a3d3d'"))
-            conn2.commit()
-            log.info("Migration: added churches.primary_color")
-        if "church_city" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN church_city VARCHAR(200)"))
-            conn2.commit()
-            log.info("Migration: added churches.church_city")
-        if "onboarding_complete" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT 1"))
-            conn2.commit()
-            log.info("Migration: added churches.onboarding_complete")
-        if "trial_ends_at" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_ends_at DATETIME"))
-            conn2.commit()
-            log.info("Migration: added churches.trial_ends_at")
-        if "stripe_subscription_id" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_subscription_id VARCHAR(200)"))
-            conn2.commit()
-            log.info("Migration: added churches.stripe_subscription_id")
-        if "billing_exempt" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN billing_exempt BOOLEAN NOT NULL DEFAULT 0"))
-            conn2.commit()
-            log.info("Migration: added churches.billing_exempt")
-        if "plan" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'founders'"))
-            conn2.commit()
-            log.info("Migration: added churches.plan")
-        if "stripe_customer_id" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN stripe_customer_id VARCHAR(200)"))
-            conn2.commit()
-            log.info("Migration: added churches.stripe_customer_id")
-        if "trial_reminder_sent" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"))
-            conn2.commit()
-            log.info("Migration: added churches.trial_reminder_sent")
-        if "starter_questions" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN starter_questions TEXT"))
-            conn2.commit()
-            log.info("Migration: added churches.starter_questions")
-        if "bot_subtitle" not in existing_cols2:
-            conn2.execute(text("ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"))
-            conn2.commit()
-            log.info("Migration: added churches.bot_subtitle")
+        migrations = [
+            ("bot_name",            "ALTER TABLE churches ADD COLUMN bot_name VARCHAR(100) NOT NULL DEFAULT 'Wesley'"),
+            ("welcome_message",     "ALTER TABLE churches ADD COLUMN welcome_message VARCHAR(500) NOT NULL DEFAULT 'How can I help you today?'"),
+            ("primary_color",       "ALTER TABLE churches ADD COLUMN primary_color VARCHAR(7) NOT NULL DEFAULT '#0a3d3d'"),
+            ("church_city",         "ALTER TABLE churches ADD COLUMN church_city VARCHAR(200)"),
+            ("onboarding_complete", "ALTER TABLE churches ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT 1"),
+            ("trial_ends_at",       "ALTER TABLE churches ADD COLUMN trial_ends_at DATETIME"),
+            ("stripe_subscription_id", "ALTER TABLE churches ADD COLUMN stripe_subscription_id VARCHAR(200)"),
+            ("billing_exempt",      "ALTER TABLE churches ADD COLUMN billing_exempt BOOLEAN NOT NULL DEFAULT 0"),
+            ("plan",                "ALTER TABLE churches ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'founders'"),
+            ("stripe_customer_id",  "ALTER TABLE churches ADD COLUMN stripe_customer_id VARCHAR(200)"),
+            ("trial_reminder_sent", "ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"),
+            ("starter_questions",   "ALTER TABLE churches ADD COLUMN starter_questions TEXT"),
+            ("bot_subtitle",        "ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"),
+        ]
+        for col_name, sql in migrations:
+            if col_name not in existing_cols2:
+                conn2.execute(text(sql))
+                conn2.commit()
+                log.info("Migration: added churches.%s", col_name)
 
     # Backfill trial_ends_at
     with db.engine.connect() as conn3:
@@ -219,7 +236,7 @@ with app.app_context():
         if result.rowcount:
             log.info("Migration: set trial_ends_at for %d existing church(es)", result.rowcount)
 
-    # Inline migration: add visibility column to documents table
+    # ── documents table ──────────────────────────────────────────────────────
     insp_docs = sa_inspect(db.engine)
     existing_doc_cols = {c["name"] for c in insp_docs.get_columns("documents")}
     with db.engine.connect() as conn_d:
@@ -230,7 +247,7 @@ with app.app_context():
             conn_d.commit()
             log.info("Migration: added documents.visibility (default 'staff_only')")
 
-    # Inline migration: add password-reset + role columns to users table
+    # ── users table ──────────────────────────────────────────────────────────
     insp_users = sa_inspect(db.engine)
     existing_user_cols = {c["name"] for c in insp_users.get_columns("users")}
     with db.engine.connect() as conn_u:
@@ -247,24 +264,10 @@ with app.app_context():
             conn_u.commit()
             log.info("Migration: added users.role")
 
-    # Seed the master system prompt on first run
-    if not SystemPrompt.query.get(1):
-        db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
-        db.session.commit()
-        log.info("System prompt seeded with default.")
 
-# ── Flask CLI commands ───────────────────────────────────────────────────────
+# ── Production setup ─────────────────────────────────────────────────────────
 
-
-@app.cli.command("init-db")
-def init_db_command():
-    """Explicitly create all database tables. Safe to run on an existing DB."""
-    db.create_all()
-    click.echo("init-db: all tables created (or already exist).")
-    from sqlalchemy import inspect as sa_inspect2
-    tables = sa_inspect2(db.engine).get_table_names()
-    click.echo(f"init-db: tables in DB → {', '.join(sorted(tables))}")
-
+app = create_app()
 
 # ── API key validation ───────────────────────────────────────────────────────
 
@@ -365,14 +368,16 @@ def invite_cleanup_job():
         log.info("Invite cleanup: deleted %d expired invite(s).", count)
 
 
-scheduler = BackgroundScheduler(daemon=True)
-scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
-scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
-scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
-scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
-scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
-if not scheduler.running:
-    scheduler.start()
+# Only start the scheduler in production (not during tests or CLI commands)
+if not app.testing:
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
+    scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
+    scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
+    scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
+    scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
+    if not scheduler.running:
+        scheduler.start()
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
