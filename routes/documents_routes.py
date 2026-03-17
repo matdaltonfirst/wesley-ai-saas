@@ -13,6 +13,19 @@ from documents import get_church_dir, evict_doc_cache
 
 documents_bp = Blueprint("documents", __name__)
 
+# Magic bytes that identify each supported file type.
+# Checked against the raw upload bytes before anything is written to disk.
+_MIME_SIGNATURES: dict[str, bytes] = {
+    ".pdf":  b"%PDF",
+    ".docx": b"PK\x03\x04",  # DOCX (and all Office Open XML formats) are ZIP files
+}
+
+
+def _valid_mime(content: bytes, suffix: str) -> bool:
+    """Return True if *content* starts with the expected magic bytes for *suffix*."""
+    sig = _MIME_SIGNATURES.get(suffix)
+    return sig is not None and content[:len(sig)] == sig
+
 
 @documents_bp.route("/api/documents")
 @login_required
@@ -53,6 +66,9 @@ def upload_document():
 
     content = file.read()
     size_bytes = len(content)
+
+    if not _valid_mime(content, suffix):
+        return jsonify({"error": "File contents do not match the declared file type."}), 400
 
     stored_name = f"{uuid.uuid4().hex}{suffix}"
     uploads_dir = current_app.config["UPLOADS_DIR"]

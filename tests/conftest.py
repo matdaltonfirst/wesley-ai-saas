@@ -1,5 +1,9 @@
 """Shared pytest fixtures for Wesley AI tests."""
 
+import shutil
+import tempfile
+from pathlib import Path
+
 import pytest
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
@@ -16,6 +20,12 @@ def app():
     their own data setup and teardown to keep tests isolated.
     """
     application = create_app(testing=True)
+
+    # Use a throw-away temp directory for file uploads so tests never touch
+    # the real data/uploads folder and cleanup is automatic.
+    _tmp_uploads = Path(tempfile.mkdtemp(prefix="wesley_test_uploads_"))
+    application.config["UPLOADS_DIR"] = _tmp_uploads
+
     ctx = application.app_context()
     ctx.push()
 
@@ -31,6 +41,7 @@ def app():
     _db.session.remove()
     _db.drop_all()
     ctx.pop()
+    shutil.rmtree(_tmp_uploads, ignore_errors=True)
 
 
 @pytest.fixture

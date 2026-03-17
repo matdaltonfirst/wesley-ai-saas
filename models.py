@@ -8,7 +8,7 @@ db = SQLAlchemy()
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     title = db.Column(db.String(100), nullable=False, default="New Conversation")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -93,7 +93,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
     password_hash = db.Column(db.String(300), nullable=False)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Role: "admin" (church owner) or "staff" (invited member)
@@ -107,7 +107,7 @@ class User(UserMixin, db.Model):
 class Document(db.Model):
     __tablename__ = "documents"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     filename = db.Column(db.String(300), nullable=False)       # UUID-based stored name
     original_name = db.Column(db.String(300), nullable=False)  # user-visible display name
     size_bytes = db.Column(db.Integer, nullable=False)
@@ -120,7 +120,7 @@ class CrawledPage(db.Model):
     """Stores scraped content from a church's public website."""
     __tablename__ = "crawled_pages"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     url = db.Column(db.String(1000), nullable=False)
     title = db.Column(db.String(500), nullable=True)
     content = db.Column(db.Text, nullable=True)
@@ -135,7 +135,7 @@ class WidgetConversation(db.Model):
     """A visitor conversation started from the embeddable website widget."""
     __tablename__ = "widget_conversations"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     # Random UUID generated on the visitor's first message; groups messages
     # belonging to one browser session together.
     session_id = db.Column(db.String(64), nullable=False, index=True)
@@ -165,7 +165,7 @@ class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"
     id         = db.Column(db.Integer, primary_key=True)
-    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False)
+    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     email      = db.Column(db.String(200), nullable=False)
     token      = db.Column(db.String(100), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

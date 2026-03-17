@@ -17,6 +17,10 @@ chat_bp = Blueprint("chat", __name__)
 @chat_bp.route("/api/chat", methods=["POST"])
 @login_required
 def chat():
+    limiter = current_app.config.get("CHAT_LIMITER")
+    if limiter and limiter.is_limited(str(current_user.church_id)):
+        return jsonify({"error": "Too many requests. Please slow down and try again."}), 429
+
     data = request.get_json(silent=True)
     if not data or not data.get("question", "").strip():
         return jsonify({"error": "No question provided"}), 400

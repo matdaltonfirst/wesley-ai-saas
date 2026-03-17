@@ -100,6 +100,7 @@ def create_app(testing: bool = False) -> Flask:
             },
             "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
             "UPLOADS_DIR": UPLOADS_DIR,
+            "CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
         })
@@ -114,6 +115,7 @@ def create_app(testing: bool = False) -> Flask:
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
             "UPLOADS_DIR": UPLOADS_DIR,
+            "CHAT_LIMITER": _RateLimiter(max_requests=120, window_seconds=60),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
         })
@@ -263,6 +265,24 @@ def _run_migrations() -> None:
             conn_u.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'"))
             conn_u.commit()
             log.info("Migration: added users.role")
+
+    # ── Indexes on church_id foreign keys ────────────────────────────────────
+    # CREATE INDEX IF NOT EXISTS is idempotent — safe to run on every startup.
+    _church_id_indexes = [
+        ("idx_conversations_church_id",       "conversations"),
+        ("idx_users_church_id",               "users"),
+        ("idx_documents_church_id",           "documents"),
+        ("idx_crawled_pages_church_id",       "crawled_pages"),
+        ("idx_widget_conversations_church_id","widget_conversations"),
+        ("idx_invites_church_id",             "invites"),
+    ]
+    with db.engine.connect() as conn_idx:
+        for idx_name, table in _church_id_indexes:
+            conn_idx.execute(text(
+                f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} (church_id)"
+            ))
+        conn_idx.commit()
+    log.info("Migration: ensured church_id indexes on all relevant tables")
 
 
 # ── Production setup ─────────────────────────────────────────────────────────
