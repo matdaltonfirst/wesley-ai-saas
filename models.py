@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+import uuid
 
 db = SQLAlchemy()
 
@@ -56,6 +57,9 @@ class Church(db.Model):
     # Onboarding
     onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Features
+    comms_enabled = db.Column(db.Boolean, nullable=False, default=True)
+
     # Billing
     trial_ends_at          = db.Column(db.DateTime, nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)
@@ -86,6 +90,8 @@ class Church(db.Model):
                                     cascade="all, delete-orphan")
     widget_conversations = db.relationship("WidgetConversation", backref="church", lazy=True,
                                            cascade="all, delete-orphan")
+    comms_requests = db.relationship("CommsRequest", backref="church", lazy=True,
+                                     cascade="all, delete-orphan")
 
 
 class User(UserMixin, db.Model):
@@ -159,6 +165,30 @@ class WidgetMessage(db.Model):
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CommsRequest(db.Model):
+    __tablename__ = "comms_requests"
+    id                   = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    church_id            = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    submitter_id         = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    submitter_name       = db.Column(db.String(200), nullable=False)
+    ministry_department  = db.Column(db.String(100))
+    request_type         = db.Column(db.String(20), nullable=False)   # graphic | video
+    event_name           = db.Column(db.String(200), nullable=False)
+    event_date           = db.Column(db.Date, nullable=False)
+    target_audience      = db.Column(db.String(50), nullable=False)   # community | church_members | small_group
+    timeline             = db.Column(db.String(50), nullable=False)   # this_week | 2_4_weeks | 1_plus_month
+    deliverables         = db.Column(db.JSON, nullable=False)         # list of strings
+    key_info_text        = db.Column(db.Text)
+    special_notes        = db.Column(db.Text)
+    status               = db.Column(db.String(20), default="in_queue")  # in_queue | in_progress | completed | cancelled
+    triage_code          = db.Column(db.String(20))                   # red | yellow | green | blue
+    production_tier      = db.Column(db.Integer)                      # 1 | 2 | 3
+    estimated_completion = db.Column(db.String(50))
+    triage_explanation   = db.Column(db.Text)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at         = db.Column(db.DateTime)
 
 
 class Invite(db.Model):

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Request — Communications</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
+    .db-sidebar { width:232px; flex-shrink:0; background:var(--sidebar-bg); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid var(--sidebar-border); }
+    .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+    .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+    .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .db-logo-text { font-size:0.84rem; font-weight:700; color:#fff; letter-spacing:-0.01em; }
+    .db-church-name { font-size:0.78rem; color:rgba(255,255,255,0.42); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .db-sidebar-nav { flex:1; overflow-y:auto; padding:14px 7px 6px; display:flex; flex-direction:column; gap:1px; }
+    .db-sidebar-nav::-webkit-scrollbar { width:3px; }
+    .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
+    .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:rgba(255,255,255,0.78); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
+    .db-nav-standalone:hover { background:rgba(255,255,255,0.08); color:#fff; }
+    .db-nav-section { margin-bottom:1px; }
+    .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.68rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:rgba(255,255,255,0.35); border-radius:6px; transition:color 0.13s; }
+    .db-section-header:hover { color:rgba(255,255,255,0.58); }
+    .db-section-chevron { margin-left:auto; opacity:0.45; transition:transform 0.18s; flex-shrink:0; }
+    .db-nav-section.db-section-open .db-section-chevron { transform:rotate(90deg); }
+    .db-section-items { display:none; flex-direction:column; gap:1px; padding-bottom:4px; }
+    .db-nav-section.db-section-open .db-section-items { display:flex; }
+    .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:7px 10px 7px 16px; border-radius:7px; color:rgba(255,255,255,0.62); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
+    .db-nav-item-link:hover { background:rgba(255,255,255,0.07); color:#fff; }
+    .db-nav-item-link.db-nav-active { background:rgba(255,255,255,0.11); color:#fff; font-weight:500; }
+    .db-nav-item-link svg { flex-shrink:0; opacity:0.6; }
+    .db-nav-item-link.db-nav-active svg { opacity:1; }
+    .db-sidebar-footer { padding:11px 14px; border-top:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
+    .db-user-email { font-size:0.72rem; color:rgba(255,255,255,0.35); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .db-signout { font-size:0.72rem; color:rgba(255,255,255,0.35); text-decoration:none; white-space:nowrap; flex-shrink:0; transition:color 0.13s; }
+    .db-signout:hover { color:rgba(255,255,255,0.72); }
+    .db-sidebar-overlay { display:none; position:fixed; top:44px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:49; }
+    @media (max-width:768px) {
+      .db-sidebar { position:fixed; top:44px; left:-240px; bottom:0; z-index:50; transition:left 0.22s ease; width:232px; height:calc(100% - 44px); }
+      .db-sidebar.db-sidebar-open { left:0; }
+      .db-sidebar-overlay.db-sidebar-open { display:block; }
+    }
+
+    /* ── Main ── */
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f5f7f9; }
+    .comms-page { padding:40px 36px 72px; max-width:680px; }
+    @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
+
+    .page-header { margin-bottom:28px; }
+    .page-title { font-size:1.35rem; font-weight:700; color:var(--text); letter-spacing:-0.022em; }
+    .page-subtitle { font-size:0.84rem; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+
+    /* ── Form card ── */
+    .form-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:28px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
+
+    .field-group { margin-bottom:22px; }
+    .field-label { font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:7px; display:block; }
+    .field-label .field-required { color:#dc2626; margin-left:2px; }
+    .field-hint { font-size:0.75rem; color:var(--text-muted); margin-top:4px; }
+
+    .field-input, .field-select, .field-textarea {
+      width:100%; border:1.5px solid var(--border); border-radius:8px; padding:9px 13px;
+      font-size:0.9rem; font-family:var(--font); color:var(--text); background:#fff;
+      outline:none; transition:border-color 0.15s, box-shadow 0.15s;
+    }
+    .field-input:focus, .field-select:focus, .field-textarea:focus {
+      border-color:var(--accent); box-shadow:0 0 0 3px rgba(41,171,181,0.12);
+    }
+    .field-input::placeholder, .field-textarea::placeholder { color:#94a3b8; }
+    .field-textarea { resize:vertical; min-height:88px; line-height:1.55; }
+    .field-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23656d76' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; cursor:pointer; }
+
+    /* Radio group */
+    .radio-group { display:flex; gap:10px; flex-wrap:wrap; }
+    .radio-option { display:none; }
+    .radio-label {
+      display:flex; align-items:center; gap:7px; padding:9px 16px;
+      border:1.5px solid var(--border); border-radius:9px; cursor:pointer;
+      font-size:0.88rem; font-weight:500; color:var(--text-muted);
+      transition:border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .radio-option:checked + .radio-label {
+      border-color:var(--accent); background:#e8f7f8; color:var(--accent); font-weight:600;
+    }
+    .radio-label:hover { border-color:var(--border-focus); color:var(--text); }
+
+    /* Checkbox group */
+    .checkbox-grid { display:flex; flex-wrap:wrap; gap:8px; }
+    .checkbox-option { display:none; }
+    .checkbox-label {
+      display:flex; align-items:center; gap:6px; padding:7px 13px;
+      border:1.5px solid var(--border); border-radius:8px; cursor:pointer;
+      font-size:0.84rem; font-weight:500; color:var(--text-muted);
+      transition:border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .checkbox-option:checked + .checkbox-label {
+      border-color:var(--accent); background:#e8f7f8; color:var(--accent); font-weight:600;
+    }
+    .checkbox-label:hover { border-color:var(--border-focus); color:var(--text); }
+
+    /* Two-column row */
+    .field-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media (max-width:520px) { .field-row-2 { grid-template-columns:1fr; } }
+
+    /* Submit row */
+    .form-footer { display:flex; align-items:center; justify-content:space-between; margin-top:28px; padding-top:20px; border-top:1px solid var(--border); gap:12px; flex-wrap:wrap; }
+    .form-cancel { font-size:0.86rem; color:var(--text-muted); text-decoration:none; transition:color 0.13s; }
+    .form-cancel:hover { color:var(--text); }
+    .form-submit {
+      background:var(--accent); color:#fff; border:none; border-radius:9px;
+      font-size:0.92rem; font-weight:600; font-family:var(--font);
+      padding:11px 28px; cursor:pointer; transition:background 0.15s;
+    }
+    .form-submit:hover { background:var(--accent-hover); }
+    .form-submit:disabled { background:#a0d4d8; cursor:not-allowed; }
+
+    /* AI triage notice */
+    .triage-notice {
+      display:flex; align-items:flex-start; gap:10px; background:#f0fdf4;
+      border:1px solid #bbf7d0; border-radius:9px; padding:12px 14px;
+      margin-bottom:24px; font-size:0.82rem; color:#166534; line-height:1.5;
+    }
+    .triage-notice svg { flex-shrink:0; margin-top:1px; }
+
+    /* Error list */
+    .error-list { background:#fef2f2; border:1px solid #fecaca; border-radius:9px; padding:12px 16px; margin-bottom:22px; }
+    .error-list-title { font-size:0.84rem; font-weight:600; color:#991b1b; margin-bottom:6px; }
+    .error-list ul { padding-left:18px; }
+    .error-list li { font-size:0.82rem; color:#991b1b; margin-bottom:2px; }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <nav class="top-nav">
+    <button class="top-nav-hamburger" id="mobileSidebarToggle" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="top-nav-brand">
+      <div class="top-nav-logo-initial">W</div>
+      <span class="top-nav-church">{{ church_name }}</span>
+    </div>
+    <div class="top-nav-divider"></div>
+    <a href="/" class="top-nav-link">Chat</a>
+    <a href="/dashboard" class="top-nav-link">Dashboard</a>
+    <a href="/comms" class="top-nav-link active">Communications</a>
+    <div class="top-nav-right">
+      <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
+      <a href="/logout" class="top-nav-signout">Sign out</a>
+    </div>
+  </nav>
+
+  <div class="db-sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="db-layout">
+
+    <aside class="db-sidebar" id="dbSidebar">
+      <div class="db-sidebar-header">
+        <div class="db-logo">
+          <div class="db-logo-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <span class="db-logo-text">Wesley AI</span>
+        </div>
+        <div class="db-church-name">{{ church_name }}</div>
+      </div>
+      <nav class="db-sidebar-nav">
+        <a href="/dashboard" class="db-nav-standalone">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Dashboard
+        </a>
+        <div class="db-nav-section db-section-open">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            Communications
+          </button>
+          <div class="db-section-items">
+            <a href="/comms" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Overview
+            </a>
+            <a href="/comms/new" class="db-nav-item-link db-nav-active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              New Request
+            </a>
+            <a href="/comms/my-requests" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              My Requests
+            </a>
+            {% if user_role == 'admin' %}
+            <a href="/comms/admin" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              Admin Queue
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </nav>
+      <div class="db-sidebar-footer">
+        <span class="db-user-email">{{ user_email }}</span>
+        <a href="/logout" class="db-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="db-main">
+      <div class="comms-page">
+
+        <div class="page-header">
+          <div class="page-title">New Communications Request</div>
+          <div class="page-subtitle">Fill out the form below. Priority and production tier are assigned automatically.</div>
+        </div>
+
+        {% if errors %}
+        <div class="error-list">
+          <div class="error-list-title">Please fix the following:</div>
+          <ul>
+            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <div class="triage-notice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          After submitting, AI triage will automatically assign a priority level (Red / Yellow / Green / Blue), production tier, and estimated completion time.
+        </div>
+
+        <form method="POST" action="/comms/new" id="requestForm">
+
+          <div class="form-card">
+
+            <!-- Request Type -->
+            <div class="field-group">
+              <label class="field-label">Request Type <span class="field-required">*</span></label>
+              <div class="radio-group">
+                <input type="radio" name="request_type" id="rt_graphic" value="graphic" class="radio-option"
+                  {% if form_data and form_data.get('request_type') == 'graphic' %}checked{% endif %}>
+                <label for="rt_graphic" class="radio-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  Graphic Design
+                </label>
+                <input type="radio" name="request_type" id="rt_video" value="video" class="radio-option"
+                  {% if form_data and form_data.get('request_type') == 'video' %}checked{% endif %}>
+                <label for="rt_video" class="radio-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                  Video Production
+                </label>
+              </div>
+            </div>
+
+            <div class="field-row-2">
+              <!-- Event Name -->
+              <div class="field-group" style="margin-bottom:0">
+                <label for="event_name" class="field-label">Event Name <span class="field-required">*</span></label>
+                <input type="text" id="event_name" name="event_name" class="field-input" placeholder="e.g. Easter Sunday Service"
+                  maxlength="200" value="{{ form_data.get('event_name', '') if form_data else '' }}" required>
+              </div>
+              <!-- Event Date -->
+              <div class="field-group" style="margin-bottom:0">
+                <label for="event_date" class="field-label">Event Date <span class="field-required">*</span></label>
+                <input type="date" id="event_date" name="event_date" class="field-input"
+                  min="{{ today }}" value="{{ form_data.get('event_date', '') if form_data else '' }}" required>
+              </div>
+            </div>
+
+            <div class="field-row-2" style="margin-top:22px;">
+              <!-- Target Audience -->
+              <div class="field-group" style="margin-bottom:0">
+                <label for="target_audience" class="field-label">Target Audience <span class="field-required">*</span></label>
+                <select id="target_audience" name="target_audience" class="field-select" required>
+                  <option value="" disabled {% if not form_data or not form_data.get('target_audience') %}selected{% endif %}>Select audience…</option>
+                  <option value="community"      {% if form_data and form_data.get('target_audience') == 'community' %}selected{% endif %}>Community (External)</option>
+                  <option value="church_members" {% if form_data and form_data.get('target_audience') == 'church_members' %}selected{% endif %}>Church Members</option>
+                  <option value="small_group"    {% if form_data and form_data.get('target_audience') == 'small_group' %}selected{% endif %}>Small Group / Internal</option>
+                </select>
+              </div>
+              <!-- Timeline -->
+              <div class="field-group" style="margin-bottom:0">
+                <label for="timeline" class="field-label">Timeline <span class="field-required">*</span></label>
+                <select id="timeline" name="timeline" class="field-select" required>
+                  <option value="" disabled {% if not form_data or not form_data.get('timeline') %}selected{% endif %}>Select timeline…</option>
+                  <option value="this_week"    {% if form_data and form_data.get('timeline') == 'this_week' %}selected{% endif %}>This Week (Urgent)</option>
+                  <option value="2_4_weeks"    {% if form_data and form_data.get('timeline') == '2_4_weeks' %}selected{% endif %}>2–4 Weeks</option>
+                  <option value="1_plus_month" {% if form_data and form_data.get('timeline') == '1_plus_month' %}selected{% endif %}>1+ Month</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Ministry Department (optional) -->
+            <div class="field-group" style="margin-top:22px;">
+              <label for="ministry_department" class="field-label">Ministry / Department <span style="font-weight:400; color:var(--text-muted);">(optional)</span></label>
+              <input type="text" id="ministry_department" name="ministry_department" class="field-input"
+                placeholder="e.g. Youth Ministry, Worship Team…" maxlength="100"
+                value="{{ form_data.get('ministry_department', '') if form_data else '' }}">
+            </div>
+
+            <!-- Deliverables -->
+            <div class="field-group">
+              <label class="field-label">Deliverables Needed <span class="field-required">*</span></label>
+              <div class="checkbox-grid">
+                {% set selected_del = form_data.getlist('deliverables') if form_data else [] %}
+                {% for d in ['Flyer', 'Slides', 'Social Post', 'Landing Page', 'Other'] %}
+                <input type="checkbox" name="deliverables" id="del_{{ loop.index }}" value="{{ d }}" class="checkbox-option"
+                  {% if d in selected_del %}checked{% endif %}>
+                <label for="del_{{ loop.index }}" class="checkbox-label">{{ d }}</label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Key Information -->
+            <div class="field-group">
+              <label for="key_info_text" class="field-label">Key Information</label>
+              <textarea id="key_info_text" name="key_info_text" class="field-textarea"
+                placeholder="Dates, times, speakers, key messages, scripture references, links to assets…">{{ form_data.get('key_info_text', '') if form_data else '' }}</textarea>
+              <div class="field-hint">The more detail here, the better the AI triage and production output.</div>
+            </div>
+
+            <!-- Special Notes -->
+            <div class="field-group" style="margin-bottom:0;">
+              <label for="special_notes" class="field-label">Special Notes <span style="font-weight:400; color:var(--text-muted);">(optional)</span></label>
+              <textarea id="special_notes" name="special_notes" class="field-textarea" style="min-height:68px;"
+                placeholder="Brand guidelines, inspiration references, anything else the team should know…">{{ form_data.get('special_notes', '') if form_data else '' }}</textarea>
+            </div>
+
+          </div><!-- /form-card -->
+
+          <div class="form-footer">
+            <a href="/comms" class="form-cancel">Cancel</a>
+            <button type="submit" class="form-submit" id="submitBtn">
+              Submit &amp; Run Triage
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  const sidebar   = document.getElementById('dbSidebar');
+  const overlay   = document.getElementById('sidebarOverlay');
+  const hamburger = document.getElementById('mobileSidebarToggle');
+  function toggleSidebar() { sidebar.classList.toggle('db-sidebar-open'); overlay.classList.toggle('db-sidebar-open'); }
+  hamburger.addEventListener('click', toggleSidebar);
+  overlay.addEventListener('click', toggleSidebar);
+  document.querySelectorAll('.db-section-header').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.db-nav-section').classList.toggle('db-section-open'));
+  });
+
+  // Disable submit button while posting
+  document.getElementById('requestForm').addEventListener('submit', function() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+  });
+</script>
+</body>
+</html>

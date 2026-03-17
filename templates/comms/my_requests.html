@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Requests — Communications</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
+    .db-sidebar { width:232px; flex-shrink:0; background:var(--sidebar-bg); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid var(--sidebar-border); }
+    .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+    .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+    .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .db-logo-text { font-size:0.84rem; font-weight:700; color:#fff; letter-spacing:-0.01em; }
+    .db-church-name { font-size:0.78rem; color:rgba(255,255,255,0.42); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .db-sidebar-nav { flex:1; overflow-y:auto; padding:14px 7px 6px; display:flex; flex-direction:column; gap:1px; }
+    .db-sidebar-nav::-webkit-scrollbar { width:3px; }
+    .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
+    .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:rgba(255,255,255,0.78); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
+    .db-nav-standalone:hover { background:rgba(255,255,255,0.08); color:#fff; }
+    .db-nav-section { margin-bottom:1px; }
+    .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.68rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:rgba(255,255,255,0.35); border-radius:6px; transition:color 0.13s; }
+    .db-section-header:hover { color:rgba(255,255,255,0.58); }
+    .db-section-chevron { margin-left:auto; opacity:0.45; transition:transform 0.18s; flex-shrink:0; }
+    .db-nav-section.db-section-open .db-section-chevron { transform:rotate(90deg); }
+    .db-section-items { display:none; flex-direction:column; gap:1px; padding-bottom:4px; }
+    .db-nav-section.db-section-open .db-section-items { display:flex; }
+    .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:7px 10px 7px 16px; border-radius:7px; color:rgba(255,255,255,0.62); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
+    .db-nav-item-link:hover { background:rgba(255,255,255,0.07); color:#fff; }
+    .db-nav-item-link.db-nav-active { background:rgba(255,255,255,0.11); color:#fff; font-weight:500; }
+    .db-nav-item-link svg { flex-shrink:0; opacity:0.6; }
+    .db-nav-item-link.db-nav-active svg { opacity:1; }
+    .db-sidebar-footer { padding:11px 14px; border-top:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
+    .db-user-email { font-size:0.72rem; color:rgba(255,255,255,0.35); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .db-signout { font-size:0.72rem; color:rgba(255,255,255,0.35); text-decoration:none; white-space:nowrap; flex-shrink:0; transition:color 0.13s; }
+    .db-signout:hover { color:rgba(255,255,255,0.72); }
+    .db-sidebar-overlay { display:none; position:fixed; top:44px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:49; }
+    @media (max-width:768px) {
+      .db-sidebar { position:fixed; top:44px; left:-240px; bottom:0; z-index:50; transition:left 0.22s ease; width:232px; height:calc(100% - 44px); }
+      .db-sidebar.db-sidebar-open { left:0; }
+      .db-sidebar-overlay.db-sidebar-open { display:block; }
+    }
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f5f7f9; }
+    .comms-page { padding:40px 36px 72px; max-width:960px; }
+    @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
+    .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+    .page-title { font-size:1.35rem; font-weight:700; color:var(--text); letter-spacing:-0.022em; }
+    .page-subtitle { font-size:0.84rem; color:var(--text-muted); margin-top:4px; }
+    .page-header-btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#fff; border-radius:9px; padding:9px 18px; font-size:0.86rem; font-weight:600; text-decoration:none; transition:background 0.15s; white-space:nowrap; }
+    .page-header-btn:hover { background:var(--accent-hover); }
+
+    /* ── Request card grid ── */
+    .request-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:16px; }
+    @media (max-width:520px) { .request-grid { grid-template-columns:1fr; } }
+
+    .req-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:12px; }
+    .req-card:hover { border-color:#c4d0dc; }
+
+    /* Card header */
+    .req-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .req-card-title { font-size:0.96rem; font-weight:600; color:var(--text); line-height:1.35; }
+    .req-card-date  { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; flex-shrink:0; margin-top:2px; }
+
+    /* Badge row */
+    .badge-row { display:flex; flex-wrap:wrap; gap:5px; }
+    .badge { display:inline-flex; align-items:center; font-size:0.68rem; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; }
+    .badge.red     { background:#fee2e2; color:#991b1b; }
+    .badge.yellow  { background:#fef9c3; color:#854d0e; }
+    .badge.green   { background:#dcfce7; color:#166534; }
+    .badge.blue    { background:#dbeafe; color:#1e40af; }
+    .badge.pending { background:#f1f5f9; color:#94a3b8; }
+    .badge.tier    { background:#f1f5f9; color:#475569; }
+    .badge.graphic { background:#ede9fe; color:#6d28d9; }
+    .badge.video   { background:#fce7f3; color:#9d174d; }
+    .badge.status-in_queue    { background:#f1f5f9; color:#475569; }
+    .badge.status-in_progress { background:#ccfbf1; color:#0d9488; }
+    .badge.status-completed   { background:#dcfce7; color:#166534; }
+    .badge.status-cancelled   { background:#f1f5f9; color:#94a3b8; }
+
+    /* Meta row */
+    .req-meta { display:flex; flex-wrap:wrap; gap:10px; font-size:0.78rem; color:var(--text-muted); }
+    .req-meta-item { display:flex; align-items:center; gap:4px; }
+    .req-meta-item svg { opacity:0.55; flex-shrink:0; }
+
+    /* Deliverable tags */
+    .del-tags { display:flex; flex-wrap:wrap; gap:5px; }
+    .del-tag { font-size:0.72rem; background:#f1f5f9; color:#475569; border-radius:5px; padding:2px 8px; }
+
+    /* Progress bars */
+    .progress-section { display:flex; flex-direction:column; gap:8px; }
+    .progress-row { display:flex; flex-direction:column; gap:3px; }
+    .progress-row-header { display:flex; justify-content:space-between; align-items:center; }
+    .progress-label-text { font-size:0.7rem; font-weight:600; color:var(--text-muted); letter-spacing:0.04em; text-transform:uppercase; }
+    .progress-days-text  { font-size:0.7rem; color:var(--text-muted); }
+    .progress-track { height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; }
+    .progress-fill  { height:100%; border-radius:3px; transition:width 0.4s ease; }
+
+    /* Triage explanation */
+    .req-explanation { font-size:0.8rem; color:var(--text-muted); line-height:1.55; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+
+    /* Card footer */
+    .req-card-footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:4px; border-top:1px solid #f1f5f9; }
+    .btn-detail { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
+    .btn-detail:hover { border-color:var(--accent); color:var(--accent); background:#e8f7f8; }
+    .btn-reevaluate { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid #e0e7ff; color:#4338ca; border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
+    .btn-reevaluate:hover { background:#e0e7ff; }
+    .btn-reevaluate:disabled { opacity:0.5; cursor:not-allowed; }
+
+    /* Empty state */
+    .empty-state { text-align:center; padding:60px 20px; background:#fff; border:1px solid var(--border); border-radius:14px; }
+    .empty-state-icon { font-size:2.5rem; margin-bottom:12px; }
+    .empty-state-title { font-size:1.05rem; font-weight:600; color:var(--text); margin-bottom:7px; }
+    .empty-state-sub { font-size:0.86rem; color:var(--text-muted); margin-bottom:20px; }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <nav class="top-nav">
+    <button class="top-nav-hamburger" id="mobileSidebarToggle" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="top-nav-brand">
+      <div class="top-nav-logo-initial">W</div>
+      <span class="top-nav-church">{{ church_name }}</span>
+    </div>
+    <div class="top-nav-divider"></div>
+    <a href="/" class="top-nav-link">Chat</a>
+    <a href="/dashboard" class="top-nav-link">Dashboard</a>
+    <a href="/comms" class="top-nav-link active">Communications</a>
+    <div class="top-nav-right">
+      <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
+      <a href="/logout" class="top-nav-signout">Sign out</a>
+    </div>
+  </nav>
+
+  <div class="db-sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="db-layout">
+
+    <aside class="db-sidebar" id="dbSidebar">
+      <div class="db-sidebar-header">
+        <div class="db-logo">
+          <div class="db-logo-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <span class="db-logo-text">Wesley AI</span>
+        </div>
+        <div class="db-church-name">{{ church_name }}</div>
+      </div>
+      <nav class="db-sidebar-nav">
+        <a href="/dashboard" class="db-nav-standalone">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Dashboard
+        </a>
+        <div class="db-nav-section db-section-open">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            Communications
+          </button>
+          <div class="db-section-items">
+            <a href="/comms" class="db-nav-item-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Overview</a>
+            <a href="/comms/new" class="db-nav-item-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>New Request</a>
+            <a href="/comms/my-requests" class="db-nav-item-link db-nav-active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>My Requests</a>
+            {% if user_role == 'admin' %}
+            <a href="/comms/admin" class="db-nav-item-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Admin Queue</a>
+            {% endif %}
+          </div>
+        </div>
+      </nav>
+      <div class="db-sidebar-footer">
+        <span class="db-user-email">{{ user_email }}</span>
+        <a href="/logout" class="db-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="db-main">
+      <div class="comms-page">
+
+        <div class="page-header">
+          <div>
+            <div class="page-title">My Requests</div>
+            <div class="page-subtitle">{{ requests|length }} request{{ 's' if requests|length != 1 else '' }} submitted</div>
+          </div>
+          <a href="/comms/new" class="page-header-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            New Request
+          </a>
+        </div>
+
+        {% if not requests %}
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">No requests yet</div>
+          <div class="empty-state-sub">Submit your first communications request and AI triage will handle the rest.</div>
+          <a href="/comms/new" class="page-header-btn" style="display:inline-flex;">Submit a Request</a>
+        </div>
+        {% else %}
+        <div class="request-grid">
+          {% for req in requests %}
+          {% set event_date_iso = req.event_date.isoformat() %}
+          {% set created_iso    = req.created_at.isoformat() %}
+          <div class="req-card">
+
+            <!-- Header -->
+            <div class="req-card-header">
+              <div class="req-card-title">{{ req.event_name }}</div>
+              <div class="req-card-date">{{ req.event_date.strftime('%b %-d, %Y') }}</div>
+            </div>
+
+            <!-- Badges -->
+            <div class="badge-row">
+              {% if req.triage_code %}
+              <span class="badge {{ req.triage_code }}">
+                {{ {'red':'Urgent','yellow':'High','green':'Normal','blue':'Low'}[req.triage_code] }}
+              </span>
+              {% else %}
+              <span class="badge pending">Pending Triage</span>
+              {% endif %}
+              {% if req.production_tier %}
+              <span class="badge tier">Tier {{ req.production_tier }}</span>
+              {% endif %}
+              <span class="badge status-{{ req.status }}">
+                {{ {'in_queue':'In Queue','in_progress':'In Progress','completed':'Completed','cancelled':'Cancelled'}[req.status] }}
+              </span>
+              <span class="badge {{ req.request_type }}">{{ req.request_type|title }}</span>
+            </div>
+
+            <!-- Meta -->
+            <div class="req-meta">
+              <div class="req-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                {{ {'community':'Community','church_members':'Church Members','small_group':'Small Group'}[req.target_audience] }}
+              </div>
+              <div class="req-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                {{ {'this_week':'This Week','2_4_weeks':'2–4 Weeks','1_plus_month':'1+ Month'}[req.timeline] }}
+              </div>
+              {% if req.estimated_completion %}
+              <div class="req-meta-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Est. {{ req.estimated_completion }}
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Deliverables -->
+            <div class="del-tags">
+              {% for d in req.deliverables %}
+              <span class="del-tag">{{ d }}</span>
+              {% endfor %}
+            </div>
+
+            <!-- Progress bars -->
+            <div class="progress-section">
+              <div class="progress-row">
+                <div class="progress-row-header">
+                  <span class="progress-label-text">Event Timeline</span>
+                  <span class="progress-days-text" id="ev-label-{{ req.id }}"></span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" id="ev-bar-{{ req.id }}"
+                    data-event-date="{{ event_date_iso }}"
+                    data-label-id="ev-label-{{ req.id }}"
+                    style="width:0%;background:#16a34a;">
+                  </div>
+                </div>
+              </div>
+              {% if req.estimated_completion %}
+              <div class="progress-row">
+                <div class="progress-row-header">
+                  <span class="progress-label-text">Completion Timeline</span>
+                  <span class="progress-days-text" id="cp-label-{{ req.id }}"></span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" id="cp-bar-{{ req.id }}"
+                    data-created="{{ created_iso }}"
+                    data-est="{{ req.estimated_completion }}"
+                    data-label-id="cp-label-{{ req.id }}"
+                    style="width:0%;background:#16a34a;">
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Triage explanation (truncated) -->
+            {% if req.triage_explanation %}
+            <div class="req-explanation">{{ req.triage_explanation }}</div>
+            {% endif %}
+
+            <!-- Card footer -->
+            <div class="req-card-footer">
+              <button class="btn-detail" onclick="window._openDetailModal('{{ req.id }}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                View Details
+              </button>
+              {% if not req.triage_code %}
+              <button class="btn-reevaluate" onclick="reEvaluate(this, '{{ req.id }}')" data-req-id="{{ req.id }}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Run Triage
+              </button>
+              {% endif %}
+            </div>
+
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+      </div>
+    </main>
+  </div>
+</div>
+
+{% include 'comms/partials/detail_modal.html' %}
+
+<script>
+  // ── Sidebar toggle ────────────────────────────────────────────────────────
+  const sidebar   = document.getElementById('dbSidebar');
+  const overlay   = document.getElementById('sidebarOverlay');
+  const hamburger = document.getElementById('mobileSidebarToggle');
+  function toggleSidebar() { sidebar.classList.toggle('db-sidebar-open'); overlay.classList.toggle('db-sidebar-open'); }
+  hamburger.addEventListener('click', toggleSidebar);
+  overlay.addEventListener('click', toggleSidebar);
+  document.querySelectorAll('.db-section-header').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.db-nav-section').classList.toggle('db-section-open'));
+  });
+
+  // ── Progress bar helpers ──────────────────────────────────────────────────
+  const EST_DAYS_MAP = {
+    '1-2 days':1.5, '2-3 days':2.5, '3-5 days':4, '5-7 days':6,
+    '7-10 days':8.5, '1-2 weeks':10.5, '2-3 weeks':17.5,
+  };
+  function daysUntil(dateStr) {
+    const today  = new Date(); today.setHours(0,0,0,0);
+    const target = new Date(dateStr); target.setHours(0,0,0,0);
+    return Math.floor((target - today) / 86400000);
+  }
+  function progressColor(days) {
+    if (days > 14) return '#16a34a';
+    if (days > 7)  return '#ca8a04';
+    if (days > 3)  return '#ea580c';
+    return '#dc2626';
+  }
+  function renderEventBar(barEl, labelEl, eventDateStr) {
+    const days     = daysUntil(eventDateStr);
+    const progress = Math.min(100, Math.max(0, (30 - days) / 30 * 100));
+    const color    = progressColor(days);
+    barEl.style.width      = progress + '%';
+    barEl.style.background = color;
+    if (days < 0)      labelEl.textContent = Math.abs(days) + 'd overdue';
+    else if (days === 0) labelEl.textContent = 'Today!';
+    else               labelEl.textContent = days + 'd until event';
+    labelEl.style.color = color;
+  }
+  function renderCompletionBar(barEl, labelEl, createdAtStr, estStr) {
+    const totalDays = EST_DAYS_MAP[estStr] || 7;
+    const created   = new Date(createdAtStr); created.setHours(0,0,0,0);
+    const today     = new Date(); today.setHours(0,0,0,0);
+    const elapsed   = Math.floor((today - created) / 86400000);
+    const remaining = totalDays - elapsed;
+    const progress  = Math.min(100, Math.max(0, elapsed / totalDays * 100));
+    const color     = progressColor(remaining);
+    barEl.style.width      = progress + '%';
+    barEl.style.background = color;
+    if (remaining <= 0) labelEl.textContent = 'Overdue';
+    else                labelEl.textContent = '~' + Math.ceil(remaining) + 'd left';
+    labelEl.style.color = color;
+  }
+
+  // ── Render all bars on page load ──────────────────────────────────────────
+  document.querySelectorAll('.progress-fill[data-event-date]').forEach(bar => {
+    const labelEl = document.getElementById(bar.dataset.labelId);
+    renderEventBar(bar, labelEl, bar.dataset.eventDate);
+  });
+  document.querySelectorAll('.progress-fill[data-created]').forEach(bar => {
+    const labelEl = document.getElementById(bar.dataset.labelId);
+    renderCompletionBar(bar, labelEl, bar.dataset.created, bar.dataset.est);
+  });
+
+  // ── Re-evaluate triage ────────────────────────────────────────────────────
+  function reEvaluate(btn, reqId) {
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    fetch('/comms/' + reqId + '/re-evaluate', { method:'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) { location.reload(); }
+        else { btn.disabled = false; btn.textContent = 'Run Triage'; alert(d.error || 'Failed.'); }
+      })
+      .catch(() => { btn.disabled = false; btn.textContent = 'Run Triage'; });
+  }
+</script>
+</body>
+</html>

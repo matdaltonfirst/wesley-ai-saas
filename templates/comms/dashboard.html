@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Communications — Wesley AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
+
+    /* ── Sidebar ── */
+    .db-sidebar {
+      width:232px; flex-shrink:0; background:var(--sidebar-bg);
+      display:flex; flex-direction:column; height:100%; overflow:hidden;
+      border-right:1px solid var(--sidebar-border);
+    }
+    .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+    .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+    .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .db-logo-text { font-size:0.84rem; font-weight:700; color:#fff; letter-spacing:-0.01em; }
+    .db-church-name { font-size:0.78rem; color:rgba(255,255,255,0.42); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .db-sidebar-nav { flex:1; overflow-y:auto; padding:14px 7px 6px; display:flex; flex-direction:column; gap:1px; }
+    .db-sidebar-nav::-webkit-scrollbar { width:3px; }
+    .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
+    .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:rgba(255,255,255,0.78); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
+    .db-nav-standalone:hover { background:rgba(255,255,255,0.08); color:#fff; }
+    .db-nav-section { margin-bottom:1px; }
+    .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.68rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:rgba(255,255,255,0.35); border-radius:6px; transition:color 0.13s; }
+    .db-section-header:hover { color:rgba(255,255,255,0.58); }
+    .db-section-chevron { margin-left:auto; opacity:0.45; transition:transform 0.18s; flex-shrink:0; }
+    .db-nav-section.db-section-open .db-section-chevron { transform:rotate(90deg); }
+    .db-section-items { display:none; flex-direction:column; gap:1px; padding-bottom:4px; }
+    .db-nav-section.db-section-open .db-section-items { display:flex; }
+    .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:7px 10px 7px 16px; border-radius:7px; color:rgba(255,255,255,0.62); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
+    .db-nav-item-link:hover { background:rgba(255,255,255,0.07); color:#fff; }
+    .db-nav-item-link.db-nav-active { background:rgba(255,255,255,0.11); color:#fff; font-weight:500; }
+    .db-nav-item-link svg { flex-shrink:0; opacity:0.6; }
+    .db-nav-item-link.db-nav-active svg { opacity:1; }
+    .db-sidebar-footer { padding:11px 14px; border-top:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
+    .db-user-email { font-size:0.72rem; color:rgba(255,255,255,0.35); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .db-signout { font-size:0.72rem; color:rgba(255,255,255,0.35); text-decoration:none; white-space:nowrap; flex-shrink:0; transition:color 0.13s; }
+    .db-signout:hover { color:rgba(255,255,255,0.72); }
+
+    /* ── Sidebar overlay (mobile) ── */
+    .db-sidebar-overlay { display:none; position:fixed; top:44px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:49; }
+    @media (max-width:768px) {
+      .db-sidebar { position:fixed; top:44px; left:-240px; bottom:0; z-index:50; transition:left 0.22s ease; width:232px; height:calc(100% - 44px); }
+      .db-sidebar.db-sidebar-open { left:0; }
+      .db-sidebar-overlay.db-sidebar-open { display:block; }
+    }
+
+    /* ── Main ── */
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f5f7f9; }
+    .comms-page { padding:40px 36px 72px; max-width:900px; }
+    @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
+
+    .page-header { margin-bottom:32px; }
+    .page-title { font-size:1.45rem; font-weight:700; color:var(--text); letter-spacing:-0.025em; }
+    .page-subtitle { font-size:0.86rem; color:var(--text-muted); margin-top:5px; line-height:1.5; }
+
+    /* ── Priority count cards ── */
+    .priority-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:32px; }
+    @media (max-width:600px) { .priority-grid { grid-template-columns:repeat(2,1fr); } }
+
+    .priority-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 20px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+    .priority-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .priority-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .priority-dot.red    { background:#ef4444; }
+    .priority-dot.yellow { background:#eab308; }
+    .priority-dot.green  { background:#22c55e; }
+    .priority-dot.blue   { background:#3b82f6; }
+    .priority-card-label { font-size:0.72rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-muted); }
+    .priority-card-count { font-size:2rem; font-weight:700; color:var(--text); letter-spacing:-0.03em; line-height:1; }
+    .priority-card-sub { font-size:0.75rem; color:var(--text-muted); margin-top:4px; }
+
+    /* ── Action cards ── */
+    .action-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
+    @media (max-width:700px) { .action-grid { grid-template-columns:1fr; } }
+
+    .action-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:12px; text-decoration:none; color:inherit; transition:border-color 0.15s, box-shadow 0.15s, transform 0.12s; }
+    .action-card:hover { border-color:var(--accent); box-shadow:0 4px 12px rgba(41,171,181,0.1); transform:translateY(-1px); }
+    .action-card-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .action-card-icon.teal   { background:#ccfbf1; color:#0d9488; }
+    .action-card-icon.navy   { background:#dbeafe; color:#1d4ed8; }
+    .action-card-icon.purple { background:#ede9fe; color:#7c3aed; }
+    .action-card-title { font-size:1rem; font-weight:600; color:var(--text); }
+    .action-card-desc { font-size:0.82rem; color:var(--text-muted); line-height:1.5; }
+    .action-card-cta { margin-top:auto; font-size:0.82rem; font-weight:600; color:var(--accent); display:flex; align-items:center; gap:5px; }
+
+    /* ── Queue stats row ── */
+    .stats-row { display:flex; gap:20px; flex-wrap:wrap; }
+    .stat-pill { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 16px; font-size:0.84rem; color:var(--text-muted); }
+    .stat-pill strong { color:var(--text); font-weight:700; font-size:1rem; }
+  </style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- Top nav -->
+  <nav class="top-nav">
+    <button class="top-nav-hamburger" id="mobileSidebarToggle" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="top-nav-brand">
+      <div class="top-nav-logo-initial">W</div>
+      <span class="top-nav-church">{{ church_name }}</span>
+    </div>
+    <div class="top-nav-divider"></div>
+    <a href="/" class="top-nav-link">Chat</a>
+    <a href="/dashboard" class="top-nav-link">Dashboard</a>
+    <a href="/comms" class="top-nav-link active">Communications</a>
+    <div class="top-nav-right">
+      <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
+      <a href="/logout" class="top-nav-signout">Sign out</a>
+    </div>
+  </nav>
+
+  <div class="db-sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="db-layout">
+
+    <!-- Sidebar -->
+    <aside class="db-sidebar" id="dbSidebar">
+      <div class="db-sidebar-header">
+        <div class="db-logo">
+          <div class="db-logo-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <span class="db-logo-text">Wesley AI</span>
+        </div>
+        <div class="db-church-name">{{ church_name }}</div>
+      </div>
+
+      <nav class="db-sidebar-nav">
+        <a href="/dashboard" class="db-nav-standalone">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back to Dashboard
+        </a>
+
+        <div class="db-nav-section db-section-open">
+          <button class="db-section-header">
+            <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            Communications
+          </button>
+          <div class="db-section-items">
+            <a href="/comms" class="db-nav-item-link db-nav-active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              Overview
+            </a>
+            <a href="/comms/new" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+              New Request
+            </a>
+            <a href="/comms/my-requests" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              My Requests
+            </a>
+            {% if user_role == 'admin' %}
+            <a href="/comms/admin" class="db-nav-item-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              Admin Queue
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </nav>
+
+      <div class="db-sidebar-footer">
+        <span class="db-user-email">{{ user_email }}</span>
+        <a href="/logout" class="db-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="db-main">
+      <div class="comms-page">
+
+        <div class="page-header">
+          <div class="page-title">Communications</div>
+          <div class="page-subtitle">Manage and triage church communications requests.</div>
+        </div>
+
+        <!-- Priority overview -->
+        <div class="priority-grid">
+          <div class="priority-card">
+            <div class="priority-card-top">
+              <span class="priority-dot red"></span>
+              <span class="priority-card-label">Urgent</span>
+            </div>
+            <div class="priority-card-count">{{ stats.red }}</div>
+            <div class="priority-card-sub">Red priority</div>
+          </div>
+          <div class="priority-card">
+            <div class="priority-card-top">
+              <span class="priority-dot yellow"></span>
+              <span class="priority-card-label">High</span>
+            </div>
+            <div class="priority-card-count">{{ stats.yellow }}</div>
+            <div class="priority-card-sub">Yellow priority</div>
+          </div>
+          <div class="priority-card">
+            <div class="priority-card-top">
+              <span class="priority-dot green"></span>
+              <span class="priority-card-label">Normal</span>
+            </div>
+            <div class="priority-card-count">{{ stats.green }}</div>
+            <div class="priority-card-sub">Green priority</div>
+          </div>
+          <div class="priority-card">
+            <div class="priority-card-top">
+              <span class="priority-dot blue"></span>
+              <span class="priority-card-label">Low</span>
+            </div>
+            <div class="priority-card-count">{{ stats.blue }}</div>
+            <div class="priority-card-sub">Blue priority</div>
+          </div>
+        </div>
+
+        <!-- Queue stats -->
+        <div class="stats-row" style="margin-bottom:32px;">
+          <div class="stat-pill"><strong>{{ stats.total }}</strong> Total Requests</div>
+          <div class="stat-pill"><strong>{{ stats.in_queue }}</strong> In Queue</div>
+          <div class="stat-pill"><strong>{{ stats.in_progress }}</strong> In Progress</div>
+        </div>
+
+        <!-- Action cards -->
+        <div class="action-grid">
+          <a href="/comms/new" class="action-card">
+            <div class="action-card-icon teal">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            </div>
+            <div class="action-card-title">New Request</div>
+            <div class="action-card-desc">Submit a graphics or video production request. AI triage assigns priority automatically.</div>
+            <div class="action-card-cta">Submit request →</div>
+          </a>
+          <a href="/comms/my-requests" class="action-card">
+            <div class="action-card-icon navy">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="action-card-title">My Requests</div>
+            <div class="action-card-desc">View all requests you've submitted, track their status, and see triage results.</div>
+            <div class="action-card-cta">View my requests →</div>
+          </a>
+          {% if user_role == 'admin' %}
+          <a href="/comms/admin" class="action-card">
+            <div class="action-card-icon purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+            </div>
+            <div class="action-card-title">Admin Queue</div>
+            <div class="action-card-desc">Manage all submitted requests, update statuses, and view the full production queue.</div>
+            <div class="action-card-cta">Open queue →</div>
+          </a>
+          {% else %}
+          <div class="action-card" style="opacity:0.5; pointer-events:none; cursor:default;">
+            <div class="action-card-icon purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <div class="action-card-title">Admin Queue</div>
+            <div class="action-card-desc">Full queue management is available to admins only.</div>
+            <div class="action-card-cta" style="color:var(--text-muted);">Admin only</div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  // Mobile sidebar toggle
+  const sidebar   = document.getElementById('dbSidebar');
+  const overlay   = document.getElementById('sidebarOverlay');
+  const hamburger = document.getElementById('mobileSidebarToggle');
+  function toggleSidebar() {
+    sidebar.classList.toggle('db-sidebar-open');
+    overlay.classList.toggle('db-sidebar-open');
+  }
+  hamburger.addEventListener('click', toggleSidebar);
+  overlay.addEventListener('click', toggleSidebar);
+
+  // Section toggle
+  document.querySelectorAll('.db-section-header').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.db-nav-section').classList.toggle('db-section-open'));
+  });
+</script>
+</body>
+</html>

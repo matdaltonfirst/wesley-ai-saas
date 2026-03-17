@@ -1,0 +1,194 @@
+<!-- Detail Modal — included in my_requests.html and admin.html -->
+<div id="detailModal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Request Details</div>
+        <div class="modal-subtitle" id="modalEventName" style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;"></div>
+      </div>
+      <button class="modal-close" id="modalClose" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body" id="modalBody">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal-backdrop {
+    position:fixed; inset:0; background:rgba(0,0,0,0.48); z-index:200;
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .modal-box {
+    background:#fff; border-radius:16px; width:100%; max-width:560px;
+    max-height:90vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,0.18);
+    animation:modalIn 0.18s ease;
+  }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+
+  .modal-header { display:flex; align-items:flex-start; justify-content:space-between; padding:20px 24px 16px; border-bottom:1px solid var(--border); gap:12px; flex-shrink:0; }
+  .modal-title { font-size:1.05rem; font-weight:700; color:var(--text); letter-spacing:-0.015em; }
+  .modal-close { background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; border-radius:6px; display:flex; transition:color 0.13s, background 0.13s; }
+  .modal-close:hover { color:var(--text); background:#f1f5f9; }
+
+  .modal-body { overflow-y:auto; padding:20px 24px 24px; flex:1; }
+  .modal-body::-webkit-scrollbar { width:4px; }
+  .modal-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.1); border-radius:2px; }
+
+  /* Badges row */
+  .modal-badges { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
+  .mbadge { display:inline-flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:700; padding:4px 10px; border-radius:20px; letter-spacing:0.03em; text-transform:uppercase; }
+  .mbadge.red     { background:#fee2e2; color:#991b1b; }
+  .mbadge.yellow  { background:#fef9c3; color:#854d0e; }
+  .mbadge.green   { background:#dcfce7; color:#166534; }
+  .mbadge.blue    { background:#dbeafe; color:#1e40af; }
+  .mbadge.tier    { background:#f1f5f9; color:#475569; }
+  .mbadge.status-in_queue    { background:#f1f5f9; color:#475569; }
+  .mbadge.status-in_progress { background:#ccfbf1; color:#0d9488; }
+  .mbadge.status-completed   { background:#dcfce7; color:#166534; }
+  .mbadge.status-cancelled   { background:#f1f5f9; color:#94a3b8; }
+
+  /* Detail rows */
+  .modal-section { margin-bottom:20px; }
+  .modal-section-title { font-size:0.68rem; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; }
+  .modal-field label { font-size:0.72rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:2px; }
+  .modal-field .modal-value { font-size:0.88rem; color:var(--text); line-height:1.45; }
+  .modal-field.full { grid-column:1/-1; }
+
+  /* Deliverable tags */
+  .del-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
+  .del-tag { font-size:0.75rem; background:#f1f5f9; color:#475569; border-radius:5px; padding:2px 8px; }
+
+  /* AI explanation block */
+  .ai-block { background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 16px; }
+  .ai-block-header { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+  .ai-block-title { font-size:0.78rem; font-weight:700; color:#0369a1; letter-spacing:0.03em; text-transform:uppercase; }
+  .ai-block-body { font-size:0.87rem; color:#0c4a6e; line-height:1.6; }
+
+  .modal-loading { text-align:center; padding:40px 20px; color:var(--text-muted); font-size:0.88rem; }
+  .modal-error   { text-align:center; padding:40px 20px; color:#dc2626; font-size:0.88rem; }
+</style>
+
+<script>
+  // ── Detail modal logic ────────────────────────────────────────────────────
+  (function() {
+    const modal     = document.getElementById('detailModal');
+    const modalBody = document.getElementById('modalBody');
+    const modalEventName = document.getElementById('modalEventName');
+    const closeBtn  = document.getElementById('modalClose');
+
+    function openModal(reqId) {
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      modalBody.innerHTML = '<div class="modal-loading">Loading…</div>';
+      modalEventName.textContent = '';
+
+      fetch('/comms/' + reqId + '/detail')
+        .then(r => r.json())
+        .then(d => {
+          if (d.error) { modalBody.innerHTML = '<div class="modal-error">' + d.error + '</div>'; return; }
+          modalEventName.textContent = d.event_name;
+          modalBody.innerHTML = buildModalHTML(d);
+        })
+        .catch(() => { modalBody.innerHTML = '<div class="modal-error">Failed to load details.</div>'; });
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display !== 'none') closeModal(); });
+
+    // Expose for buttons
+    window._openDetailModal = openModal;
+
+    function labelPriority(code) {
+      return { red:'Urgent', yellow:'High', green:'Normal', blue:'Low' }[code] || code || 'Pending';
+    }
+    function labelStatus(s) {
+      return { in_queue:'In Queue', in_progress:'In Progress', completed:'Completed', cancelled:'Cancelled' }[s] || s;
+    }
+    function labelAudience(a) {
+      return { community:'Community (External)', church_members:'Church Members', small_group:'Small Group / Internal' }[a] || a;
+    }
+    function labelTimeline(t) {
+      return { this_week:'This Week (Urgent)', '2_4_weeks':'2–4 Weeks', '1_plus_month':'1+ Month' }[t] || t;
+    }
+    function labelType(t) { return { graphic:'Graphic Design', video:'Video Production' }[t] || t; }
+    function fmtDate(s) {
+      if (!s) return '—';
+      const [y,m,d] = s.split('-');
+      return new Date(+y, +m-1, +d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    }
+
+    function buildModalHTML(d) {
+      const priorityCode = d.triage_code || 'pending';
+      const priorityClass = d.triage_code || '';
+      const statusClass = 'status-' + d.status;
+
+      let badges = '';
+      if (d.triage_code) badges += `<span class="mbadge ${priorityClass}">${labelPriority(d.triage_code)}</span>`;
+      if (d.production_tier) badges += `<span class="mbadge tier">Tier ${d.production_tier}</span>`;
+      badges += `<span class="mbadge ${statusClass}">${labelStatus(d.status)}</span>`;
+      if (d.estimated_completion) badges += `<span class="mbadge tier">Est. ${d.estimated_completion}</span>`;
+
+      const dels = (d.deliverables || []).map(x => `<span class="del-tag">${x}</span>`).join('');
+
+      const aiBlock = d.triage_explanation
+        ? `<div class="modal-section">
+             <div class="modal-section-title">AI Priority Analysis</div>
+             <div class="ai-block">
+               <div class="ai-block-header">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                 </svg>
+                 <span class="ai-block-title">Why this priority &amp; tier</span>
+               </div>
+               <div class="ai-block-body">${d.triage_explanation.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+             </div>
+           </div>`
+        : '';
+
+      return `
+        <div class="modal-badges">${badges}</div>
+
+        <div class="modal-section">
+          <div class="modal-section-title">Request Details</div>
+          <div class="modal-grid">
+            <div class="modal-field"><label>Type</label><div class="modal-value">${labelType(d.request_type)}</div></div>
+            <div class="modal-field"><label>Event Date</label><div class="modal-value">${fmtDate(d.event_date)}</div></div>
+            <div class="modal-field"><label>Target Audience</label><div class="modal-value">${labelAudience(d.target_audience)}</div></div>
+            <div class="modal-field"><label>Timeline</label><div class="modal-value">${labelTimeline(d.timeline)}</div></div>
+            ${d.ministry_department ? `<div class="modal-field"><label>Ministry / Dept</label><div class="modal-value">${d.ministry_department}</div></div>` : ''}
+            <div class="modal-field"><label>Submitted by</label><div class="modal-value">${d.submitter_name}</div></div>
+            <div class="modal-field full"><label>Deliverables</label><div class="del-tags">${dels}</div></div>
+          </div>
+        </div>
+
+        ${d.key_info_text ? `
+        <div class="modal-section">
+          <div class="modal-section-title">Key Information</div>
+          <div style="font-size:0.87rem;color:var(--text);line-height:1.6;white-space:pre-wrap;">${d.key_info_text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        </div>` : ''}
+
+        ${d.special_notes ? `
+        <div class="modal-section">
+          <div class="modal-section-title">Special Notes</div>
+          <div style="font-size:0.87rem;color:var(--text);line-height:1.6;white-space:pre-wrap;">${d.special_notes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        </div>` : ''}
+
+        ${aiBlock}
+      `;
+    }
+  })();
+</script>

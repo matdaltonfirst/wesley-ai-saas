@@ -148,6 +148,7 @@ def create_app(testing: bool = False) -> Flask:
     from routes.settings import settings_bp
     from routes.admin import admin_bp
     from routes.stripe_routes import stripe_bp
+    from routes.comms_routes import comms_bp
 
     _app.register_blueprint(auth_bp)
     _app.register_blueprint(pages_bp)
@@ -157,6 +158,7 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(settings_bp)
     _app.register_blueprint(admin_bp)
     _app.register_blueprint(stripe_bp)
+    _app.register_blueprint(comms_bp)
 
     # ── Flask CLI commands ───────────────────────────────────────────────────
 
@@ -220,6 +222,7 @@ def _run_migrations() -> None:
             ("trial_reminder_sent", "ALTER TABLE churches ADD COLUMN trial_reminder_sent BOOLEAN NOT NULL DEFAULT 0"),
             ("starter_questions",   "ALTER TABLE churches ADD COLUMN starter_questions TEXT"),
             ("bot_subtitle",        "ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"),
+            ("comms_enabled",       "ALTER TABLE churches ADD COLUMN comms_enabled BOOLEAN NOT NULL DEFAULT 1"),
         ]
         for col_name, sql in migrations:
             if col_name not in existing_cols2:
