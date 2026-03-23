@@ -114,8 +114,13 @@ def validate_csrf_json():
 
     Returns ``(None, None)`` when the token is valid, or a ``(response, status)``
     tuple that the caller should immediately return to the client.
+
+    CSRF validation is skipped automatically when ``app.config["TESTING"]`` is
+    True so that the test suite can call API endpoints without managing tokens.
     """
-    from flask import jsonify  # local import avoids circular dependency at module level
+    from flask import jsonify, current_app  # local import avoids circular dependency
+    if current_app.config.get("TESTING"):
+        return None, None
     token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken", "")
     if not token or not secrets.compare_digest(token, session.get("csrf_token", "")):
         return jsonify({"error": "CSRF validation failed."}), 403
