@@ -14,12 +14,14 @@
       --accent-hover:  {{ primary_color }};
       --border-focus:  {{ primary_color }};
       --user-bg:       {{ primary_color }};
+      --accent-ring:   {{ primary_color }}38;
+      --accent-subtle: {{ primary_color }}14;
     }
     .send-btn:hover:not(:disabled) { background: {{ primary_color }}; filter: brightness(0.88); }
 
     /* Church name row below the logo */
     .sidebar-church {
-      font-size: 0.77rem;
+      font-size: 0.8125rem;
       font-weight: 600;
       color: var(--sidebar-text-hi);
       padding: 0 8px 8px;
@@ -31,7 +33,7 @@
     /* User / logout footer */
     .sidebar-footer {
       border-top: 1px solid var(--sidebar-border);
-      padding: 10px 8px 6px;
+      padding: 12px 8px 8px;
       margin-top: 4px;
       flex-shrink: 0;
     }
@@ -39,11 +41,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
       margin-bottom: 6px;
     }
     .sidebar-user-email {
-      font-size: 0.71rem;
+      font-size: 0.75rem;
       color: var(--sidebar-text);
       white-space: nowrap;
       overflow: hidden;
@@ -54,14 +56,15 @@
       background: none;
       border: none;
       color: var(--sidebar-text);
-      font-size: 0.71rem;
+      font-size: 0.75rem;
       font-family: var(--font);
       cursor: pointer;
-      padding: 4px 7px;
-      border-radius: 5px;
+      padding: 4px 8px;
+      border-radius: 6px;
       white-space: nowrap;
       text-decoration: none;
-      transition: color 0.15s, background 0.15s;
+      transition: color 0.18s cubic-bezier(0.4,0,0.2,1),
+                  background 0.18s cubic-bezier(0.4,0,0.2,1);
       flex-shrink: 0;
     }
     .logout-btn:hover { color: var(--sidebar-text-hi); background: var(--sidebar-hover); }
@@ -74,20 +77,25 @@
       width: 100%;
       background: none;
       border: none;
-      border-radius: 6px;
-      padding: 7px 8px;
+      border-radius: 8px;
+      padding: 9px 10px;
       text-align: left;
       cursor: pointer;
       color: var(--sidebar-text);
-      font-size: 0.78rem;
+      font-size: 0.8125rem;
       font-family: var(--font);
-      transition: background 0.12s, color 0.12s;
+      transition: background 0.15s cubic-bezier(0.4,0,0.2,1),
+                  color 0.15s cubic-bezier(0.4,0,0.2,1);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .conv-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text-hi); }
-    .conv-item.active { background: var(--sidebar-active, rgba(255,255,255,0.12)); color: var(--sidebar-text-hi); font-weight: 600; }
+    .conv-item.active {
+      background: rgba(255,255,255,0.12);
+      color: var(--sidebar-text-hi);
+      font-weight: 600;
+    }
     .conv-title { pointer-events: none; }
   </style>
 </head>

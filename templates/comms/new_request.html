@@ -7,19 +7,19 @@
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
-    .db-sidebar { width:232px; flex-shrink:0; background:var(--sidebar-bg); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid var(--sidebar-border); }
+    .db-sidebar { width:244px; flex-shrink:0; background:var(--sidebar-bg); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid var(--sidebar-border); }
     .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
     .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
     .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .db-logo-text { font-size:0.84rem; font-weight:700; color:#fff; letter-spacing:-0.01em; }
-    .db-church-name { font-size:0.78rem; color:rgba(255,255,255,0.42); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .db-logo-text { font-size:0.875rem; font-weight:700; color:#fff; letter-spacing:-0.01em; }
+    .db-church-name { font-size:0.8125rem; color:rgba(255,255,255,0.42); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .db-sidebar-nav { flex:1; overflow-y:auto; padding:14px 7px 6px; display:flex; flex-direction:column; gap:1px; }
     .db-sidebar-nav::-webkit-scrollbar { width:3px; }
     .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
     .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:rgba(255,255,255,0.78); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
     .db-nav-standalone:hover { background:rgba(255,255,255,0.08); color:#fff; }
     .db-nav-section { margin-bottom:1px; }
-    .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.68rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:rgba(255,255,255,0.35); border-radius:6px; transition:color 0.13s; }
+    .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.6875rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:rgba(255,255,255,0.35); border-radius:6px; transition:color 0.13s; }
     .db-section-header:hover { color:rgba(255,255,255,0.58); }
     .db-section-chevron { margin-left:auto; opacity:0.45; transition:transform 0.18s; flex-shrink:0; }
     .db-nav-section.db-section-open .db-section-chevron { transform:rotate(90deg); }
@@ -31,18 +31,18 @@
     .db-nav-item-link svg { flex-shrink:0; opacity:0.6; }
     .db-nav-item-link.db-nav-active svg { opacity:1; }
     .db-sidebar-footer { padding:11px 14px; border-top:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
-    .db-user-email { font-size:0.72rem; color:rgba(255,255,255,0.35); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-    .db-signout { font-size:0.72rem; color:rgba(255,255,255,0.35); text-decoration:none; white-space:nowrap; flex-shrink:0; transition:color 0.13s; }
+    .db-user-email { font-size:0.75rem; color:rgba(255,255,255,0.35); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .db-signout { font-size:0.75rem; color:rgba(255,255,255,0.35); text-decoration:none; white-space:nowrap; flex-shrink:0; transition:color 0.13s; }
     .db-signout:hover { color:rgba(255,255,255,0.72); }
-    .db-sidebar-overlay { display:none; position:fixed; top:44px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:49; }
+    .db-sidebar-overlay { display:none; position:fixed; top:48px; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:49; }
     @media (max-width:768px) {
-      .db-sidebar { position:fixed; top:44px; left:-240px; bottom:0; z-index:50; transition:left 0.22s ease; width:232px; height:calc(100% - 44px); }
+      .db-sidebar { position:fixed; top:48px; left:-250px; bottom:0; z-index:50; transition:left 0.22s ease; width:244px; height:calc(100% - 48px); }
       .db-sidebar.db-sidebar-open { left:0; }
       .db-sidebar-overlay.db-sidebar-open { display:block; }
     }
 
     /* ── Main ── */
-    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f5f7f9; }
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:linear-gradient(180deg, #f5f8fa 0%, #f0f5f6 100%); }
     .comms-page { padding:40px 36px 72px; max-width:680px; }
     @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
 
@@ -64,7 +64,7 @@
       outline:none; transition:border-color 0.15s, box-shadow 0.15s;
     }
     .field-input:focus, .field-select:focus, .field-textarea:focus {
-      border-color:var(--accent); box-shadow:0 0 0 3px rgba(41,171,181,0.12);
+      border-color:var(--accent); box-shadow:0 0 0 3px rgba(41,171,181,0.22);
     }
     .field-input::placeholder, .field-textarea::placeholder { color:#94a3b8; }
     .field-textarea { resize:vertical; min-height:88px; line-height:1.55; }

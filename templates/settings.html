@@ -20,7 +20,7 @@
        SIDEBAR — same dark teal as chat sidebar
     ══════════════════════════════════════════════ */
     .db-sidebar {
-      width: 232px;
+      width: 244px;
       flex-shrink: 0;
       background: var(--sidebar-bg);
       display: flex;
@@ -31,7 +31,7 @@
     }
 
     .db-sidebar-header {
-      padding: 18px 14px 14px;
+      padding: 20px 16px 16px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
       flex-shrink: 0;
     }
@@ -43,24 +43,24 @@
       margin-bottom: 10px;
     }
     .db-logo-icon {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       background: var(--accent);
-      border-radius: 7px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
     .db-logo-text {
-      font-size: 0.84rem;
+      font-size: 0.875rem;
       font-weight: 700;
       color: #fff;
       letter-spacing: -0.01em;
     }
     .db-church-name {
-      font-size: 0.78rem;
-      color: rgba(255,255,255,0.42);
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.48);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -110,7 +110,7 @@
       cursor: pointer;
       text-align: left;
       font-family: var(--font);
-      font-size: 0.68rem;
+      font-size: 0.6875rem;
       font-weight: 700;
       letter-spacing: 0.07em;
       text-transform: uppercase;
@@ -142,9 +142,9 @@
       align-items: center;
       gap: 9px;
       padding: 7px 10px 7px 16px;
-      border-radius: 7px;
+      border-radius: 8px;
       color: rgba(255,255,255,0.62);
-      font-size: 0.855rem;
+      font-size: 0.875rem;
       font-weight: 400;
       cursor: pointer;
       background: none;
@@ -192,9 +192,9 @@
       align-items: center;
       gap: 9px;
       padding: 7px 10px 7px 16px;
-      border-radius: 7px;
+      border-radius: 8px;
       color: rgba(255,255,255,0.62);
-      font-size: 0.855rem;
+      font-size: 0.875rem;
       font-weight: 400;
       text-decoration: none;
       transition: background 0.13s, color 0.13s;
@@ -214,7 +214,7 @@
       flex-shrink: 0;
     }
     .db-user-email {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: rgba(255,255,255,0.35);
       white-space: nowrap;
       overflow: hidden;
@@ -222,7 +222,7 @@
       min-width: 0;
     }
     .db-signout {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: rgba(255,255,255,0.35);
       text-decoration: none;
       white-space: nowrap;
@@ -238,7 +238,7 @@
       flex: 1;
       min-width: 0;
       overflow-y: auto;
-      background: #f5f7f9;
+      background: linear-gradient(180deg, #f5f8fa 0%, #f0f5f6 100%);
     }
 
     .db-panel {
@@ -250,7 +250,7 @@
 
     .db-panel-header { margin-bottom: 26px; }
     .db-panel-title {
-      font-size: 1.3rem;
+      font-size: 1.375rem;
       font-weight: 700;
       color: var(--text);
       letter-spacing: -0.022em;
@@ -296,10 +296,11 @@
     .settings-card {
       background: #fff;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 16px;
       padding: 24px;
       margin-bottom: 20px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s cubic-bezier(0.4,0,0.2,1);
     }
     .settings-card-header {
       display: flex;
@@ -320,15 +321,15 @@
       gap: 6px;
       background: var(--accent);
       color: #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 7px 14px;
       font-size: 0.82rem;
       font-weight: 600;
       font-family: var(--font);
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.18s cubic-bezier(0.4,0,0.2,1), box-shadow 0.18s cubic-bezier(0.4,0,0.2,1);
     }
-    .upload-label:hover { background: var(--accent-hover); }
+    .upload-label:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(41,171,181,0.25); }
 
     /* ── Upload progress bar ── */
     .upload-progress {
@@ -357,7 +358,7 @@
       align-items: center;
       gap: 12px;
       padding: 10px 12px;
-      border-radius: 8px;
+      border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--surface);
       transition: border-color 0.15s;
@@ -494,7 +495,7 @@
     }
     .website-url-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(41,171,181,0.12);
+      box-shadow: 0 0 0 3px rgba(41,171,181,0.22);
     }
     .website-url-input::placeholder { color: #94a3b8; }
 
@@ -571,7 +572,7 @@
       color: var(--text-muted);
       border-radius: 6px;
       padding: 5px 12px;
-      font-size: 0.78rem;
+      font-size: 0.8125rem;
       font-family: var(--font);
       cursor: pointer;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -583,7 +584,7 @@
       border-radius: 8px;
       color: #8ecdd2;
       font-family: "SFMono-Regular", "Consolas", monospace;
-      font-size: 0.78rem;
+      font-size: 0.8125rem;
       padding: 12px 14px;
       overflow-x: auto;
       white-space: pre;
@@ -663,7 +664,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.78rem;
+      font-size: 0.8125rem;
       font-weight: 700;
       flex-shrink: 0;
       letter-spacing: 0.02em;
@@ -760,7 +761,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .wconv-count { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .wconv-count { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
     .wconv-chevron { color: var(--text-muted); flex-shrink: 0; transition: transform 0.18s; font-size: 0.7rem; }
     .wconv-item.wconv-open .wconv-chevron { transform: rotate(90deg); }
     .wconv-thread {
@@ -773,7 +774,7 @@
     .wconv-item.wconv-open .wconv-thread { display: flex; }
     .wconv-msg { display: flex; flex-direction: column; gap: 2px; }
     .wconv-msg-role {
-      font-size: 0.68rem;
+      font-size: 0.6875rem;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -918,7 +919,7 @@
       top: 18px;
       left: 0; right: 0;
       text-align: center;
-      font-size: 0.68rem;
+      font-size: 0.6875rem;
       font-weight: 700;
       color: #94a3b8;
       letter-spacing: 0.1em;

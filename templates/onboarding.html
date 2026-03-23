@@ -13,12 +13,32 @@
       height: auto;
       overflow-y: auto;
       min-height: 100vh;
-      background: var(--bg);
+      background: linear-gradient(135deg, #f0fafb 0%, #e8f5f6 50%, #f4fbfb 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 48px 20px 64px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Card entrance animation ── */
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
     }
 
     /* ── Wizard shell ── */
@@ -39,12 +59,12 @@
       margin-bottom: 28px;
     }
     .step-dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: var(--border);
       flex-shrink: 0;
-      transition: background 0.25s;
+      transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .step-dot.active { background: var(--accent); }
     .step-dot.done   { background: var(--accent); opacity: 0.4; }
@@ -53,22 +73,26 @@
       max-width: 72px;
       height: 2px;
       background: var(--border);
-      transition: background 0.25s, opacity 0.25s;
+      transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .step-line.done { background: var(--accent); opacity: 0.4; }
 
     /* ── Card ── */
     .wizard-card {
       background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 16px;
+      border: 1px solid rgba(41,171,181,0.12);
+      border-radius: 18px;
       padding: 36px 36px 32px;
-      box-shadow: 0 4px 28px rgba(0,0,0,0.07);
+      box-shadow: 0 8px 32px rgba(12,61,67,0.1);
+      animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
     /* ── Step panels ── */
     .step-panel { display: none; }
-    .step-panel.active { display: block; }
+    .step-panel.active {
+      display: block;
+      animation: cardIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
 
     .step-label {
       font-size: 0.74rem;
@@ -97,26 +121,26 @@
     .field-group { display: flex; flex-direction: column; gap: 18px; margin-bottom: 6px; }
     .field-row   { display: flex; flex-direction: column; gap: 5px; }
     .field-label {
-      font-size: 0.8rem;
+      font-size: 0.8125rem;
       font-weight: 500;
       color: var(--text-muted);
     }
     .field-input {
       border: 1.5px solid var(--border);
-      border-radius: 9px;
+      border-radius: 10px;
       padding: 11px 14px;
-      font-size: 0.92rem;
+      font-size: 0.9375rem;
       font-family: var(--font);
       color: var(--text);
       background: #fff;
       outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       width: 100%;
       box-sizing: border-box;
     }
     .field-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(10,61,61,0.08);
+      box-shadow: 0 0 0 3px rgba(41,171,181,0.22);
     }
     .field-input::placeholder { color: #94a3b8; }
 
@@ -143,16 +167,22 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 9px;
+      border-radius: 10px;
       padding: 11px 26px;
       font-size: 0.9rem;
       font-weight: 600;
       font-family: var(--font);
       cursor: pointer;
-      transition: filter 0.15s;
+      transition: filter 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
     }
-    .btn-primary:hover:not(:disabled) { filter: brightness(0.88); }
+    .btn-primary:hover:not(:disabled) {
+      filter: brightness(0.88);
+      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+    }
+    .btn-primary:active:not(:disabled) {
+      transform: scale(0.98);
+    }
     .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .btn-ghost {
@@ -163,8 +193,8 @@
       font-size: 0.88rem;
       font-family: var(--font);
       cursor: pointer;
-      border-radius: 9px;
-      transition: color 0.15s, background 0.15s;
+      border-radius: 10px;
+      transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
     }
     .btn-ghost:hover { color: var(--text); background: var(--surface); }
@@ -173,16 +203,22 @@
       background: none;
       color: var(--accent);
       border: 1.5px solid var(--accent);
-      border-radius: 9px;
+      border-radius: 10px;
       padding: 10px 20px;
       font-size: 0.9rem;
       font-weight: 600;
       font-family: var(--font);
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
     }
-    .btn-outline:hover { background: #e8f7f8; }
+    .btn-outline:hover {
+      background: #e8f7f8;
+      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+    }
+    .btn-outline:active {
+      transform: scale(0.98);
+    }
 
     /* ── Step 2 crawl status ── */
     .crawl-status-row {
@@ -222,7 +258,7 @@
     .embed-block {
       background: #0d1117;
       border: 1px solid #30363d;
-      border-radius: 9px;
+      border-radius: 12px;
       color: #8ecdd2;
       font-family: "SFMono-Regular", "Consolas", monospace;
       font-size: 0.77rem;
@@ -243,12 +279,12 @@
       background: var(--surface);
       border: 1px solid var(--border);
       color: var(--text-muted);
-      border-radius: 7px;
+      border-radius: 10px;
       padding: 6px 14px;
       font-size: 0.8rem;
       font-family: var(--font);
       cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .btn-copy:hover { background: #e8f7f8; color: var(--accent); border-color: var(--accent); }
 
