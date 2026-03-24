@@ -89,7 +89,7 @@
       gap: 10px;
       padding: 10px 12px;
       border-radius: 8px;
-      color: rgba(255,255,255,0.6);
+      color: rgba(255,255,255,0.85);
       font-size: 0.875rem;
       font-weight: 500;
       text-decoration: none;
@@ -117,7 +117,7 @@
       font-weight: 600;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.45);
       border-radius: 6px;
       transition: color 0.15s;
       margin-top: 4px;
@@ -139,6 +139,8 @@
       padding-bottom: 4px;
     }
     .db-nav-section.db-section-open .db-section-items { display: flex; }
+    .db-section-items .db-nav-item,
+    .db-section-items .db-nav-item-link { padding-left: 28px; }
 
     /* ── Nav items (buttons that switch panels) ── */
     .db-nav-item {
@@ -148,7 +150,7 @@
       padding: 10px 12px 10px 14px;
       border-radius: 0 8px 8px 0;
       border-left: 3px solid transparent;
-      color: rgba(255,255,255,0.55);
+      color: rgba(255,255,255,0.85);
       font-size: 0.875rem;
       font-weight: 400;
       cursor: pointer;
@@ -169,10 +171,10 @@
     .db-nav-item.db-nav-active {
       background: rgba(22,149,160,0.12);
       border-left-color: #1695a0;
-      color: rgba(255,255,255,0.95);
+      color: #ffffff;
       font-weight: 600;
     }
-    .db-nav-item svg { flex-shrink: 0; opacity: 0.5; }
+    .db-nav-item svg { flex-shrink: 0; opacity: 0.85; }
     .db-nav-item.db-nav-active svg { opacity: 1; }
 
     /* ── Coming Soon items ── */
@@ -186,7 +188,7 @@
       font-size: 0.6rem;
       font-weight: 600;
       background: rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.4);
+      color: #94a3b8;
       padding: 3px 8px;
       border-radius: 9999px;
       letter-spacing: 0.03em;
@@ -202,14 +204,14 @@
       padding: 10px 12px 10px 14px;
       border-radius: 0 8px 8px 0;
       border-left: 3px solid transparent;
-      color: rgba(255,255,255,0.55);
+      color: rgba(255,255,255,0.85);
       font-size: 0.875rem;
       font-weight: 400;
       text-decoration: none;
       transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out);
     }
     .db-nav-item-link:hover { background: rgba(22,149,160,0.08); color: rgba(255,255,255,0.85); }
-    .db-nav-item-link svg { flex-shrink: 0; opacity: 0.5; }
+    .db-nav-item-link svg { flex-shrink: 0; opacity: 0.85; }
     .db-nav-item-link .ext-icon { margin-left: auto; opacity: 0.28; }
 
     /* ── Sidebar footer ── */
@@ -224,7 +226,7 @@
     }
     .db-user-email {
       font-size: 0.75rem;
-      color: rgba(255,255,255,0.35);
+      color: rgba(255,255,255,0.7);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -232,7 +234,7 @@
     }
     .db-signout {
       font-size: 0.75rem;
-      color: rgba(255,255,255,0.35);
+      color: rgba(255,255,255,0.55);
       text-decoration: none;
       white-space: nowrap;
       flex-shrink: 0;
@@ -993,6 +995,7 @@
     <!-- Mode tabs -->
     <a href="/" class="top-nav-link">Chat</a>
     <a href="/dashboard" class="top-nav-link active">Dashboard</a>
+    <a href="/comms" class="top-nav-link">Communications</a>
     <!-- Desktop: user info + sign out -->
     <div class="top-nav-right">
       <span class="top-nav-user" title="{{ user_email }}">{{ user_email }}</span>
@@ -1038,10 +1041,10 @@
         <!-- ── Activity ── -->
         <div class="db-nav-section db-section-open" data-section="activity">
           <button class="db-section-header">
+            Activity
             <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Activity
           </button>
           <div class="db-section-items">
             <button class="db-nav-item" data-panel="chat-logs">
@@ -1066,10 +1069,10 @@
         <!-- ── Analytics ── -->
         <div class="db-nav-section" data-section="analytics">
           <button class="db-section-header">
+            Analytics
             <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Analytics
           </button>
           <div class="db-section-items">
             <div class="db-nav-item db-nav-coming-soon">
@@ -1106,10 +1109,10 @@
         <!-- ── Data Sources ── -->
         <div class="db-nav-section db-section-open" data-section="data-sources">
           <button class="db-section-header">
+            Data Sources
             <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Data Sources
           </button>
           <div class="db-section-items">
             <button class="db-nav-item" data-panel="files">
@@ -1152,10 +1155,10 @@
         <!-- ── Deploy ── -->
         <div class="db-nav-section db-section-open" data-section="deploy">
           <button class="db-section-header">
+            Deploy
             <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Deploy
           </button>
           <div class="db-section-items">
             <button class="db-nav-item" data-panel="embed">
@@ -1182,10 +1185,10 @@
         <!-- ── Settings ── -->
         <div class="db-nav-section db-section-open" data-section="settings-section">
           <button class="db-section-header">
+            Settings
             <svg class="db-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            Settings
           </button>
           <div class="db-section-items">
             <button class="db-nav-item" data-panel="playground">
