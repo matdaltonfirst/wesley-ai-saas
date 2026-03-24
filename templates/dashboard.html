@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>{{ bot_name }} — {{ church_name }}</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <style>
@@ -14,17 +17,18 @@
       --accent-hover:  {{ primary_color }};
       --border-focus:  {{ primary_color }};
       --user-bg:       {{ primary_color }};
-      --accent-ring:   {{ primary_color }}38;
-      --accent-subtle: {{ primary_color }}14;
+      --accent-ring:   {{ primary_color }}33;
+      --accent-subtle: {{ primary_color }}0a;
+      --sidebar-active-accent: {{ primary_color }};
     }
     .send-btn:hover:not(:disabled) { background: {{ primary_color }}; filter: brightness(0.88); }
 
     /* Church name row below the logo */
     .sidebar-church {
       font-size: 0.8125rem;
-      font-weight: 600;
-      color: var(--sidebar-text-hi);
-      padding: 0 8px 8px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.45);
+      padding: 0 12px 8px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -32,8 +36,8 @@
 
     /* User / logout footer */
     .sidebar-footer {
-      border-top: 1px solid var(--sidebar-border);
-      padding: 12px 8px 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 14px 12px 12px;
       margin-top: 4px;
       flex-shrink: 0;
     }
@@ -46,7 +50,7 @@
     }
     .sidebar-user-email {
       font-size: 0.75rem;
-      color: var(--sidebar-text);
+      color: rgba(255,255,255,0.4);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -55,7 +59,7 @@
     .logout-btn {
       background: none;
       border: none;
-      color: var(--sidebar-text);
+      color: rgba(255,255,255,0.4);
       font-size: 0.75rem;
       font-family: var(--font);
       cursor: pointer;
@@ -63,37 +67,40 @@
       border-radius: 6px;
       white-space: nowrap;
       text-decoration: none;
-      transition: color 0.18s cubic-bezier(0.4,0,0.2,1),
-                  background 0.18s cubic-bezier(0.4,0,0.2,1);
+      transition: color 0.18s var(--ease-out),
+                  background 0.18s var(--ease-out);
       flex-shrink: 0;
     }
-    .logout-btn:hover { color: var(--sidebar-text-hi); background: var(--sidebar-hover); }
+    .logout-btn:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.06); }
 
     /* Conversations list */
     .sidebar-convs { flex: 1; overflow-y: auto; min-height: 0; }
-    #convList { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+    #convList { display: flex; flex-direction: column; gap: 2px; padding: 0 6px; }
     .conv-item {
       display: block;
       width: 100%;
       background: none;
       border: none;
-      border-radius: 8px;
-      padding: 9px 10px;
+      border-left: 3px solid transparent;
+      border-radius: 0 8px 8px 0;
+      padding: 10px 12px;
       text-align: left;
       cursor: pointer;
-      color: var(--sidebar-text);
+      color: rgba(255,255,255,0.55);
       font-size: 0.8125rem;
       font-family: var(--font);
-      transition: background 0.15s cubic-bezier(0.4,0,0.2,1),
-                  color 0.15s cubic-bezier(0.4,0,0.2,1);
+      transition: background 0.15s var(--ease-out),
+                  color 0.15s var(--ease-out),
+                  border-color 0.15s var(--ease-out);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .conv-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text-hi); }
+    .conv-item:hover { background: rgba(22,149,160,0.08); color: rgba(255,255,255,0.85); }
     .conv-item.active {
-      background: rgba(255,255,255,0.12);
-      color: var(--sidebar-text-hi);
+      background: rgba(22,149,160,0.12);
+      border-left-color: var(--sidebar-active-accent);
+      color: rgba(255,255,255,0.95);
       font-weight: 600;
     }
     .conv-title { pointer-events: none; }
