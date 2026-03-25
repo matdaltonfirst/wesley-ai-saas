@@ -15,7 +15,7 @@ from config import (
     DEFAULT_BOT_NAME, DEFAULT_WELCOME, DEFAULT_COLOR, DEFAULT_SUBTITLE,
     DEFAULT_SYSTEM_PROMPT, SUPER_ADMIN_EMAIL, EXEMPT_DOMAINS, GEMINI_MODEL,
 )
-from models import SystemPrompt
+from models import SystemPrompt, TextSnippet, QnAPair
 
 log = logging.getLogger("wesley")
 
@@ -51,8 +51,27 @@ def build_system_prompt(church, widget: bool = False) -> str:
         ctx += f", located in {church.church_city}"
     ctx += f". Your name is {church.bot_name or DEFAULT_BOT_NAME}."
 
+    # 1. Inject active Q&A pairs (highest priority — use these answers verbatim)
+    qna_pairs = QnAPair.query.filter_by(church_id=church.id, is_active=True).all()
+    qna_block = ""
+    if qna_pairs:
+        lines = "\n".join(f"Q: {p.question}\nA: {p.answer}" for p in qna_pairs)
+        qna_block = (
+            "\n\n--- Approved Q&A — Always Use These Answers Exactly ---\n"
+            "If a visitor asks something matching one of these questions, use the "
+            "provided answer. Do not paraphrase or modify these answers.\n\n"
+            + lines
+        )
+
+    # 2. Inject active text snippets (second priority)
+    snippets = TextSnippet.query.filter_by(church_id=church.id, is_active=True).all()
+    snippet_block = ""
+    if snippets:
+        lines = "\n".join(f"{s.title}: {s.content}" for s in snippets)
+        snippet_block = "\n\n--- Additional Church Information ---\n" + lines
+
     if not widget:
-        return base + ctx
+        return base + ctx + qna_block + snippet_block
 
     addendum = (
         "\n\nWhen answering questions about schedules, events, menus, or anything "
@@ -66,7 +85,7 @@ def build_system_prompt(church, widget: bool = False) -> str:
         "headings (##), bullet points (-), bold (**text**), italic (*text*), "
         "or any other markdown syntax. Write in natural, conversational sentences."
     )
-    return base + ctx + addendum
+    return base + ctx + qna_block + snippet_block + addendum
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────

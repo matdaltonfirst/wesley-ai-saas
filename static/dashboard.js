@@ -809,7 +809,289 @@ async function loadSentimentAnalytics() {
 // Lazy-load analytics when a panel is first shown
 document.addEventListener("panelShow", function(e) {
   const id = e.detail;
-  if (id === "analytics-chats")     loadChatsAnalytics();
-  else if (id === "analytics-topics")   loadTopicsAnalytics();
+  if (id === "analytics-chats")      loadChatsAnalytics();
+  else if (id === "analytics-topics")    loadTopicsAnalytics();
   else if (id === "analytics-sentiment") loadSentimentAnalytics();
+  else if (id === "snippets")            loadSnippets();
+  else if (id === "qna")                 loadQna();
 });
+
+// ── Text Snippets ─────────────────────────────────────────────────────────────
+
+var _snippets = [];
+var _snippetCategories = [];
+
+async function loadSnippets() {
+  const grid = document.getElementById("snippetGrid");
+  if (!grid) return;
+  try {
+    const res = await fetch("/api/snippets");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const d = await res.json();
+    _snippets = d.snippets || [];
+    _snippetCategories = d.categories || [];
+    renderSnippetGrid();
+  } catch {
+    if (grid) grid.innerHTML = '<div class="wconv-empty">Could not load snippets.</div>';
+  }
+}
+
+function renderSnippetGrid() {
+  const grid = document.getElementById("snippetGrid");
+  if (!grid) return;
+  if (!_snippets.length) {
+    grid.innerHTML = `<div class="wconv-empty" style="grid-column:1/-1;">No snippets yet. Add information your documents don't cover — like your pastor's bio, parking instructions, or current sermon series.</div>`;
+    return;
+  }
+  grid.innerHTML = _snippets.map(s => `
+    <div class="sn-card${s.is_active ? "" : " sn-inactive"}" data-id="${s.id}">
+      <div class="sn-card-title">${esc(s.title)}</div>
+      ${s.category ? `<div><span class="sn-cat-badge">${esc(s.category)}</span></div>` : ""}
+      <div class="sn-preview">${esc(s.content.length > 100 ? s.content.substring(0, 100) + "…" : s.content)}</div>
+      <div class="sn-footer">
+        <span class="sn-status ${s.is_active ? "sn-status-active" : "sn-status-inactive"}">${s.is_active ? "Active" : "Inactive"}</span>
+        <div class="sn-actions">
+          <button class="sn-btn" onclick="snippetEdit(${s.id})">Edit</button>
+          <button class="sn-btn sn-btn-del" onclick="snippetDelete(${s.id})">Delete</button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+function snippetShowForm(editId) {
+  const card = document.getElementById("snippetFormCard");
+  const title = document.getElementById("snippetFormTitle");
+  const idInp = document.getElementById("snippetEditId");
+  const inp   = document.getElementById("snippetTitle");
+  const cat   = document.getElementById("snippetCategory");
+  const txt   = document.getElementById("snippetContent");
+  const active= document.getElementById("snippetActive");
+  const msg   = document.getElementById("snippetFormMsg");
+  if (msg) msg.textContent = "";
+
+  if (editId) {
+    const s = _snippets.find(x => x.id === editId);
+    if (!s) return;
+    title.textContent = "Edit Snippet";
+    idInp.value = s.id;
+    inp.value   = s.title;
+    cat.value   = s.category || "";
+    txt.value   = s.content;
+    active.checked = s.is_active;
+  } else {
+    title.textContent = "New Snippet";
+    idInp.value = "";
+    inp.value   = "";
+    cat.value   = "";
+    txt.value   = "";
+    active.checked = true;
+  }
+  updateSnippetCharCount();
+  card.style.display = "";
+  inp.focus();
+}
+
+function updateSnippetCharCount() {
+  const txt = document.getElementById("snippetContent");
+  const counter = document.getElementById("snippetCharCount");
+  if (txt && counter) counter.textContent = `${txt.value.length} / 1000`;
+}
+
+function snippetEdit(id) { snippetShowForm(id); }
+
+async function snippetDelete(id) {
+  if (!confirm("Delete this snippet?")) return;
+  const res = await fetch(`/api/snippets/${id}`, { method: "DELETE" });
+  if (res.ok) {
+    _snippets = _snippets.filter(s => s.id !== id);
+    renderSnippetGrid();
+  }
+}
+
+(function wireSnippets() {
+  const addBtn    = document.getElementById("snippetAddBtn");
+  const cancelBtn = document.getElementById("snippetCancelBtn");
+  const saveBtn   = document.getElementById("snippetSaveBtn");
+  const txt       = document.getElementById("snippetContent");
+
+  if (addBtn)    addBtn.addEventListener("click",   () => snippetShowForm(null));
+  if (cancelBtn) cancelBtn.addEventListener("click", () => {
+    document.getElementById("snippetFormCard").style.display = "none";
+  });
+  if (txt) txt.addEventListener("input", updateSnippetCharCount);
+
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    const idVal   = document.getElementById("snippetEditId").value;
+    const title   = (document.getElementById("snippetTitle").value || "").trim();
+    const content = (document.getElementById("snippetContent").value || "").trim();
+    const category= document.getElementById("snippetCategory").value || "";
+    const active  = document.getElementById("snippetActive").checked;
+    const msg     = document.getElementById("snippetFormMsg");
+
+    if (!title || !content) {
+      msg.textContent = "Title and content are required.";
+      msg.style.color = "#ef4444";
+      return;
+    }
+    const body = { title, content, category: category || null, is_active: active };
+    const url    = idVal ? `/api/snippets/${idVal}` : "/api/snippets";
+    const method = idVal ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      msg.textContent = d.error || "Error saving snippet.";
+      msg.style.color = "#ef4444";
+      return;
+    }
+    if (idVal) {
+      const idx = _snippets.findIndex(s => s.id === parseInt(idVal));
+      if (idx !== -1) _snippets[idx] = d.snippet;
+    } else {
+      _snippets.unshift(d.snippet);
+    }
+    renderSnippetGrid();
+    document.getElementById("snippetFormCard").style.display = "none";
+  });
+})();
+
+
+// ── Q&A ───────────────────────────────────────────────────────────────────────
+
+var _qnaPairs = [];
+
+async function loadQna() {
+  const list = document.getElementById("qnaList");
+  if (!list) return;
+  try {
+    const res = await fetch("/api/qna");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const d = await res.json();
+    _qnaPairs = d.pairs || [];
+    renderQnaList();
+  } catch {
+    if (list) list.innerHTML = '<div class="wconv-empty">Could not load Q&A.</div>';
+  }
+}
+
+function renderQnaList() {
+  const list = document.getElementById("qnaList");
+  if (!list) return;
+  if (!_qnaPairs.length) {
+    list.innerHTML = `<div class="wconv-empty">No Q&A pairs yet. Add common questions and write the exact answers you want your bot to give — great for theology, beliefs, and anything that needs a consistent response.</div>`;
+    return;
+  }
+  list.innerHTML = _qnaPairs.map(p => `
+    <div class="qna-item${p.is_active ? "" : " qna-inactive"}" data-id="${p.id}">
+      <div class="qna-header" onclick="qnaToggle(this)">
+        <span class="qna-question">${esc(p.question)}</span>
+        <div class="qna-header-right">
+          <span class="qna-status ${p.is_active ? "qna-status-active" : "qna-status-inactive"}">${p.is_active ? "Active" : "Inactive"}</span>
+          <svg class="qna-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+      </div>
+      <div class="qna-body">
+        <div class="qna-answer">${esc(p.answer)}</div>
+        <div class="qna-body-actions">
+          <button class="sn-btn" onclick="qnaEdit(${p.id})">Edit</button>
+          <button class="sn-btn sn-btn-del" onclick="qnaDelete(${p.id})">Delete</button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+function qnaToggle(header) {
+  header.closest(".qna-item").classList.toggle("qna-open");
+}
+
+function qnaShowForm(editId) {
+  const card = document.getElementById("qnaFormCard");
+  const title = document.getElementById("qnaFormTitle");
+  const idInp = document.getElementById("qnaEditId");
+  const q     = document.getElementById("qnaQuestion");
+  const a     = document.getElementById("qnaAnswer");
+  const active= document.getElementById("qnaActive");
+  const msg   = document.getElementById("qnaFormMsg");
+  if (msg) msg.textContent = "";
+
+  if (editId) {
+    const p = _qnaPairs.find(x => x.id === editId);
+    if (!p) return;
+    title.textContent = "Edit Q&A";
+    idInp.value   = p.id;
+    q.value       = p.question;
+    a.value       = p.answer;
+    active.checked = p.is_active;
+  } else {
+    title.textContent = "New Q&A";
+    idInp.value = "";
+    q.value = "";
+    a.value = "";
+    active.checked = true;
+  }
+  card.style.display = "";
+  q.focus();
+}
+
+function qnaEdit(id) { qnaShowForm(id); }
+
+async function qnaDelete(id) {
+  if (!confirm("Delete this Q&A pair?")) return;
+  const res = await fetch(`/api/qna/${id}`, { method: "DELETE" });
+  if (res.ok) {
+    _qnaPairs = _qnaPairs.filter(p => p.id !== id);
+    renderQnaList();
+  }
+}
+
+(function wireQna() {
+  const addBtn    = document.getElementById("qnaAddBtn");
+  const cancelBtn = document.getElementById("qnaCancelBtn");
+  const saveBtn   = document.getElementById("qnaSaveBtn");
+
+  if (addBtn)    addBtn.addEventListener("click",   () => qnaShowForm(null));
+  if (cancelBtn) cancelBtn.addEventListener("click", () => {
+    document.getElementById("qnaFormCard").style.display = "none";
+  });
+
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    const idVal   = document.getElementById("qnaEditId").value;
+    const question= (document.getElementById("qnaQuestion").value || "").trim();
+    const answer  = (document.getElementById("qnaAnswer").value || "").trim();
+    const active  = document.getElementById("qnaActive").checked;
+    const msg     = document.getElementById("qnaFormMsg");
+
+    if (!question || !answer) {
+      msg.textContent = "Question and answer are required.";
+      msg.style.color = "#ef4444";
+      return;
+    }
+    const body   = { question, answer, is_active: active };
+    const url    = idVal ? `/api/qna/${idVal}` : "/api/qna";
+    const method = idVal ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      msg.textContent = d.error || "Error saving Q&A.";
+      msg.style.color = "#ef4444";
+      return;
+    }
+    if (idVal) {
+      const idx = _qnaPairs.findIndex(p => p.id === parseInt(idVal));
+      if (idx !== -1) _qnaPairs[idx] = d.pair;
+    } else {
+      _qnaPairs.unshift(d.pair);
+    }
+    renderQnaList();
+    document.getElementById("qnaFormCard").style.display = "none";
+  });
+})();

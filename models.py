@@ -205,6 +205,31 @@ class GuestConnection(db.Model):
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class TextSnippet(db.Model):
+    """Short text blurbs that supplement uploaded docs in the bot's context."""
+    __tablename__ = "text_snippets"
+    id         = db.Column(db.Integer, primary_key=True)
+    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    title      = db.Column(db.String(200), nullable=False)
+    content    = db.Column(db.Text, nullable=False)
+    category   = db.Column(db.String(100), nullable=True)
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class QnAPair(db.Model):
+    """Staff-written Q&A pairs injected verbatim into the bot's context."""
+    __tablename__ = "qna_pairs"
+    id         = db.Column(db.Integer, primary_key=True)
+    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    question   = db.Column(db.String(500), nullable=False)
+    answer     = db.Column(db.Text, nullable=False)
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"

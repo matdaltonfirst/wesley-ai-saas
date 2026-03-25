@@ -10,7 +10,7 @@ from flask import Blueprint, request, jsonify, make_response, send_from_director
 from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
-from models import db, Church, User, WidgetConversation, WidgetMessage, GuestConnection
+from models import db, Church, User, WidgetConversation, WidgetMessage, GuestConnection, TextSnippet, QnAPair
 from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
@@ -534,3 +534,160 @@ def update_guest_connection(gc_id):
 
     db.session.commit()
     return jsonify({"ok": True})
+
+
+# ── Text Snippets API (authenticated) ────────────────────────────────────────
+
+_SNIPPET_CATEGORIES = [
+    "Staff & Leadership",
+    "Service & Worship",
+    "Events & Programs",
+    "Practical Info",
+    "Beliefs & Values",
+    "Other",
+]
+
+
+@widget_bp.route("/api/snippets", methods=["GET"])
+@login_required
+def list_snippets():
+    snippets = TextSnippet.query.filter_by(
+        church_id=current_user.church_id
+    ).order_by(TextSnippet.created_at.desc()).all()
+    return jsonify({
+        "snippets": [_snippet_dict(s) for s in snippets],
+        "categories": _SNIPPET_CATEGORIES,
+    })
+
+
+@widget_bp.route("/api/snippets", methods=["POST"])
+@login_required
+def create_snippet():
+    data = request.get_json(silent=True) or {}
+    title   = (data.get("title") or "").strip()
+    content = (data.get("content") or "").strip()
+    if not title or not content:
+        return jsonify({"error": "Title and content are required."}), 400
+    category = (data.get("category") or "").strip() or None
+    if category and category not in _SNIPPET_CATEGORIES:
+        category = "Other"
+    s = TextSnippet(
+        church_id=current_user.church_id,
+        title=title[:200],
+        content=content[:1000],
+        category=category,
+        is_active=bool(data.get("is_active", True)),
+    )
+    db.session.add(s)
+    db.session.commit()
+    return jsonify({"ok": True, "snippet": _snippet_dict(s)}), 201
+
+
+@widget_bp.route("/api/snippets/<int:sid>", methods=["PATCH"])
+@login_required
+def update_snippet(sid):
+    s = TextSnippet.query.filter_by(id=sid, church_id=current_user.church_id).first()
+    if not s:
+        return jsonify({"error": "Not found."}), 404
+    data = request.get_json(silent=True) or {}
+    if "title" in data:
+        s.title = (data["title"] or "").strip()[:200]
+    if "content" in data:
+        s.content = (data["content"] or "").strip()[:1000]
+    if "category" in data:
+        cat = (data["category"] or "").strip() or None
+        s.category = cat if (cat is None or cat in _SNIPPET_CATEGORIES) else "Other"
+    if "is_active" in data:
+        s.is_active = bool(data["is_active"])
+    db.session.commit()
+    return jsonify({"ok": True, "snippet": _snippet_dict(s)})
+
+
+@widget_bp.route("/api/snippets/<int:sid>", methods=["DELETE"])
+@login_required
+def delete_snippet(sid):
+    s = TextSnippet.query.filter_by(id=sid, church_id=current_user.church_id).first()
+    if not s:
+        return jsonify({"error": "Not found."}), 404
+    db.session.delete(s)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+def _snippet_dict(s):
+    return {
+        "id": s.id,
+        "title": s.title,
+        "content": s.content,
+        "category": s.category or "",
+        "is_active": s.is_active,
+        "created_at": s.created_at.isoformat(),
+    }
+
+
+# ── Q&A Pairs API (authenticated) ─────────────────────────────────────────────
+
+@widget_bp.route("/api/qna", methods=["GET"])
+@login_required
+def list_qna():
+    pairs = QnAPair.query.filter_by(
+        church_id=current_user.church_id
+    ).order_by(QnAPair.created_at.desc()).all()
+    return jsonify({"pairs": [_qna_dict(p) for p in pairs]})
+
+
+@widget_bp.route("/api/qna", methods=["POST"])
+@login_required
+def create_qna():
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or "").strip()
+    answer   = (data.get("answer") or "").strip()
+    if not question or not answer:
+        return jsonify({"error": "Question and answer are required."}), 400
+    p = QnAPair(
+        church_id=current_user.church_id,
+        question=question[:500],
+        answer=answer,
+        is_active=bool(data.get("is_active", True)),
+    )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify({"ok": True, "pair": _qna_dict(p)}), 201
+
+
+@widget_bp.route("/api/qna/<int:pid>", methods=["PATCH"])
+@login_required
+def update_qna(pid):
+    p = QnAPair.query.filter_by(id=pid, church_id=current_user.church_id).first()
+    if not p:
+        return jsonify({"error": "Not found."}), 404
+    data = request.get_json(silent=True) or {}
+    if "question" in data:
+        p.question = (data["question"] or "").strip()[:500]
+    if "answer" in data:
+        p.answer = (data["answer"] or "").strip()
+    if "is_active" in data:
+        p.is_active = bool(data["is_active"])
+    db.session.commit()
+    return jsonify({"ok": True, "pair": _qna_dict(p)})
+
+
+@widget_bp.route("/api/qna/<int:pid>", methods=["DELETE"])
+@login_required
+def delete_qna(pid):
+    p = QnAPair.query.filter_by(id=pid, church_id=current_user.church_id).first()
+    if not p:
+        return jsonify({"error": "Not found."}), 404
+    db.session.delete(p)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+def _qna_dict(p):
+    return {
+        "id": p.id,
+        "question": p.question,
+        "answer": p.answer,
+        "is_active": p.is_active,
+        "created_at": p.created_at.isoformat(),
+    }

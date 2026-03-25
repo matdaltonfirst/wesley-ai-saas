@@ -1160,6 +1160,93 @@
       .gc-table th:nth-child(3), .gc-table td:nth-child(3),
       .gc-table th:nth-child(5), .gc-table td:nth-child(5) { display: none; }
     }
+
+    /* ── Data Sources shared ── */
+    .teal-btn {
+      background: #1695a0; color: #fff; border: none; border-radius: 8px;
+      padding: 8px 16px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .teal-btn:hover { background: #117a83; }
+    .cancel-btn {
+      background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 8px 16px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .cancel-btn:hover { background: #e2e8f0; }
+    .ds-field-label {
+      display: block; font-size: 0.8rem; font-weight: 600; color: #475569;
+      margin-bottom: 6px;
+    }
+    .ds-field-input {
+      width: 100%; box-sizing: border-box; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 8px 12px; font-size: 0.875rem; color: #1e293b;
+      font-family: inherit; background: #fff; resize: vertical;
+    }
+    .ds-field-input:focus { outline: none; border-color: #1695a0; }
+    .ds-toggle-wrap { position: relative; display: inline-block; width: 36px; height: 20px; }
+    .ds-toggle-wrap input { opacity: 0; width: 0; height: 0; }
+    .ds-toggle-slider {
+      position: absolute; inset: 0; background: #cbd5e1; border-radius: 20px;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .ds-toggle-slider::before {
+      content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; bottom: 3px; left: 3px; transition: transform 0.2s;
+    }
+    .ds-toggle-wrap input:checked + .ds-toggle-slider { background: #1695a0; }
+    .ds-toggle-wrap input:checked + .ds-toggle-slider::before { transform: translateX(16px); }
+
+    /* ── Snippet cards ── */
+    .sn-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+      transition: opacity 0.2s;
+    }
+    .sn-card.sn-inactive { opacity: 0.5; }
+    .sn-card-title { font-weight: 700; font-size: 0.92rem; color: #0f172a; }
+    .sn-cat-badge {
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; background: #e0f2fe; color: #0369a1;
+    }
+    .sn-preview { font-size: 0.8rem; color: #64748b; line-height: 1.5; }
+    .sn-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+    .sn-status { font-size: 0.72rem; font-weight: 600; }
+    .sn-status-active  { color: #059669; }
+    .sn-status-inactive { color: #94a3b8; }
+    .sn-actions { display: flex; gap: 6px; }
+    .sn-btn {
+      font-size: 0.75rem; font-weight: 600; border-radius: 6px; cursor: pointer;
+      padding: 4px 10px; border: 1px solid #e2e8f0; background: #f8fafc;
+      color: #475569; transition: all 0.14s;
+    }
+    .sn-btn:hover { background: #e2e8f0; }
+    .sn-btn-del { color: #ef4444; border-color: #fecaca; background: #fff5f5; }
+    .sn-btn-del:hover { background: #fee2e2; }
+
+    /* ── Q&A accordion ── */
+    .qna-item {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      margin-bottom: 10px; overflow: hidden; transition: opacity 0.2s;
+    }
+    .qna-item.qna-inactive { opacity: 0.5; }
+    .qna-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; cursor: pointer; gap: 12px; user-select: none;
+    }
+    .qna-header:hover { background: #f8fafc; }
+    .qna-question { font-weight: 600; font-size: 0.88rem; color: #0f172a; flex: 1; }
+    .qna-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .qna-status { font-size: 0.72rem; font-weight: 600; }
+    .qna-status-active   { color: #059669; }
+    .qna-status-inactive { color: #94a3b8; }
+    .qna-chevron { transition: transform 0.2s; color: #94a3b8; }
+    .qna-item.qna-open .qna-chevron { transform: rotate(90deg); }
+    .qna-body { display: none; padding: 0 16px 16px; border-top: 1px solid #f1f5f9; }
+    .qna-item.qna-open .qna-body { display: block; }
+    .qna-answer { font-size: 0.855rem; color: #334155; line-height: 1.6; padding-top: 12px; white-space: pre-wrap; }
+    .qna-body-actions { display: flex; gap: 8px; margin-top: 12px; }
   </style>
 </head>
 <body class="settings-page">
@@ -1316,7 +1403,7 @@
               </svg>
               Website
             </button>
-            <div class="db-nav-item db-nav-coming-soon">
+            <button class="db-nav-item" data-panel="snippets">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="17" y1="10" x2="3" y2="10"/>
                 <line x1="21" y1="6"  x2="3" y2="6"/>
@@ -1324,17 +1411,15 @@
                 <line x1="17" y1="18" x2="3" y2="18"/>
               </svg>
               Text Snippets
-              <span class="cs-badge">Soon</span>
-            </div>
-            <div class="db-nav-item db-nav-coming-soon">
+            </button>
+            <button class="db-nav-item" data-panel="qna">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                 <line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
               Q&amp;A
-              <span class="cs-badge">Soon</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -1550,6 +1635,113 @@
           <div id="sentimentTable"><div class="an-empty">Loading…</div></div>
         </section>
         <section class="settings-card" style="margin-top:16px;" id="sentimentSuggestions"></section>
+      </div>
+
+      <!-- ── Text Snippets ── -->
+      <div class="db-panel" id="panel-snippets">
+        <div class="db-panel-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+          <div>
+            <h1 class="db-panel-title">Text Snippets</h1>
+            <p class="db-panel-subtitle">Add information your documents don't cover. The bot draws from these to answer visitor questions.</p>
+          </div>
+          <button class="teal-btn" id="snippetAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Snippet</button>
+        </div>
+
+        <!-- Add / Edit form (hidden by default) -->
+        <section class="settings-card" id="snippetFormCard" style="display:none;margin-bottom:20px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title" id="snippetFormTitle">New Snippet</h2>
+          </div>
+          <input type="hidden" id="snippetEditId" value="">
+          <div style="display:grid;gap:14px;padding:4px 0 8px;">
+            <div>
+              <label class="ds-field-label">Title <span style="color:#ef4444">*</span></label>
+              <input type="text" id="snippetTitle" class="ds-field-input" placeholder="e.g. Pastor Bio, Parking Info" maxlength="200">
+            </div>
+            <div>
+              <label class="ds-field-label">Category</label>
+              <select id="snippetCategory" class="ds-field-input">
+                <option value="">— Select category —</option>
+                <option>Staff &amp; Leadership</option>
+                <option>Service &amp; Worship</option>
+                <option>Events &amp; Programs</option>
+                <option>Practical Info</option>
+                <option>Beliefs &amp; Values</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="ds-field-label" style="display:flex;justify-content:space-between;">
+                Content <span style="color:#94a3b8">*</span>
+                <span id="snippetCharCount" style="font-size:0.75rem;color:#94a3b8;">0 / 1000</span>
+              </label>
+              <textarea id="snippetContent" class="ds-field-input" rows="5" maxlength="1000" placeholder="Write the information the bot should know…"></textarea>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label class="ds-toggle-wrap">
+                <input type="checkbox" id="snippetActive" checked>
+                <span class="ds-toggle-slider"></span>
+              </label>
+              <span style="font-size:0.85rem;color:#475569;">Active</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:4px;">
+            <button class="teal-btn" id="snippetSaveBtn">Save</button>
+            <button class="cancel-btn" id="snippetCancelBtn">Cancel</button>
+          </div>
+          <div id="snippetFormMsg" style="margin-top:10px;font-size:0.82rem;"></div>
+        </section>
+
+        <!-- Snippet grid -->
+        <div id="snippetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+          <div class="wconv-empty" style="grid-column:1/-1;">Loading…</div>
+        </div>
+      </div>
+
+      <!-- ── Q&A ── -->
+      <div class="db-panel" id="panel-qna">
+        <div class="db-panel-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+          <div>
+            <h1 class="db-panel-title">Q&amp;A</h1>
+            <p class="db-panel-subtitle">Set exact answers to common questions. When someone asks something similar, the bot uses your answer every time.</p>
+          </div>
+          <button class="teal-btn" id="qnaAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Q&amp;A</button>
+        </div>
+
+        <!-- Add / Edit form -->
+        <section class="settings-card" id="qnaFormCard" style="display:none;margin-bottom:20px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title" id="qnaFormTitle">New Q&amp;A</h2>
+          </div>
+          <input type="hidden" id="qnaEditId" value="">
+          <div style="display:grid;gap:14px;padding:4px 0 8px;">
+            <div>
+              <label class="ds-field-label">Question <span style="color:#ef4444">*</span></label>
+              <input type="text" id="qnaQuestion" class="ds-field-input" placeholder="e.g. What do you believe about baptism?" maxlength="500">
+            </div>
+            <div>
+              <label class="ds-field-label">Answer <span style="color:#ef4444">*</span></label>
+              <textarea id="qnaAnswer" class="ds-field-input" rows="5" placeholder="Write the exact answer you want visitors to receive…"></textarea>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label class="ds-toggle-wrap">
+                <input type="checkbox" id="qnaActive" checked>
+                <span class="ds-toggle-slider"></span>
+              </label>
+              <span style="font-size:0.85rem;color:#475569;">Active</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:4px;">
+            <button class="teal-btn" id="qnaSaveBtn">Save</button>
+            <button class="cancel-btn" id="qnaCancelBtn">Cancel</button>
+          </div>
+          <div id="qnaFormMsg" style="margin-top:10px;font-size:0.82rem;"></div>
+        </section>
+
+        <!-- Q&A accordion list -->
+        <div id="qnaList">
+          <div class="wconv-empty">Loading…</div>
+        </div>
       </div>
 
       <!-- ── Files ── -->
@@ -1882,7 +2074,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','analytics-chats','analytics-topics','analytics-sentiment','files','website','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
