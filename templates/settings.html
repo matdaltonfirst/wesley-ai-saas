@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* ══════════════════════════════════════════════
        LAYOUT — sits inside .app-wrapper flex column
@@ -970,6 +971,124 @@
       }
       .pg-right { min-height: 520px; padding: 24px 16px; }
     }
+
+    /* ── Analytics panels ─────────────────────────────────────────────────── */
+    .an-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 4px;
+    }
+    @media (max-width: 700px) { .an-stat-grid { grid-template-columns: repeat(2, 1fr); } }
+    .an-stat-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .an-stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 6px;
+    }
+    .an-stat-value.an-loading { color: #cbd5e1; }
+    .an-stat-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .an-chart-wrap { padding: 12px 8px 8px; height: 200px; position: relative; }
+    .an-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .an-table th {
+      text-align: left;
+      padding: 8px 14px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .an-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f8fafc;
+      color: #334155;
+      vertical-align: top;
+    }
+    .an-table tr:last-child td { border-bottom: none; }
+    .an-table .an-preview {
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 320px;
+    }
+    .an-empty {
+      padding: 28px 16px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 0.875rem;
+    }
+    .an-topic-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .an-topic-row:last-child { border-bottom: none; }
+    .an-topic-name { font-weight: 600; color: #0f172a; font-size: 0.8125rem; min-width: 150px; flex-shrink: 0; }
+    .an-topic-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 4px; height: 8px; overflow: hidden; }
+    .an-topic-bar { background: #1695a0; height: 8px; border-radius: 4px; }
+    .an-topic-pct { font-size: 0.75rem; color: #64748b; font-weight: 600; min-width: 38px; text-align: right; }
+    .an-topic-examples {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      padding: 2px 14px 10px 14px;
+      line-height: 1.5;
+    }
+    .an-donut-wrap { padding: 16px; max-width: 300px; margin: 0 auto; }
+    .an-progress-wrap { padding: 16px 20px 20px; }
+    .an-progress-bar-outer {
+      height: 22px;
+      background: #fee2e2;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .an-progress-bar-inner {
+      height: 100%;
+      background: #1695a0;
+      border-radius: 999px;
+      transition: width 0.6s ease;
+    }
+    .an-progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 6px;
+      gap: 8px;
+    }
+    .an-tip-card {
+      background: #f0fdfc;
+      border: 1px solid #ccfbf1;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 0 14px 14px;
+    }
+    .an-tip-title { font-size: 0.875rem; font-weight: 700; color: #0d9488; margin-bottom: 8px; }
+    .an-tip-body { font-size: 0.8125rem; color: #334155; line-height: 1.7; }
   </style>
 </head>
 <body class="settings-page">
@@ -1075,25 +1194,23 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <div class="db-nav-item db-nav-coming-soon">
+            <button class="db-nav-item" data-panel="analytics-chats">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10"/>
                 <line x1="12" y1="20" x2="12" y2="4"/>
                 <line x1="6"  y1="20" x2="6"  y2="14"/>
               </svg>
               Chats
-              <span class="cs-badge">Soon</span>
-            </div>
-            <div class="db-nav-item db-nav-coming-soon">
+            </button>
+            <button class="db-nav-item" data-panel="analytics-topics">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
               Topics
-              <span class="cs-badge">Soon</span>
-            </div>
-            <div class="db-nav-item db-nav-coming-soon">
+            </button>
+            <button class="db-nav-item" data-panel="analytics-sentiment">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
@@ -1101,8 +1218,7 @@
                 <line x1="15" y1="9"  x2="15.01" y2="9"/>
               </svg>
               Sentiment
-              <span class="cs-badge">Soon</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -1257,6 +1373,76 @@
             <div class="wconv-empty">Loading…</div>
           </div>
         </section>
+      </div>
+
+      <!-- ── Analytics: Chats ── -->
+      <div class="db-panel" id="panel-analytics-chats">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Chat Analytics</h1>
+          <p class="db-panel-subtitle">Conversation activity from your public website widget.</p>
+        </div>
+        <div class="an-stat-grid" id="analyticsChatsCards">
+          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">This month</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">All time</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Avg messages / convo</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Most active day (7 days)</div></div>
+        </div>
+        <section class="settings-card" style="margin-top:20px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Conversations by Day</h2>
+            <span style="font-size:0.75rem;color:#94a3b8;">Last 30 days</span>
+          </div>
+          <div class="an-chart-wrap"><canvas id="chartDailyConvs"></canvas></div>
+        </section>
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Peak Hours</h2>
+            <span style="font-size:0.75rem;color:#94a3b8;">All time, by hour of day</span>
+          </div>
+          <div class="an-chart-wrap"><canvas id="chartPeakHours"></canvas></div>
+        </section>
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Recent Conversations</h2>
+          </div>
+          <div id="analyticsChatsTable"><div class="an-empty">Loading…</div></div>
+        </section>
+      </div>
+
+      <!-- ── Analytics: Topics ── -->
+      <div class="db-panel" id="panel-analytics-topics">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Topic Analysis</h1>
+          <p class="db-panel-subtitle">What are visitors asking about most? Auto-categorized from opening questions.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Topic Distribution</h2>
+          </div>
+          <div class="an-donut-wrap"><canvas id="chartTopics"></canvas></div>
+        </section>
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Top Categories</h2>
+          </div>
+          <div id="topicsList"><div class="an-empty">Loading…</div></div>
+        </section>
+      </div>
+
+      <!-- ── Analytics: Sentiment ── -->
+      <div class="db-panel" id="panel-analytics-sentiment">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Response Confidence</h1>
+          <p class="db-panel-subtitle">Conversations where the bot may not have had enough information to answer confidently.</p>
+        </div>
+        <div id="sentimentSummary"><div class="an-empty">Loading…</div></div>
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Conversations Needing Attention</h2>
+          </div>
+          <div id="sentimentTable"><div class="an-empty">Loading…</div></div>
+        </section>
+        <section class="settings-card" style="margin-top:16px;" id="sentimentSuggestions"></section>
       </div>
 
       <!-- ── Files ── -->
@@ -1589,7 +1775,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','files','website','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','analytics-chats','analytics-topics','analytics-sentiment','files','website','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -1620,6 +1806,7 @@
       }
       history.replaceState(null, '', '#' + panelId);
       closeMobileSidebar();
+      document.dispatchEvent(new CustomEvent('panelShow', { detail: panelId }));
     }
 
     // Wire up panel buttons

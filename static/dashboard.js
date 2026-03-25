@@ -528,3 +528,288 @@ loadDocuments();
 loadWebsiteSettings();
 loadPlaygroundSettings();
 loadWidgetConversations();
+
+// ── Analytics ──────────────────────────────────────────────────────────────
+
+let _chatsChart1 = null;
+let _chatsChart2 = null;
+let _topicsChart  = null;
+
+const CHART_TEAL        = "#1695a0";
+const CHART_TEAL_FILL   = "rgba(22,149,160,0.15)";
+const CHART_GRID_COLOR  = "#f1f5f9";
+const CHART_TICK_FONT   = { size: 11, family: "'Plus Jakarta Sans', sans-serif" };
+
+function anFormatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso.includes("T") ? iso : iso + "T00:00:00Z");
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function anBaseBarOptions(overrides) {
+  return Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: CHART_TICK_FONT } },
+      y: { beginAtZero: true, ticks: { precision: 0, font: CHART_TICK_FONT }, grid: { color: CHART_GRID_COLOR } }
+    }
+  }, overrides);
+}
+
+// ── Chats Analytics ──────────────────────────────────────────────────────
+
+async function loadChatsAnalytics() {
+  const panel = document.getElementById("panel-analytics-chats");
+  if (!panel || panel.dataset.loaded) return;
+  panel.dataset.loaded = "1";
+
+  try {
+    const res = await fetch("/api/analytics/chats");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const d = await res.json();
+
+    // Summary cards
+    const cards = document.getElementById("analyticsChatsCards");
+    if (cards) {
+      const vals = cards.querySelectorAll(".an-stat-value");
+      [d.total_this_month, d.total_all_time, d.avg_messages, d.most_active_day].forEach((v, i) => {
+        vals[i].textContent = v;
+        vals[i].classList.remove("an-loading");
+      });
+    }
+
+    // Daily conversations chart
+    if (_chatsChart1) { _chatsChart1.destroy(); _chatsChart1 = null; }
+    const ctx1 = document.getElementById("chartDailyConvs");
+    if (ctx1 && d.daily_counts) {
+      _chatsChart1 = new Chart(ctx1, {
+        type: "bar",
+        data: {
+          labels: d.daily_counts.map(x => anFormatDate(x.date)),
+          datasets: [{
+            label: "Conversations",
+            data: d.daily_counts.map(x => x.count),
+            backgroundColor: CHART_TEAL_FILL,
+            borderColor: CHART_TEAL,
+            borderWidth: 1.5,
+            borderRadius: 4,
+          }]
+        },
+        options: anBaseBarOptions({ scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10, font: CHART_TICK_FONT } }, y: { beginAtZero: true, ticks: { precision: 0, font: CHART_TICK_FONT }, grid: { color: CHART_GRID_COLOR } } } })
+      });
+    }
+
+    // Peak hours chart
+    if (_chatsChart2) { _chatsChart2.destroy(); _chatsChart2 = null; }
+    const ctx2 = document.getElementById("chartPeakHours");
+    if (ctx2 && d.hourly_counts) {
+      _chatsChart2 = new Chart(ctx2, {
+        type: "bar",
+        data: {
+          labels: d.hourly_counts.map(x => x.hour + ":00"),
+          datasets: [{
+            label: "Conversations",
+            data: d.hourly_counts.map(x => x.count),
+            backgroundColor: CHART_TEAL_FILL,
+            borderColor: CHART_TEAL,
+            borderWidth: 1.5,
+            borderRadius: 3,
+          }]
+        },
+        options: anBaseBarOptions()
+      });
+    }
+
+    // Recent conversations table
+    const tableEl = document.getElementById("analyticsChatsTable");
+    if (tableEl) {
+      const rows = d.recent_conversations || [];
+      if (!rows.length) {
+        tableEl.innerHTML = '<div class="an-empty">No conversations yet.</div>';
+      } else {
+        tableEl.innerHTML = `
+          <table class="an-table">
+            <thead><tr>
+              <th>Preview</th><th>Messages</th><th>Date</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(c => `
+                <tr>
+                  <td class="an-preview">${esc(c.preview)}</td>
+                  <td>${c.message_count}</td>
+                  <td style="white-space:nowrap">${esc(formatWconvDate(c.updated_at))}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>`;
+      }
+    }
+  } catch {
+    const p = document.getElementById("panel-analytics-chats");
+    if (p) p.querySelector(".db-panel-subtitle").textContent = "Could not load analytics.";
+  }
+}
+
+// ── Topics Analytics ─────────────────────────────────────────────────────
+
+async function loadTopicsAnalytics() {
+  const panel = document.getElementById("panel-analytics-topics");
+  if (!panel || panel.dataset.loaded) return;
+  panel.dataset.loaded = "1";
+
+  try {
+    const res = await fetch("/api/analytics/topics");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const d = await res.json();
+    const cats = d.categories || [];
+    const nonEmpty = cats.filter(c => c.count > 0);
+
+    // Donut chart
+    if (_topicsChart) { _topicsChart.destroy(); _topicsChart = null; }
+    const ctx = document.getElementById("chartTopics");
+    const donutWrap = ctx && ctx.closest(".an-donut-wrap");
+    if (ctx && nonEmpty.length) {
+      const palette = ["#1695a0","#0ea5e9","#8b5cf6","#f59e0b","#10b981","#ef4444","#f97316","#6366f1","#94a3b8"];
+      _topicsChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: nonEmpty.map(c => c.name),
+          datasets: [{
+            data: nonEmpty.map(c => c.count),
+            backgroundColor: palette.slice(0, nonEmpty.length),
+            borderWidth: 2,
+            borderColor: "#fff",
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: "bottom", labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } } }
+        }
+      });
+    } else if (donutWrap) {
+      donutWrap.innerHTML = '<div class="an-empty">No conversations yet.</div>';
+    }
+
+    // Ranked list
+    const listEl = document.getElementById("topicsList");
+    if (listEl) {
+      if (!d.total) {
+        listEl.innerHTML = '<div class="an-empty">No conversations yet.</div>';
+      } else {
+        const maxCount = Math.max(...cats.map(c => c.count), 1);
+        listEl.innerHTML = cats.map(c => `
+          <div>
+            <div class="an-topic-row">
+              <span class="an-topic-name">${esc(c.name)}</span>
+              <div class="an-topic-bar-wrap">
+                <div class="an-topic-bar" style="width:${Math.round(c.count / maxCount * 100)}%"></div>
+              </div>
+              <span class="an-topic-pct">${c.percentage}%</span>
+            </div>
+            ${c.examples.length ? `<div class="an-topic-examples">${c.examples.map(e => `"${esc(e.length > 70 ? e.substring(0,70) + "…" : e)}"`).join(" &nbsp;·&nbsp; ")}</div>` : ""}
+          </div>`).join("");
+      }
+    }
+  } catch {
+    const p = document.getElementById("panel-analytics-topics");
+    if (p) p.querySelector(".db-panel-subtitle").textContent = "Could not load topics.";
+  }
+}
+
+// ── Sentiment Analytics ───────────────────────────────────────────────────
+
+async function loadSentimentAnalytics() {
+  const panel = document.getElementById("panel-analytics-sentiment");
+  if (!panel || panel.dataset.loaded) return;
+  panel.dataset.loaded = "1";
+
+  try {
+    const res = await fetch("/api/analytics/sentiment");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const d = await res.json();
+
+    // Summary cards + progress bar
+    const summaryEl = document.getElementById("sentimentSummary");
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="an-stat-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="an-stat-card">
+            <div class="an-stat-value">${d.total}</div>
+            <div class="an-stat-label">Conversations analyzed</div>
+          </div>
+          <div class="an-stat-card">
+            <div class="an-stat-value" style="color:#0d9488">${d.confident_pct}%</div>
+            <div class="an-stat-label">Answered confidently</div>
+          </div>
+          <div class="an-stat-card">
+            <div class="an-stat-value" style="color:#ef4444">${d.attention_pct}%</div>
+            <div class="an-stat-label">Needs attention</div>
+          </div>
+        </div>
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="an-progress-wrap">
+            <div style="font-size:0.875rem;font-weight:600;color:#334155;margin-bottom:6px;">Response Confidence</div>
+            <div class="an-progress-bar-outer">
+              <div class="an-progress-bar-inner" style="width:${d.confident_pct}%"></div>
+            </div>
+            <div class="an-progress-labels">
+              <span>✓ Confident: ${d.confident_count}</span>
+              <span>⚠ Needs attention: ${d.attention_count}</span>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    // Needs attention table
+    const tableEl = document.getElementById("sentimentTable");
+    if (tableEl) {
+      if (!d.needs_attention || !d.needs_attention.length) {
+        tableEl.innerHTML = '<div class="an-empty">Great job! No low-confidence conversations found.</div>';
+      } else {
+        tableEl.innerHTML = `
+          <p style="font-size:0.8125rem;color:#64748b;padding:12px 14px 4px;">These conversations suggest your document library may need updates in these areas.</p>
+          <table class="an-table">
+            <thead><tr><th>Opening Question</th><th>Bot Response</th><th>Date</th></tr></thead>
+            <tbody>
+              ${d.needs_attention.map(a => `
+                <tr>
+                  <td style="max-width:200px;white-space:normal;">${esc(a.question)}</td>
+                  <td style="max-width:260px;white-space:normal;color:#94a3b8;">${esc(a.response_snippet)}${a.response_snippet.length >= 200 ? "…" : ""}</td>
+                  <td style="white-space:nowrap">${esc(formatWconvDate(a.date))}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>`;
+      }
+    }
+
+    // Improvement suggestions
+    const sugEl = document.getElementById("sentimentSuggestions");
+    if (sugEl) {
+      if (d.suggested_topics && d.suggested_topics.length) {
+        sugEl.innerHTML = `
+          <div class="settings-card-header"><h2 class="settings-card-title">Document Improvement Tips</h2></div>
+          <div style="padding:4px 14px 16px;">
+            <div class="an-tip-card">
+              <div class="an-tip-title">Based on your gaps, consider adding documents about:</div>
+              <div class="an-tip-body">${d.suggested_topics.map(t => `• ${esc(t)}`).join("<br>")}</div>
+            </div>
+          </div>`;
+      } else {
+        sugEl.style.display = "none";
+      }
+    }
+  } catch {
+    const p = document.getElementById("panel-analytics-sentiment");
+    if (p) p.querySelector(".db-panel-subtitle").textContent = "Could not load sentiment data.";
+  }
+}
+
+// Lazy-load analytics when a panel is first shown
+document.addEventListener("panelShow", function(e) {
+  const id = e.detail;
+  if (id === "analytics-chats")     loadChatsAnalytics();
+  else if (id === "analytics-topics")   loadTopicsAnalytics();
+  else if (id === "analytics-sentiment") loadSentimentAnalytics();
+});

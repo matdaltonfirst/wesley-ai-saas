@@ -2,7 +2,8 @@
 
 import uuid
 import logging
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, make_response, send_from_directory, current_app
 from sqlalchemy.orm import joinedload
@@ -239,3 +240,171 @@ def widget_chat():
     resp = jsonify({"answer": answer, "session_id": session_id})
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp
+
+
+# ── Analytics API (authenticated) ────────────────────────────────────────────
+
+_TOPIC_CATEGORIES = [
+    ("Events & Programs",    ["event", "events", "coming up", "happening", "when", "schedule"]),
+    ("Service Times",        ["service", "worship", "time", "sunday", "start", "begin"]),
+    ("Food & Fellowship",    ["dinner", "food", "lunch", "meal", "eat", "fellowship"]),
+    ("Prayer & Care",        ["prayer", "pray", "sick", "hospital", "need", "help", "care"]),
+    ("Giving & Finance",     ["give", "giving", "donate", "tithe", "offering"]),
+    ("Directions & Location",["where", "address", "located", "directions", "parking", "find"]),
+    ("Beliefs & Theology",   ["believe", "belief", "communion", "baptism", "what does"]),
+    ("Livestream & Media",   ["livestream", "live stream", "watch", "online", "video"]),
+    ("Other",                []),
+]
+
+_LOW_CONFIDENCE_PHRASES = [
+    "i don't have information",
+    "i'm not sure",
+    "i don't know",
+    "couldn't find",
+    "no information available",
+    "i apologize",
+]
+
+
+def _categorize(text):
+    t = text.lower()
+    for name, keywords in _TOPIC_CATEGORIES[:-1]:
+        if any(kw in t for kw in keywords):
+            return name
+    return "Other"
+
+
+def _load_convs(church_id):
+    return (
+        WidgetConversation.query
+        .options(joinedload(WidgetConversation.messages))
+        .filter_by(church_id=church_id)
+        .all()
+    )
+
+
+@widget_bp.route("/api/analytics/chats")
+@login_required
+def analytics_chats():
+    convs = _load_convs(current_user.church_id)
+    now = datetime.utcnow()
+
+    first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    total_this_month = sum(1 for c in convs if c.created_at >= first_of_month)
+    total_all_time = len(convs)
+    avg_messages = round(
+        sum(len(c.messages) for c in convs) / total_all_time, 1
+    ) if convs else 0
+
+    week_ago = now - timedelta(days=7)
+    week_convs = [c for c in convs if c.created_at >= week_ago]
+    day_counts = Counter(c.created_at.strftime("%A") for c in week_convs)
+    most_active_day = day_counts.most_common(1)[0][0] if day_counts else "N/A"
+
+    thirty_days_ago = now - timedelta(days=30)
+    recent_convs = [c for c in convs if c.created_at >= thirty_days_ago]
+    daily_counter = Counter(c.created_at.strftime("%Y-%m-%d") for c in recent_convs)
+    dates = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(29, -1, -1)]
+    daily_counts = [{"date": d, "count": daily_counter.get(d, 0)} for d in dates]
+
+    hourly_counter = Counter(c.created_at.hour for c in convs)
+    hourly_counts = [{"hour": h, "count": hourly_counter.get(h, 0)} for h in range(24)]
+
+    recent = sorted(convs, key=lambda c: c.updated_at, reverse=True)[:20]
+    recent_list = []
+    for c in recent:
+        first_msg = next((m for m in c.messages if m.role == "user"), None)
+        preview = ""
+        if first_msg:
+            preview = (first_msg.content[:80] + "…") if len(first_msg.content) > 80 else first_msg.content
+        recent_list.append({
+            "id": c.id,
+            "preview": preview or "(no messages)",
+            "message_count": len(c.messages),
+            "created_at": c.created_at.isoformat(),
+            "updated_at": c.updated_at.isoformat(),
+        })
+
+    return jsonify({
+        "total_this_month": total_this_month,
+        "total_all_time": total_all_time,
+        "avg_messages": avg_messages,
+        "most_active_day": most_active_day,
+        "daily_counts": daily_counts,
+        "hourly_counts": hourly_counts,
+        "recent_conversations": recent_list,
+    })
+
+
+@widget_bp.route("/api/analytics/topics")
+@login_required
+def analytics_topics():
+    convs = _load_convs(current_user.church_id)
+
+    cat_examples = defaultdict(list)
+    for conv in convs:
+        first_msg = next((m for m in conv.messages if m.role == "user"), None)
+        if first_msg:
+            cat = _categorize(first_msg.content)
+            cat_examples[cat].append(first_msg.content)
+
+    total = sum(len(v) for v in cat_examples.values())
+    categories = []
+    for cat_name, _ in _TOPIC_CATEGORIES:
+        items = cat_examples.get(cat_name, [])
+        count = len(items)
+        categories.append({
+            "name": cat_name,
+            "count": count,
+            "percentage": round(count / total * 100, 1) if total else 0,
+            "examples": items[-3:],
+        })
+    categories.sort(key=lambda x: x["count"], reverse=True)
+
+    return jsonify({"categories": categories, "total": total})
+
+
+@widget_bp.route("/api/analytics/sentiment")
+@login_required
+def analytics_sentiment():
+    convs = _load_convs(current_user.church_id)
+
+    needs_attention = []
+    confident_count = 0
+    gap_cats: Counter = Counter()
+
+    for conv in convs:
+        first_user = next((m for m in conv.messages if m.role == "user"), None)
+        bot_msgs = [m for m in conv.messages if m.role == "assistant"]
+
+        flagged = False
+        for bot_msg in bot_msgs:
+            cl = bot_msg.content.lower()
+            if any(phrase in cl for phrase in _LOW_CONFIDENCE_PHRASES):
+                flagged = True
+                if first_user:
+                    cat = _categorize(first_user.content)
+                    gap_cats[cat] += 1
+                    needs_attention.append({
+                        "question": first_user.content[:150],
+                        "response_snippet": bot_msg.content[:200],
+                        "date": conv.created_at.isoformat(),
+                        "category": cat,
+                    })
+                break
+        if not flagged:
+            confident_count += 1
+
+    total = len(convs)
+    attention_count = len(needs_attention)
+    needs_attention.sort(key=lambda x: x["date"], reverse=True)
+
+    return jsonify({
+        "total": total,
+        "confident_count": confident_count,
+        "confident_pct": round(confident_count / total * 100, 1) if total else 0,
+        "attention_count": attention_count,
+        "attention_pct": round(attention_count / total * 100, 1) if total else 0,
+        "needs_attention": needs_attention,
+        "suggested_topics": [cat for cat, _ in gap_cats.most_common(3)],
+    })
