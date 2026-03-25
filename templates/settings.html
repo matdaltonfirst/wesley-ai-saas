@@ -1089,6 +1089,77 @@
     }
     .an-tip-title { font-size: 0.875rem; font-weight: 700; color: #0d9488; margin-bottom: 8px; }
     .an-tip-body { font-size: 0.8125rem; color: #334155; line-height: 1.7; }
+
+    /* ── Guest Connections panel ── */
+    .gc-filter-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #64748b;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+    .gc-filter-btn:hover { border-color: #1695a0; color: #1695a0; }
+    .gc-filter-btn.gc-filter-active { background: #1695a0; border-color: #1695a0; color: #fff; }
+    .gc-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .gc-table th {
+      text-align: left; padding: 8px 12px;
+      font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: #94a3b8; border-bottom: 1px solid #f1f5f9;
+    }
+    .gc-table td { padding: 10px 12px; border-bottom: 1px solid #f8fafc; vertical-align: top; color: #334155; }
+    .gc-table tr:last-child td { border-bottom: none; }
+    .gc-name { font-weight: 600; color: #0f172a; }
+    .gc-contact { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+    .gc-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .gc-badge-new       { background: #e0f2fe; color: #0369a1; }
+    .gc-badge-contacted { background: #fef9c3; color: #854d0e; }
+    .gc-badge-connected { background: #dcfce7; color: #166534; }
+    .gc-interest-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .gc-status-select {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      color: #334155;
+      background: #fff;
+      cursor: pointer;
+    }
+    .gc-notes-inp {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      color: #334155;
+      width: 100%;
+      min-width: 120px;
+      box-sizing: border-box;
+    }
+    .gc-notes-inp:focus { outline: none; border-color: #1695a0; }
+    .gc-msg { font-size: 0.8rem; color: #64748b; font-style: italic; line-height: 1.45; }
+    @media (max-width: 700px) {
+      .gc-table th:nth-child(3), .gc-table td:nth-child(3),
+      .gc-table th:nth-child(5), .gc-table td:nth-child(5) { display: none; }
+    }
   </style>
 </head>
 <body class="settings-page">
@@ -1172,16 +1243,15 @@
               </svg>
               Chat Logs
             </button>
-            <div class="db-nav-item db-nav-coming-soon">
+            <button class="db-nav-item" data-panel="guest-connections">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
-              Leads
-              <span class="cs-badge">Soon</span>
-            </div>
+              Guest Connections
+            </button>
           </div>
         </div>
 
@@ -1370,6 +1440,43 @@
             </button>
           </div>
           <div class="wconv-list" id="wconvList">
+            <div class="wconv-empty">Loading…</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── Guest Connections ── -->
+      <div class="db-panel" id="panel-guest-connections">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Guest Connections</h1>
+          <p class="db-panel-subtitle">People who reached out through your chat widget.</p>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="an-stat-grid" id="gcStatGrid">
+          <div class="an-stat-card">
+            <div class="an-stat-value an-loading" id="gcStatNew">—</div>
+            <div class="an-stat-label">New</div>
+          </div>
+          <div class="an-stat-card">
+            <div class="an-stat-value an-loading" id="gcStatContacted">—</div>
+            <div class="an-stat-label">Contacted</div>
+          </div>
+          <div class="an-stat-card">
+            <div class="an-stat-value an-loading" id="gcStatConnected">—</div>
+            <div class="an-stat-label">Connected</div>
+          </div>
+        </div>
+
+        <section class="settings-card">
+          <!-- Filter tabs -->
+          <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="gc-filter-btn gc-filter-active" data-filter="">All</button>
+            <button class="gc-filter-btn" data-filter="new">New</button>
+            <button class="gc-filter-btn" data-filter="contacted">Contacted</button>
+            <button class="gc-filter-btn" data-filter="connected">Connected</button>
+          </div>
+          <div id="gcTableWrap">
             <div class="wconv-empty">Loading…</div>
           </div>
         </section>
@@ -1775,7 +1882,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','analytics-chats','analytics-topics','analytics-sentiment','files','website','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','analytics-chats','analytics-topics','analytics-sentiment','files','website','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -1840,6 +1947,129 @@
       });
     }
     overlay.addEventListener('click', closeMobileSidebar);
+  })();
+  </script>
+
+  <!-- ── Guest Connections panel ── -->
+  <script>
+  (function () {
+    var wrap       = document.getElementById('gcTableWrap');
+    var statNew    = document.getElementById('gcStatNew');
+    var statCont   = document.getElementById('gcStatContacted');
+    var statConn   = document.getElementById('gcStatConnected');
+    if (!wrap) return;
+
+    var currentFilter = '';
+    var allData = null;
+
+    var INTEREST_COLORS = {
+      'New to Church':          '#1695a0',
+      'Prayer Request':         '#7c3aed',
+      'Worship & Service Times':'#d97706',
+      'Get Connected':          '#059669',
+      'Children & Family':      '#2563eb',
+    };
+
+    function interestColor(area) {
+      return INTEREST_COLORS[area] || '#64748b';
+    }
+
+    function statusBadgeClass(s) {
+      return s === 'new' ? 'gc-badge-new' : s === 'contacted' ? 'gc-badge-contacted' : 'gc-badge-connected';
+    }
+
+    function renderTable(connections) {
+      if (!connections.length) {
+        wrap.innerHTML = '<div class="an-empty">No guest connections yet. They\'ll appear here when someone reaches out through your chat widget.</div>';
+        return;
+      }
+      var rows = connections.map(function (gc) {
+        var color = interestColor(gc.interest_area);
+        var date  = new Date(gc.created_at).toLocaleDateString();
+        return '<tr>' +
+          '<td><div class="gc-name">' + esc(gc.name) + '</div>' +
+               '<div class="gc-contact">' + esc(gc.email) + (gc.phone ? ' · ' + esc(gc.phone) : '') + '</div></td>' +
+          '<td><span class="gc-interest-badge" style="background:' + color + '">' + esc(gc.interest_area) + '</span></td>' +
+          '<td class="gc-msg">' + (gc.opening_message ? esc(gc.opening_message.slice(0, 100)) + (gc.opening_message.length > 100 ? '…' : '') : '<em>—</em>') + '</td>' +
+          '<td>' +
+            '<select class="gc-status-select" data-id="' + gc.id + '" data-field="status">' +
+              '<option value="new"' + (gc.status==='new'?' selected':'') + '>New</option>' +
+              '<option value="contacted"' + (gc.status==='contacted'?' selected':'') + '>Contacted</option>' +
+              '<option value="connected"' + (gc.status==='connected'?' selected':'') + '>Connected</option>' +
+            '</select>' +
+          '</td>' +
+          '<td><input class="gc-notes-inp" data-id="' + gc.id + '" data-field="notes" type="text" placeholder="Add notes…" value="' + esc(gc.notes) + '"></td>' +
+          '<td style="color:#94a3b8;font-size:0.78rem;white-space:nowrap;">' + date + '</td>' +
+        '</tr>';
+      }).join('');
+
+      wrap.innerHTML = '<table class="gc-table"><thead><tr>' +
+        '<th>Guest</th><th>Interest</th><th>Opening Message</th><th>Status</th><th>Notes</th><th>Date</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+      // Status change
+      wrap.querySelectorAll('.gc-status-select').forEach(function (sel) {
+        sel.addEventListener('change', function () {
+          patch(sel.dataset.id, { status: sel.value });
+        });
+      });
+
+      // Notes save on blur / enter
+      wrap.querySelectorAll('.gc-notes-inp').forEach(function (inp) {
+        function save() { patch(inp.dataset.id, { notes: inp.value }); }
+        inp.addEventListener('blur', save);
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { inp.blur(); } });
+      });
+    }
+
+    function patch(id, payload) {
+      fetch('/api/guest-connection/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(function () {});
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function applyFilter() {
+      if (!allData) return;
+      var list = currentFilter
+        ? allData.connections.filter(function (c) { return c.status === currentFilter; })
+        : allData.connections;
+      renderTable(list);
+    }
+
+    function load() {
+      wrap.innerHTML = '<div class="wconv-empty">Loading…</div>';
+      fetch('/api/guest-connections')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          allData = d;
+          if (statNew)  { statNew.textContent  = d.stats.new;       statNew.classList.remove('an-loading'); }
+          if (statCont) { statCont.textContent = d.stats.contacted;  statCont.classList.remove('an-loading'); }
+          if (statConn) { statConn.textContent = d.stats.connected;  statConn.classList.remove('an-loading'); }
+          applyFilter();
+        })
+        .catch(function () { wrap.innerHTML = '<div class="an-empty">Could not load guest connections.</div>'; });
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.gc-filter-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.gc-filter-btn').forEach(function (b) { b.classList.remove('gc-filter-active'); });
+        btn.classList.add('gc-filter-active');
+        currentFilter = btn.dataset.filter;
+        applyFilter();
+      });
+    });
+
+    // Lazy load on panel activation
+    document.addEventListener('panelShow', function (e) {
+      if (e.detail === 'guest-connections') load();
+    });
   })();
   </script>
 

@@ -191,6 +191,20 @@ class CommsRequest(db.Model):
     completed_at         = db.Column(db.DateTime)
 
 
+class GuestConnection(db.Model):
+    __tablename__ = "guest_connections"
+    id              = db.Column(db.Integer, primary_key=True)
+    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    name            = db.Column(db.String(200), nullable=False)
+    email           = db.Column(db.String(200), nullable=False)
+    phone           = db.Column(db.String(50))
+    interest_area   = db.Column(db.String(100))
+    opening_message = db.Column(db.Text)
+    status          = db.Column(db.String(20), nullable=False, default="new")  # new | contacted | connected
+    notes           = db.Column(db.Text)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"

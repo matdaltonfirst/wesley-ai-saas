@@ -202,6 +202,31 @@
     "@media(max-width:400px){",
     "#wai-panel{width:calc(100vw - 32px);right:16px;bottom:80px;}",
     "#wai-btn{bottom:16px;right:16px;}}",
+
+    /* Guest connection card */
+    ".wai-connect-card{margin:4px 0;padding:12px 14px;background:#fffef0;",
+    "border:1px solid #fde68a;border-radius:12px;",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}",
+    ".wai-cc-title{font-size:0.84rem;color:#1f2328;line-height:1.5;margin:0 0 10px;}",
+    ".wai-cc-yes{background:#1695a0;color:#fff;border:none;border-radius:8px;",
+    "padding:9px 18px;font-size:0.82rem;font-weight:600;cursor:pointer;",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
+    "transition:background 0.15s;}",
+    ".wai-cc-yes:hover{background:#127f88;}",
+    ".wai-cc-form{display:none;flex-direction:column;gap:8px;margin-top:10px;}",
+    ".wai-cc-form.wai-cc-visible{display:flex;}",
+    ".wai-cf-inp{border:1.5px solid #d0d7de;border-radius:8px;padding:8px 10px;",
+    "font-size:0.82rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
+    "outline:none;color:#1f2328;background:#fff;width:100%;box-sizing:border-box;",
+    "transition:border-color 0.15s;}",
+    ".wai-cf-inp:focus{border-color:#1695a0;}",
+    ".wai-cf-submit{background:#1695a0;color:#fff;border:none;border-radius:8px;",
+    "padding:9px;font-size:0.84rem;font-weight:600;cursor:pointer;width:100%;",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
+    "transition:background 0.15s;}",
+    ".wai-cf-submit:hover{background:#127f88;}",
+    ".wai-cf-submit:disabled{opacity:0.6;cursor:not-allowed;}",
+    ".wai-cc-confirm{font-size:0.84rem;color:#065f46;line-height:1.5;padding:4px 0;}",
   ].join("");
 
   function injectStyles() {
@@ -266,6 +291,7 @@
     this._isOpen      = false;
     this._isBusy      = false;
     this._sessionId   = null;
+    this._connCardShown = false;
     this._SESSION_KEY = this._churchId ? ("wai_session_" + this._churchId) : null;
 
     injectStyles();
@@ -619,6 +645,87 @@
     if (t && t.parentNode) t.parentNode.removeChild(t);
   };
 
+  WesleyWidget.prototype._detectInterest = function (text) {
+    var t = text.toLowerCase();
+    var groups = [
+      ["New to Church",           ["first time","first visit","new here","checking out","visiting","never been","want to visit","thinking about attending"]],
+      ["Worship & Service Times", ["service time","worship time","what time","sunday service","when do you meet","when does church start"]],
+      ["Prayer Request",          ["need prayer","pray for","prayer request","struggling","going through","hard time","difficult"]],
+      ["Get Connected",           ["get involved","join","membership","become a member","small group","volunteer","how do i get connected","learn more about your church"]],
+      ["Children & Family",       ["nursery","children's ministry","kids church","youth group","student ministry","do you have kids"]],
+    ];
+    for (var i = 0; i < groups.length; i++) {
+      var keywords = groups[i][1];
+      for (var j = 0; j < keywords.length; j++) {
+        if (t.indexOf(keywords[j]) !== -1) return groups[i][0];
+      }
+    }
+    return null;
+  };
+
+  WesleyWidget.prototype._showConnectionCard = function (interestArea, openingMsg) {
+    var self = this;
+    var card = document.createElement("div");
+    card.className = "wai-connect-card";
+    card.innerHTML =
+      '<p class="wai-cc-title">💛 Would you like someone from our team to reach out to you personally? It only takes a few seconds.</p>' +
+      '<button class="wai-cc-yes">Yes, I\'d love that</button>' +
+      '<div class="wai-cc-form" id="wai-cc-form-inner">' +
+      '  <input class="wai-cf-inp" type="text"  placeholder="Your name *" id="wai-cf-name" />' +
+      '  <input class="wai-cf-inp" type="email" placeholder="Email address *" id="wai-cf-email" />' +
+      '  <input class="wai-cf-inp" type="tel"   placeholder="Optional — for a personal call" id="wai-cf-phone" />' +
+      '  <button class="wai-cf-submit" id="wai-cf-submit">Connect with Us →</button>' +
+      '</div>';
+
+    this._refs.msgs.appendChild(card);
+    this._refs.msgs.scrollTop = this._refs.msgs.scrollHeight;
+
+    card.querySelector(".wai-cc-yes").addEventListener("click", function () {
+      card.querySelector(".wai-cc-yes").style.display = "none";
+      card.querySelector(".wai-cc-form").classList.add("wai-cc-visible");
+      card.querySelector("#wai-cf-name").focus();
+      self._refs.msgs.scrollTop = self._refs.msgs.scrollHeight;
+    });
+
+    card.querySelector("#wai-cf-submit").addEventListener("click", function () {
+      var nameVal  = card.querySelector("#wai-cf-name").value.trim();
+      var emailVal = card.querySelector("#wai-cf-email").value.trim();
+      var phoneVal = card.querySelector("#wai-cf-phone").value.trim();
+      var submitBtn = card.querySelector("#wai-cf-submit");
+
+      if (!nameVal || !emailVal) {
+        card.querySelector("#wai-cf-name").style.borderColor  = nameVal  ? "#d0d7de" : "#ef4444";
+        card.querySelector("#wai-cf-email").style.borderColor = emailVal ? "#d0d7de" : "#ef4444";
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending…";
+
+      fetch(self._apiBase + "/api/guest-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          church_id:       self._churchId,
+          name:            nameVal,
+          email:           emailVal,
+          phone:           phoneVal || null,
+          interest_area:   interestArea,
+          opening_message: openingMsg,
+        }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+          card.innerHTML = '<p class="wai-cc-confirm">Thank you, ' + esc(nameVal) + '! Someone from our team will reach out soon. We\'d love to meet you. 🙏</p>';
+          self._refs.msgs.scrollTop = self._refs.msgs.scrollHeight;
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Connect with Us →";
+        });
+    });
+  };
+
   WesleyWidget.prototype._sendMessage = function () {
     var self = this;
     var inp  = this._refs.input;
@@ -651,6 +758,13 @@
           self._appendBot("⚠ " + esc(result.data.error || "Something went wrong. Please try again."));
         } else {
           self._appendBot(renderMd(result.data.answer || ""));
+          if (!self._connCardShown) {
+            var interest = self._detectInterest(text);
+            if (interest) {
+              self._connCardShown = true;
+              setTimeout(function () { self._showConnectionCard(interest, text); }, 700);
+            }
+          }
           if (result.data.session_id) {
             self._sessionId = result.data.session_id;
             if (self._SESSION_KEY) {

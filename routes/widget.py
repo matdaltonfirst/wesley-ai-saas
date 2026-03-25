@@ -1,5 +1,6 @@
 """Widget routes: public CORS endpoints for branding, chat, and JS serving."""
 
+import threading
 import uuid
 import logging
 from collections import Counter, defaultdict
@@ -9,8 +10,10 @@ from flask import Blueprint, request, jsonify, make_response, send_from_director
 from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
-from models import db, Church, WidgetConversation, WidgetMessage
+from models import db, Church, User, WidgetConversation, WidgetMessage, GuestConnection
 from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error
+from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
+from emails import send_guest_connection_email
 from documents import (
     load_church_web_content, load_chatbot_documents,
     extract_keywords, score_chunk, find_relevant_chunks, build_context_block,
@@ -408,3 +411,126 @@ def analytics_sentiment():
         "needs_attention": needs_attention,
         "suggested_topics": [cat for cat, _ in gap_cats.most_common(3)],
     })
+
+
+# ── Guest Connections API ────────────────────────────────────────────────────
+
+@widget_bp.route("/api/guest-connection", methods=["POST", "OPTIONS"])
+def create_guest_connection():
+    """Public CORS endpoint — widget submits guest contact info here."""
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    def cors_err(msg, status=400):
+        r = jsonify({"error": msg})
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        return r, status
+
+    data = request.get_json(silent=True) or {}
+    church_id_raw = data.get("church_id")
+    name  = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    interest_area   = (data.get("interest_area") or "General Interest").strip()
+    opening_message = (data.get("opening_message") or "").strip()
+
+    if not church_id_raw or not name or not email:
+        return cors_err("church_id, name, and email are required.")
+
+    try:
+        church_id = int(church_id_raw)
+    except (ValueError, TypeError):
+        return cors_err("Invalid church_id.")
+
+    church = Church.query.get(church_id)
+    if not church:
+        return cors_err("Church not found.", 404)
+
+    gc = GuestConnection(
+        church_id=church_id,
+        name=name,
+        email=email,
+        phone=phone or None,
+        interest_area=interest_area,
+        opening_message=opening_message or None,
+    )
+    db.session.add(gc)
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.error("[GUEST] DB commit failed: %s", e)
+        return cors_err("Failed to save. Please try again.", 500)
+
+    # Notify all admin users for this church (non-blocking)
+    admin_users = User.query.filter_by(church_id=church_id, role="admin").all()
+    dashboard_url = APP_URL.rstrip("/") + "/dashboard#guest-connections"
+    _app = current_app._get_current_object()
+    _church_name = church.name
+    for admin in admin_users:
+        def _send(to=admin.email, cn=_church_name, gn=name, ge=email, gp=phone,
+                  ia=interest_area, om=opening_message, du=dashboard_url):
+            with _app.app_context():
+                send_guest_connection_email(to, cn, gn, ge, gp, ia, om, du, FROM_EMAIL, SUPPORT_EMAIL)
+        threading.Thread(target=_send, daemon=True).start()
+
+    resp = jsonify({"ok": True})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp, 201
+
+
+@widget_bp.route("/api/guest-connections")
+@login_required
+def list_guest_connections():
+    status_filter = request.args.get("status", "").strip()
+    q = GuestConnection.query.filter_by(church_id=current_user.church_id)
+    if status_filter in ("new", "contacted", "connected"):
+        q = q.filter_by(status=status_filter)
+    connections = q.order_by(GuestConnection.created_at.desc()).all()
+
+    new_count       = GuestConnection.query.filter_by(church_id=current_user.church_id, status="new").count()
+    contacted_count = GuestConnection.query.filter_by(church_id=current_user.church_id, status="contacted").count()
+    connected_count = GuestConnection.query.filter_by(church_id=current_user.church_id, status="connected").count()
+
+    return jsonify({
+        "stats": {
+            "new": new_count,
+            "contacted": contacted_count,
+            "connected": connected_count,
+        },
+        "connections": [
+            {
+                "id": gc.id,
+                "name": gc.name,
+                "email": gc.email,
+                "phone": gc.phone or "",
+                "interest_area": gc.interest_area or "General Interest",
+                "opening_message": gc.opening_message or "",
+                "status": gc.status,
+                "notes": gc.notes or "",
+                "created_at": gc.created_at.isoformat(),
+            }
+            for gc in connections
+        ],
+    })
+
+
+@widget_bp.route("/api/guest-connection/<int:gc_id>", methods=["PATCH"])
+@login_required
+def update_guest_connection(gc_id):
+    gc = GuestConnection.query.filter_by(id=gc_id, church_id=current_user.church_id).first()
+    if not gc:
+        return jsonify({"error": "Not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    if "status" in data and data["status"] in ("new", "contacted", "connected"):
+        gc.status = data["status"]
+    if "notes" in data:
+        gc.notes = data["notes"]
+
+    db.session.commit()
+    return jsonify({"ok": True})

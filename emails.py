@@ -85,6 +85,35 @@ def send_payment_confirmation_email(to_email: str, church_name: str, from_email:
         log.error("Payment confirmation email failed for %s: %s", to_email, exc)
 
 
+def send_guest_connection_email(
+    to_email: str, church_name: str,
+    guest_name: str, guest_email: str, guest_phone: str,
+    interest_area: str, opening_message: str,
+    dashboard_url: str, from_email: str, support_email: str,
+) -> None:
+    """Notify church staff that a new guest connection was submitted via the chat widget."""
+    html = render_template(
+        "emails/guest_connection.html",
+        church_name=church_name,
+        guest_name=guest_name,
+        guest_email=guest_email,
+        guest_phone=guest_phone,
+        interest_area=interest_area,
+        opening_message=opening_message,
+        dashboard_url=dashboard_url,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": f"New Guest Connection — {guest_name}",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Guest connection email failed for %s: %s", to_email, exc)
+
+
 def send_invite_email(to_email: str, church_name: str, invite_url: str, from_email: str, support_email: str) -> None:
     """Send a branded staff invitation email via Resend."""
     html = render_template(
