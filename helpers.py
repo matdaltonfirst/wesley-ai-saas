@@ -99,6 +99,52 @@ def is_billing_exempt(email: str) -> bool:
     return domain in EXEMPT_DOMAINS
 
 
+def get_billing_status(church) -> dict:
+    """Return a normalised billing-status dict for *church*.
+
+    Returns:
+        has_access        – bool: whether the church currently has paid access
+        billing_type      – "manual" | "stripe" | "none"
+        expires           – datetime.date or None
+        days_remaining    – int or None
+        stripe_invite_sent – bool
+    """
+    from datetime import date as _date
+    today = _date.today()
+
+    # 1. Active manual payment
+    if (getattr(church, "manual_payment_active", False)
+            and church.manual_payment_expires
+            and church.manual_payment_expires >= today):
+        days_remaining = (church.manual_payment_expires - today).days
+        return {
+            "has_access":          True,
+            "billing_type":        "manual",
+            "expires":             church.manual_payment_expires,
+            "days_remaining":      days_remaining,
+            "stripe_invite_sent":  bool(church.stripe_invite_sent_at),
+        }
+
+    # 2. Stripe subscription
+    if church.stripe_subscription_id:
+        return {
+            "has_access":          True,
+            "billing_type":        "stripe",
+            "expires":             None,
+            "days_remaining":      None,
+            "stripe_invite_sent":  bool(church.stripe_invite_sent_at),
+        }
+
+    # 3. No active billing (trial or fully expired)
+    return {
+        "has_access":          church.is_active,  # True if trial still running
+        "billing_type":        "none",
+        "expires":             None,
+        "days_remaining":      None,
+        "stripe_invite_sent":  bool(getattr(church, "stripe_invite_sent_at", None)),
+    }
+
+
 def require_active():
     """Return a redirect to /subscribe if the current church's billing has lapsed.
     Returns None if the user may continue.

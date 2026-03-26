@@ -224,6 +224,21 @@ def _run_migrations() -> None:
             ("bot_subtitle",        "ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"),
             ("comms_enabled",       "ALTER TABLE churches ADD COLUMN comms_enabled BOOLEAN NOT NULL DEFAULT 1"),
         ]
+        manual_billing_migrations = [
+            ("manual_payment_active",   "ALTER TABLE churches ADD COLUMN manual_payment_active BOOLEAN NOT NULL DEFAULT 0"),
+            ("manual_payment_note",     "ALTER TABLE churches ADD COLUMN manual_payment_note VARCHAR(500)"),
+            ("manual_payment_start",    "ALTER TABLE churches ADD COLUMN manual_payment_start DATE"),
+            ("manual_payment_expires",  "ALTER TABLE churches ADD COLUMN manual_payment_expires DATE"),
+            ("manual_payment_amount",   "ALTER TABLE churches ADD COLUMN manual_payment_amount REAL"),
+            ("manual_payment_plan",     "ALTER TABLE churches ADD COLUMN manual_payment_plan VARCHAR(20)"),
+            ("manual_payment_set_by",   "ALTER TABLE churches ADD COLUMN manual_payment_set_by VARCHAR(200)"),
+            ("stripe_invite_sent_at",   "ALTER TABLE churches ADD COLUMN stripe_invite_sent_at DATETIME"),
+            ("stripe_invite_resent_at", "ALTER TABLE churches ADD COLUMN stripe_invite_resent_at DATETIME"),
+            ("warning_30_sent",         "ALTER TABLE churches ADD COLUMN warning_30_sent BOOLEAN NOT NULL DEFAULT 0"),
+            ("warning_7_sent",          "ALTER TABLE churches ADD COLUMN warning_7_sent BOOLEAN NOT NULL DEFAULT 0"),
+            ("expired_sent",            "ALTER TABLE churches ADD COLUMN expired_sent BOOLEAN NOT NULL DEFAULT 0"),
+        ]
+        migrations = migrations + manual_billing_migrations
         for col_name, sql in migrations:
             if col_name not in existing_cols2:
                 conn2.execute(text(sql))
@@ -391,6 +406,65 @@ def invite_cleanup_job():
         log.info("Invite cleanup: deleted %d expired invite(s).", count)
 
 
+def manual_billing_check_job():
+    """Daily 8 AM job: send expiration warnings and deactivate expired manual billing."""
+    with app.app_context():
+        from datetime import date
+        from emails import (
+            send_manual_expiring_30_email,
+            send_manual_expiring_7_email,
+            send_manual_expired_email,
+        )
+        from config import FROM_EMAIL, SUPPORT_EMAIL
+
+        today = date.today()
+        churches = Church.query.filter(
+            Church.manual_payment_active == True,  # noqa: E712
+            Church.manual_payment_expires.isnot(None),
+        ).all()
+
+        for church in churches:
+            expires = church.manual_payment_expires
+            if expires is None:
+                continue
+
+            days_left = (expires - today).days
+            first_user = User.query.filter_by(church_id=church.id).order_by(User.id).first()
+            admin_email = first_user.email if first_user else None
+            expires_str = expires.strftime("%B %d, %Y")
+
+            # Expired today or past
+            if days_left < 0:
+                church.manual_payment_active = False
+                if admin_email and not church.expired_sent:
+                    send_manual_expired_email(
+                        admin_email, church.name, expires_str, FROM_EMAIL, SUPPORT_EMAIL
+                    )
+                    church.expired_sent = True
+                    log.info("Manual billing expired: church_id=%d — deactivated + emailed", church.id)
+
+            # 7-day warning window (6–8 days so we catch it on the first matching run)
+            elif days_left <= 8 and not church.warning_7_sent:
+                if admin_email:
+                    send_manual_expiring_7_email(
+                        admin_email, church.name, expires_str, FROM_EMAIL, SUPPORT_EMAIL
+                    )
+                church.warning_7_sent = True
+                log.info("Manual billing 7-day warning sent: church_id=%d", church.id)
+
+            # 30-day warning window (28–32 days)
+            elif days_left <= 32 and not church.warning_30_sent:
+                if admin_email:
+                    send_manual_expiring_30_email(
+                        admin_email, church.name, expires_str, FROM_EMAIL, SUPPORT_EMAIL
+                    )
+                church.warning_30_sent = True
+                log.info("Manual billing 30-day warning sent: church_id=%d", church.id)
+
+        if churches:
+            db.session.commit()
+
+
 # Only start the scheduler in production (not during tests or CLI commands)
 if not app.testing:
     scheduler = BackgroundScheduler(daemon=True)
@@ -399,6 +473,7 @@ if not app.testing:
     scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
     scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
     scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
+    scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
     if not scheduler.running:
         scheduler.start()
 

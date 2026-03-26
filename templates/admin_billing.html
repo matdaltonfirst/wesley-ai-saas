@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Billing Overview — Wesley AI Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+    .page-header { background: #0c3d43; color: #fff; padding: 20px 32px; display: flex; align-items: center; gap: 20px; }
+    .page-header h1 { font-size: 1.2rem; font-weight: 700; }
+    .page-header p  { font-size: 0.82rem; opacity: 0.7; margin-top: 2px; }
+    .page-header a  { color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.8rem; margin-left: auto; }
+    .page-header a:hover { color: #fff; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
+
+    /* Table card */
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    .card-header { padding: 18px 24px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; }
+    .card-header h2 { font-size: 0.95rem; font-weight: 700; color: #0f172a; }
+    .card-header span { font-size: 0.78rem; color: #94a3b8; margin-left: auto; }
+    .refresh-btn { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: #475569; }
+    .refresh-btn:hover { background: #e2e8f0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    th { text-align: left; padding: 10px 14px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+    td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: top; color: #334155; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* Church name cell */
+    .ch-name { font-weight: 700; color: #0f172a; }
+    .ch-email { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+
+    /* Status badges */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-active        { background: #d1fae5; color: #065f46; }
+    .badge-expiring      { background: #fef3c7; color: #92400e; }
+    .badge-expired       { background: #fee2e2; color: #991b1b; }
+    .badge-no-sub        { background: #f1f5f9; color: #64748b; }
+    .badge-stripe        { background: #dbeafe; color: #1e40af; }
+    .badge-manual        { background: #ede9fe; color: #5b21b6; }
+    .badge-none          { background: #f1f5f9; color: #64748b; }
+
+    /* Action buttons */
+    .act-btn { display: inline-block; padding: 5px 11px; border-radius: 6px; font-size: 0.73rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; margin: 2px 2px 2px 0; white-space: nowrap; transition: all 0.14s; }
+    .act-btn-teal  { background: #1695a0; color: #fff; border-color: #1695a0; }
+    .act-btn-teal:hover  { background: #117a83; }
+    .act-btn-amber { background: #d97706; color: #fff; border-color: #d97706; }
+    .act-btn-amber:hover { background: #b45309; }
+    .act-btn-red   { background: #fff; color: #ef4444; border-color: #fca5a5; }
+    .act-btn-red:hover   { background: #fee2e2; }
+    .act-btn-gray  { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+    .act-btn-gray:hover  { background: #e2e8f0; }
+
+    /* Inline mark-paid form */
+    .form-row { display: none; }
+    .form-row td { background: #f8fafc; padding: 16px 14px; border-top: 2px solid #1695a0; }
+    .form-row.open { display: table-row; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .form-grid label { font-size: 0.75rem; font-weight: 600; color: #475569; display: block; margin-bottom: 4px; }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width: 100%; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px 10px;
+      font-size: 0.83rem; color: #1e293b; font-family: inherit; background: #fff;
+    }
+    .form-grid input:focus, .form-grid select:focus { outline: none; border-color: #1695a0; }
+    .form-note { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: 8px; }
+    .save-btn { background: #1695a0; color: #fff; border: none; border-radius: 7px; padding: 8px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+    .save-btn:hover { background: #117a83; }
+    .cancel-btn { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 7px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .cancel-btn:hover { background: #e2e8f0; }
+    .form-msg { font-size: 0.78rem; margin-top: 8px; }
+
+    .invite-status { font-size: 0.76rem; color: #64748b; }
+    .invite-sent   { color: #059669; }
+    .empty-state   { text-align: center; padding: 40px; color: #94a3b8; font-size: 0.875rem; }
+    .loading-row td { text-align: center; padding: 32px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+{% if forbidden %}
+  <div class="page-header"><div><h1>Billing Overview</h1></div></div>
+  <div class="container">
+    <p style="color:#ef4444;font-weight:600;padding:40px 0;">Access denied. Super-admin only.</p>
+  </div>
+{% else %}
+
+<div class="page-header">
+  <div>
+    <h1>Billing Overview</h1>
+    <p>Manage subscriptions across all church accounts.</p>
+  </div>
+  <a href="/admin">← Admin Panel</a>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h2>All Church Accounts</h2>
+      <button class="refresh-btn" onclick="loadTable()">↻ Refresh</button>
+      <span id="tableSubtitle"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="billingTable">
+        <thead>
+          <tr>
+            <th>Church</th>
+            <th>Plan</th>
+            <th>Billing Type</th>
+            <th>Status</th>
+            <th>Expires</th>
+            <th>Days Left</th>
+            <th>Invite Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr class="loading-row"><td colspan="8">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+var _churches = [];
+
+function esc(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  var d = new Date(iso + (iso.includes("T") ? "" : "T00:00:00"));
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function statusBadge(status) {
+  var map = {
+    active:        ["Active",        "badge-active"],
+    expiring_soon: ["Expiring Soon", "badge-expiring"],
+    expired:       ["Expired",       "badge-expired"],
+    no_sub:        ["No Sub",        "badge-no-sub"],
+  };
+  var info = map[status] || ["Unknown", "badge-none"];
+  return `<span class="badge ${info[1]}">${info[0]}</span>`;
+}
+
+function billingBadge(type) {
+  var map = {
+    stripe: ["Stripe",  "badge-stripe"],
+    manual: ["Manual",  "badge-manual"],
+    none:   ["None",    "badge-none"],
+  };
+  var info = map[type] || ["—", "badge-none"];
+  return `<span class="badge ${info[1]}">${info[0]}</span>`;
+}
+
+function inviteCell(c) {
+  if (c.stripe_invite_resent_at) {
+    return `<span class="invite-status invite-sent">Resent ${fmtDate(c.stripe_invite_resent_at)}</span>`;
+  }
+  if (c.stripe_invite_sent_at) {
+    return `<span class="invite-status invite-sent">Sent ${fmtDate(c.stripe_invite_sent_at)}</span>`;
+  }
+  return `<span class="invite-status">—</span>`;
+}
+
+function actionsCell(c) {
+  var btns = "";
+
+  // Mark as Manually Paid — for no_sub or expired
+  if (c.status === "no_sub" || c.status === "expired") {
+    btns += `<button class="act-btn act-btn-teal" onclick="openForm(${c.id})">Mark as Manually Paid</button>`;
+  }
+
+  // Stripe invite — manual billing, days_remaining <= 60
+  if (c.billing_type === "manual" && (c.days_remaining === null || c.days_remaining <= 60)) {
+    var label = c.stripe_invite_sent ? "Resend Invite" : "Send Stripe Invite";
+    var cls   = c.stripe_invite_sent ? "act-btn-amber" : "act-btn-teal";
+    btns += `<button class="act-btn ${cls}" onclick="sendInvite(${c.id})">` + esc(label) + `</button>`;
+  }
+
+  // Revoke — manual payment active
+  if (c.manual_payment_active) {
+    btns += `<button class="act-btn act-btn-red" onclick="revokeManual(${c.id})">Revoke</button>`;
+  }
+
+  // View in Stripe
+  if (c.stripe_customer_id) {
+    var stripeUrl = "https://dashboard.stripe.com/customers/" + esc(c.stripe_customer_id);
+    btns += `<a class="act-btn act-btn-gray" href="${stripeUrl}" target="_blank" rel="noopener">View in Stripe →</a>`;
+  }
+
+  return btns || `<span style="color:#94a3b8;font-size:0.75rem;">—</span>`;
+}
+
+function renderTable() {
+  var tbody = document.getElementById("tableBody");
+  var sub   = document.getElementById("tableSubtitle");
+  if (!_churches.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No churches found.</td></tr>`;
+    return;
+  }
+  sub.textContent = _churches.length + " church" + (_churches.length === 1 ? "" : "es");
+
+  tbody.innerHTML = _churches.map(function(c) {
+    var formRowId = "form-" + c.id;
+    return `
+      <tr id="row-${c.id}">
+        <td>
+          <div class="ch-name">${esc(c.name)}</div>
+          <div class="ch-email">${esc(c.admin_email)}</div>
+        </td>
+        <td style="text-transform:capitalize;">${esc(c.plan || "—")}</td>
+        <td>${billingBadge(c.billing_type)}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${fmtDate(c.expires)}</td>
+        <td>${c.days_remaining !== null ? c.days_remaining + "d" : "—"}</td>
+        <td>${inviteCell(c)}</td>
+        <td>${actionsCell(c)}</td>
+      </tr>
+      <tr class="form-row" id="${formRowId}">
+        <td colspan="8">
+          <div class="form-grid">
+            <div>
+              <label>Start Date</label>
+              <input type="date" id="fs-start-${c.id}" value="${new Date().toISOString().slice(0,10)}">
+            </div>
+            <div>
+              <label>Expiration Date <span style="color:#ef4444">*</span></label>
+              <input type="date" id="fs-expires-${c.id}">
+            </div>
+            <div>
+              <label>Amount Paid ($)</label>
+              <input type="number" step="0.01" min="0" id="fs-amount-${c.id}" placeholder="0.00">
+            </div>
+            <div>
+              <label>Plan</label>
+              <select id="fs-plan-${c.id}">
+                <option value="monthly">Monthly</option>
+                <option value="annual">Annual</option>
+              </select>
+            </div>
+            <div class="form-note">
+              <label>Payment Note (e.g. "Check #1042")</label>
+              <input type="text" id="fs-note-${c.id}" placeholder="e.g. Annual via check #1042" maxlength="500">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="save-btn" onclick="savePaid(${c.id})">Save</button>
+            <button class="cancel-btn" onclick="closeForm(${c.id})">Cancel</button>
+          </div>
+          <div class="form-msg" id="fm-${c.id}"></div>
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+function openForm(churchId) {
+  // Close any open form first
+  document.querySelectorAll(".form-row.open").forEach(function(r) { r.classList.remove("open"); });
+  var row = document.getElementById("form-" + churchId);
+  if (row) row.classList.add("open");
+}
+
+function closeForm(churchId) {
+  var row = document.getElementById("form-" + churchId);
+  if (row) row.classList.remove("open");
+  var msg = document.getElementById("fm-" + churchId);
+  if (msg) msg.textContent = "";
+}
+
+async function savePaid(churchId) {
+  var msg     = document.getElementById("fm-" + churchId);
+  var expires = document.getElementById("fs-expires-" + churchId).value;
+  if (!expires) { msg.textContent = "Expiration date is required."; msg.style.color = "#ef4444"; return; }
+
+  var body = {
+    start_date:   document.getElementById("fs-start-" + churchId).value,
+    expires_date: expires,
+    amount:       document.getElementById("fs-amount-" + churchId).value || null,
+    plan:         document.getElementById("fs-plan-" + churchId).value,
+    note:         document.getElementById("fs-note-" + churchId).value,
+  };
+
+  msg.textContent = "Saving…"; msg.style.color = "#64748b";
+  var res = await fetch("/api/admin/billing/mark-paid/" + churchId, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body),
+  });
+  var d = await res.json();
+  if (!res.ok) { msg.textContent = d.error || "Error."; msg.style.color = "#ef4444"; return; }
+
+  // Update local data and re-render
+  var idx = _churches.findIndex(function(c) { return c.id === churchId; });
+  if (idx !== -1) _churches[idx] = d.church;
+  renderTable();
+}
+
+async function revokeManual(churchId) {
+  var c = _churches.find(function(x) { return x.id === churchId; });
+  var name = c ? c.name : "this church";
+  if (!confirm("Revoke manual billing for " + name + "?\n\nThey will lose access unless they have an active Stripe subscription.")) return;
+
+  var res = await fetch("/api/admin/billing/revoke/" + churchId, { method: "POST" });
+  var d   = await res.json();
+  if (!res.ok) { alert(d.error || "Error revoking."); return; }
+
+  var idx = _churches.findIndex(function(c) { return c.id === churchId; });
+  if (idx !== -1) _churches[idx] = d.church;
+  renderTable();
+}
+
+async function sendInvite(churchId) {
+  var c = _churches.find(function(x) { return x.id === churchId; });
+  var label = c && c.stripe_invite_sent ? "Resend the Stripe subscription invite" : "Send the Stripe subscription invite";
+  if (!confirm(label + " to " + (c ? c.admin_email : "this church") + "?")) return;
+
+  var res = await fetch("/api/admin/billing/send-invite/" + churchId, { method: "POST" });
+  var d   = await res.json();
+  if (!res.ok) { alert(d.error || "Error sending invite."); return; }
+
+  var idx = _churches.findIndex(function(c) { return c.id === churchId; });
+  if (idx !== -1) _churches[idx] = d.church;
+  renderTable();
+  alert("Invite sent successfully.");
+}
+
+async function loadTable() {
+  document.getElementById("tableBody").innerHTML =
+    `<tr class="loading-row"><td colspan="8">Loading…</td></tr>`;
+  try {
+    var res = await fetch("/api/admin/billing/churches");
+    if (res.status === 403) {
+      document.getElementById("tableBody").innerHTML =
+        `<tr><td colspan="8" class="empty-state" style="color:#ef4444;">Access denied.</td></tr>`;
+      return;
+    }
+    var d = await res.json();
+    _churches = d.churches || [];
+    renderTable();
+  } catch (e) {
+    document.getElementById("tableBody").innerHTML =
+      `<tr><td colspan="8" class="empty-state">Could not load data.</td></tr>`;
+  }
+}
+
+loadTable();
+</script>
+
+{% endif %}
+</body>
+</html>

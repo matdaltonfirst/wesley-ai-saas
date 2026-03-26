@@ -131,3 +131,93 @@ def send_invite_email(to_email: str, church_name: str, invite_url: str, from_ema
         })
     except Exception as exc:
         log.error("Invite email failed for %s: %s", to_email, exc)
+
+
+# ── Manual billing emails ─────────────────────────────────────────────────────
+
+def send_stripe_invite_email(
+    to_email: str, church_name: str, checkout_url: str,
+    from_email: str, support_email: str,
+) -> None:
+    """Send a Stripe subscription invite to a church currently on manual billing."""
+    html = render_template(
+        "emails/stripe_invite.html",
+        church_name=church_name,
+        checkout_url=checkout_url,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": "Time to set up your Wesley AI subscription",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Stripe invite email failed for %s: %s", to_email, exc)
+
+
+def send_manual_expiring_30_email(
+    to_email: str, church_name: str, expires_date: str,
+    from_email: str, support_email: str,
+) -> None:
+    """Warn a church that their manual subscription expires in ~30 days."""
+    html = render_template(
+        "emails/manual_expiring_30.html",
+        church_name=church_name,
+        expires_date=expires_date,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": "Your Wesley AI subscription renews soon",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Manual expiring-30 email failed for %s: %s", to_email, exc)
+
+
+def send_manual_expiring_7_email(
+    to_email: str, church_name: str, expires_date: str,
+    from_email: str, support_email: str,
+) -> None:
+    """Warn a church that their manual subscription expires in ~7 days."""
+    html = render_template(
+        "emails/manual_expiring_7.html",
+        church_name=church_name,
+        expires_date=expires_date,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": "Your Wesley AI subscription expires in 7 days",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Manual expiring-7 email failed for %s: %s", to_email, exc)
+
+
+def send_manual_expired_email(
+    to_email: str, church_name: str, expires_date: str,
+    from_email: str, support_email: str,
+) -> None:
+    """Notify a church that their manual subscription has expired."""
+    html = render_template(
+        "emails/manual_expired.html",
+        church_name=church_name,
+        expires_date=expires_date,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": "Your Wesley AI subscription has expired",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Manual expired email failed for %s: %s", to_email, exc)

@@ -1,0 +1,20 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+<p style="margin:0 0 18px;font-size:1rem;font-weight:700;color:#0c3d43;">Hi {{ church_name }},</p>
+
+<p style="margin:0 0 16px;font-size:0.9375rem;color:#334155;line-height:1.65;">
+  Your current Wesley AI subscription period ends on
+  <strong>{{ expires_date }}</strong>.
+</p>
+
+<p style="margin:0 0 16px;font-size:0.9375rem;color:#334155;line-height:1.65;">
+  We'll be in touch soon to make renewal as easy as possible.
+  If you'd like to get started early or have any questions, just reply to this email.
+</p>
+
+<p style="margin:24px 0 0;font-size:0.9375rem;color:#334155;line-height:1.65;">
+  Grateful to be part of your ministry,<br>
+  <strong>Mat Napp</strong><br>
+  <span style="color:#64748b;">Wesley AI</span>
+</p>
+{% endblock %}

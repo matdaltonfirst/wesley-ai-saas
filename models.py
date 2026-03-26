@@ -60,7 +60,7 @@ class Church(db.Model):
     # Features
     comms_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
-    # Billing
+    # Billing — Stripe
     trial_ends_at          = db.Column(db.DateTime, nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)
     stripe_customer_id     = db.Column(db.String(200), nullable=True)
@@ -68,17 +68,42 @@ class Church(db.Model):
     plan                   = db.Column(db.String(20), nullable=False, default="founders")
     trial_reminder_sent    = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Billing — Manual (check / bank transfer / external invoice)
+    manual_payment_active   = db.Column(db.Boolean, nullable=False, default=False)
+    manual_payment_note     = db.Column(db.String(500), nullable=True)
+    manual_payment_start    = db.Column(db.Date, nullable=True)
+    manual_payment_expires  = db.Column(db.Date, nullable=True)
+    manual_payment_amount   = db.Column(db.Numeric(10, 2), nullable=True)
+    manual_payment_plan     = db.Column(db.String(20), nullable=True)   # "monthly" | "annual"
+    manual_payment_set_by   = db.Column(db.String(200), nullable=True)
+    stripe_invite_sent_at   = db.Column(db.DateTime, nullable=True)
+    stripe_invite_resent_at = db.Column(db.DateTime, nullable=True)
+    # Expiration warning tracking — reset to False each time a new manual payment is recorded
+    warning_30_sent = db.Column(db.Boolean, nullable=False, default=False)
+    warning_7_sent  = db.Column(db.Boolean, nullable=False, default=False)
+    expired_sent    = db.Column(db.Boolean, nullable=False, default=False)
+
     @property
     def is_active(self) -> bool:
-        """True while the trial is running OR an active Stripe subscription exists.
-        Treats trial_ends_at=None as active (safety — avoids accidental lockouts
-        if the column is somehow absent on a row).
+        """True when the church has any active paid access.
+
+        Priority order:
+          1. Active manual payment (manual_payment_active + not expired)
+          2. Active Stripe subscription
+          3. Trial period still running (trial_ends_at in the future or null)
         """
+        from datetime import date as _date
+        # 1. Manual billing
+        if self.manual_payment_active and self.manual_payment_expires:
+            if self.manual_payment_expires >= _date.today():
+                return True
+        # 2. Stripe subscription
+        if self.stripe_subscription_id:
+            return True
+        # 3. Trial (None = safety net against accidental lockout)
         if self.trial_ends_at is None:
             return True
         if self.trial_ends_at > datetime.utcnow():
-            return True
-        if self.stripe_subscription_id:
             return True
         return False
 

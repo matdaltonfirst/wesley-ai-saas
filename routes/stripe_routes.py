@@ -162,6 +162,13 @@ def stripe_webhook():
                 church.stripe_subscription_id = sub_id
                 if customer_id and not church.stripe_customer_id:
                     church.stripe_customer_id = customer_id
+                # If this church was on manual billing, transition them to Stripe
+                if getattr(church, "manual_payment_active", False):
+                    church.manual_payment_active = False
+                    log.info(
+                        "Stripe webhook: church_id=%s transitioned from manual → Stripe billing",
+                        church_ref,
+                    )
                 db.session.commit()
                 log.info("Stripe webhook: church_id=%s subscribed (%s)", church_ref, sub_id)
 
