@@ -7,11 +7,31 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
-    .page-header { background: #0c3d43; color: #fff; padding: 20px 32px; display: flex; align-items: center; gap: 20px; }
-    .page-header h1 { font-size: 1.2rem; font-weight: 700; }
-    .page-header p  { font-size: 0.82rem; opacity: 0.7; margin-top: 2px; }
-    .page-header a  { color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.8rem; margin-left: auto; }
-    .page-header a:hover { color: #fff; }
+    .page-header {
+      background: #0f1f2e; color: #fff;
+      padding: 0 32px; height: 56px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .ph-brand { display: flex; align-items: center; gap: 12px; }
+    .ph-badge {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+      color: #8ecdd2; font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px;
+    }
+    .admin-nav { display: flex; align-items: center; gap: 4px; }
+    .admin-nav-tab {
+      color: rgba(255,255,255,0.55); font-size: 0.83rem; font-weight: 600;
+      text-decoration: none; padding: 6px 14px; border-radius: 7px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .admin-nav-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .admin-nav-tab.active { color: #fff; background: rgba(255,255,255,0.13); }
+    .back-link {
+      color: #8ecdd2; font-size: 0.82rem; text-decoration: none;
+      display: flex; align-items: center; gap: 5px; margin-left: auto;
+    }
+    .back-link:hover { color: #fff; }
     .container { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
 
     /* Table card */
@@ -80,20 +100,28 @@
 </head>
 <body>
 
+<header class="page-header">
+  <div class="ph-brand">
+    <span style="color:#fff;font-size:1rem;font-weight:700;letter-spacing:-0.02em;">Wesley AI</span>
+    <span class="ph-badge">Super Admin</span>
+  </div>
+  <nav class="admin-nav">
+    <a href="/admin" class="admin-nav-tab">Dashboard</a>
+    <a href="/admin/billing" class="admin-nav-tab active">Billing</a>
+  </nav>
+  <a href="/" class="back-link">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Back to dashboard
+  </a>
+</header>
+
 {% if forbidden %}
-  <div class="page-header"><div><h1>Billing Overview</h1></div></div>
   <div class="container">
     <p style="color:#ef4444;font-weight:600;padding:40px 0;">Access denied. Super-admin only.</p>
   </div>
 {% else %}
-
-<div class="page-header">
-  <div>
-    <h1>Billing Overview</h1>
-    <p>Manage subscriptions across all church accounts.</p>
-  </div>
-  <a href="/admin">← Admin Panel</a>
-</div>
 
 <div class="container">
   <div class="card">
