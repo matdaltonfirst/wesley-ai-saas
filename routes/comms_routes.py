@@ -88,14 +88,19 @@ def _run_triage(req: CommsRequest) -> None:
 @comms_bp.route("/comms")
 @login_required
 def comms_dashboard():
-    church_id = current_user.church_id
-    total     = CommsRequest.query.filter_by(church_id=church_id).count()
-    red       = CommsRequest.query.filter_by(church_id=church_id, triage_code="red").count()
-    yellow    = CommsRequest.query.filter_by(church_id=church_id, triage_code="yellow").count()
-    green     = CommsRequest.query.filter_by(church_id=church_id, triage_code="green").count()
-    blue      = CommsRequest.query.filter_by(church_id=church_id, triage_code="blue").count()
-    in_queue  = CommsRequest.query.filter_by(church_id=church_id, status="in_queue").count()
-    in_prog   = CommsRequest.query.filter_by(church_id=church_id, status="in_progress").count()
+    church_id       = current_user.church_id
+    _TERMINAL       = ("completed", "cancelled")
+    _active_base    = CommsRequest.query.filter(
+        CommsRequest.church_id == church_id,
+        CommsRequest.status.notin_(_TERMINAL),
+    )
+    total    = _active_base.count()
+    red      = _active_base.filter(CommsRequest.triage_code == "red").count()
+    yellow   = _active_base.filter(CommsRequest.triage_code == "yellow").count()
+    green    = _active_base.filter(CommsRequest.triage_code == "green").count()
+    blue     = _active_base.filter(CommsRequest.triage_code == "blue").count()
+    in_queue = _active_base.filter(CommsRequest.status == "in_queue").count()
+    in_prog  = _active_base.filter(CommsRequest.status == "in_progress").count()
 
     return render_template(
         "comms/dashboard.html",
