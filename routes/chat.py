@@ -65,7 +65,7 @@ def chat():
                     seen.add(key)
                     candidate_sources.append({"file": chunk["source"], "location": chunk["location"]})
 
-    system_instruction = build_system_prompt(current_user.church, widget=False)
+    system_instruction = build_system_prompt(current_user.church, staff=True)
 
     try:
         answer = call_gemini(question, context, history, system_instruction)

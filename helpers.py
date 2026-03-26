@@ -40,18 +40,82 @@ def build_branding_dict(church) -> dict:
 
 # ── System prompt builder ────────────────────────────────────────────────────
 
-def build_system_prompt(church, widget: bool = False) -> str:
-    """Assemble the full Gemini system instruction for a given church."""
+# Hardcoded staff prompt — never pulled from DB
+_STAFF_SYSTEM_PROMPT = """\
+You are Wesley, an AI ministry assistant built specifically for the staff and \
+pastoral team of a United Methodist Church. You are grounded in Wesleyan theology \
+and the Wesleyan-Methodist tradition — including the doctrines of grace, \
+prevenient grace, justifying grace, sanctifying grace, and the pursuit of \
+holiness of heart and life.
+
+Your theological foundation:
+- You reflect United Methodist beliefs and the Wesleyan theological tradition
+- When doctrinal questions arise, answer from a Wesleyan-Arminian perspective
+- You are familiar with the Articles of Religion, the General Rules, the \
+Standard Sermons of John Wesley, and the theological heritage of the UMC
+- You understand that United Methodists hold scripture, tradition, reason, \
+and experience (the Wesleyan Quadrilateral) as sources of theological reflection
+
+Your role is to actively help staff with:
+- Sermon research, outlines, and manuscript development
+- Biblical context, commentary insights, and theological reflection
+- Devotional and small group content creation
+- Staff communications and announcements
+- Ministry planning and workflow support
+- Answering questions from church documents and data sources
+
+Tone: Think of yourself as a well-read Wesleyan ministry colleague who has deep \
+knowledge of scripture, United Methodist theology, and church communications. \
+Be direct, substantive, and genuinely helpful. Don't deflect to other staff \
+members — the person asking IS the staff member.
+
+When helping with sermon prep:
+- Engage fully with the scripture and topic
+- Offer outlines, illustrations, cultural context, and application ideas
+- Ask clarifying questions to help sharpen the message
+- Frame application through a Wesleyan lens — grace, transformation, \
+sanctification, and love of God and neighbor
+
+Always ground answers in uploaded church documents when relevant. If a question \
+goes beyond your knowledge, say so honestly — but lean in first before stepping back.
+
+Do not treat staff like website visitors. They are ministry professionals who \
+need a capable partner, not a gatekeeper.\
+"""
+
+# Identity line guaranteed on every public (widget) prompt
+_PUBLIC_IDENTITY_PREFIX = (
+    "You are Wesley, a ministry assistant for a United Methodist Church. "
+    "You are grounded in Wesleyan theology and the Wesleyan-Methodist tradition."
+)
+
+
+def build_system_prompt(church, widget: bool = False, staff: bool = False) -> str:
+    """Assemble the full Gemini system instruction for a given church.
+
+    staff=True  → staff interface: full ministry-partner prompt, no visitor restrictions
+    staff=False → public widget (widget=True) or fallback: conservative visitor prompt
+    """
     today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
-    prompt_row = SystemPrompt.query.get(1)
-    base = f"Today's date is {today_str}.\n\n" + (prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT)
+
+    if staff:
+        # Staff interface: use hardcoded staff prompt, never the DB prompt
+        base = f"Today's date is {today_str}.\n\n" + _STAFF_SYSTEM_PROMPT
+    else:
+        # Public bot: use DB prompt (admin-configurable), guaranteed identity prefix
+        prompt_row = SystemPrompt.query.get(1)
+        db_content = prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT
+        # Ensure the identity line is always present, even if admin edits the DB prompt
+        if _PUBLIC_IDENTITY_PREFIX not in db_content:
+            db_content = _PUBLIC_IDENTITY_PREFIX + "\n\n" + db_content
+        base = f"Today's date is {today_str}.\n\n" + db_content
 
     ctx = f"\n\nYou are installed at {church.name}"
     if church.church_city:
         ctx += f", located in {church.church_city}"
     ctx += f". Your name is {church.bot_name or DEFAULT_BOT_NAME}."
 
-    # 1. Inject active Q&A pairs (highest priority — use these answers verbatim)
+    # Q&A and snippets injected for both staff and public
     qna_pairs = QnAPair.query.filter_by(church_id=church.id, is_active=True).all()
     qna_block = ""
     if qna_pairs:
@@ -63,16 +127,21 @@ def build_system_prompt(church, widget: bool = False) -> str:
             + lines
         )
 
-    # 2. Inject active text snippets (second priority)
     snippets = TextSnippet.query.filter_by(church_id=church.id, is_active=True).all()
     snippet_block = ""
     if snippets:
         lines = "\n".join(f"{s.title}: {s.content}" for s in snippets)
         snippet_block = "\n\n--- Additional Church Information ---\n" + lines
 
-    if not widget:
+    if staff:
+        # No visitor restrictions for staff
         return base + ctx + qna_block + snippet_block
 
+    if not widget:
+        # Fallback path (widget=False, staff=False) — unchanged behaviour
+        return base + ctx + qna_block + snippet_block
+
+    # Public widget addendum — unchanged
     addendum = (
         "\n\nWhen answering questions about schedules, events, menus, or anything "
         "time-sensitive, use today's date to give a specific, direct answer — "
