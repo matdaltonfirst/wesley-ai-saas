@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import logging
+import time
 
 from datetime import datetime
 from flask import redirect, url_for, session, request, abort
@@ -295,9 +296,25 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
     )
     contents.append(types.Content(role="user", parts=[types.Part(text=current_text)]))
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(system_instruction=system_instruction),
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
-    return response.text
+
+    last_exc: Exception = Exception("Unknown error")
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents,
+                config=config,
+            )
+            return response.text
+        except Exception as e:
+            last_exc = e
+            err = str(e).lower()
+            if ("429" in err or "quota" in err or "rate" in err or "exhausted" in err) and attempt < 2:
+                time.sleep(2 ** attempt + 1)  # 2s, then 3s
+                continue
+            raise
+    raise last_exc
