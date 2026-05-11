@@ -720,6 +720,19 @@
     }
     .staff-item:hover .staff-remove-btn { color: var(--text-muted); }
     .staff-remove-btn:hover { color: #dc2626 !important; background: #fee2e2; }
+    .staff-resend-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .staff-resend-btn:hover { color: var(--accent); border-color: var(--accent); background: #f0fdf4; }
+    .staff-resend-btn:disabled { opacity: 0.5; cursor: default; }
     .staff-empty {
       padding: 20px 12px;
       font-size: 0.875rem;
@@ -1974,8 +1987,27 @@
             '<div class="staff-meta">Invite sent ' + new Date(inv.created_at).toLocaleDateString() + '</div>' +
           '</div>' +
           '<span class="staff-role-badge pending">Pending</span>' +
-          '<div style="width:24px;flex-shrink:0;"></div>';
+          '<button class="staff-resend-btn" data-id="' + inv.id + '">Resend</button>';
         staffList.appendChild(div);
+      });
+      staffList.querySelectorAll('.staff-resend-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          btn.textContent = 'Sending…';
+          fetch('/api/staff/invite/' + btn.dataset.id + '/resend', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.ok) {
+                btn.textContent = 'Sent!';
+                setTimeout(function () { btn.disabled = false; btn.textContent = 'Resend'; }, 3000);
+              } else {
+                btn.textContent = 'Resend';
+                btn.disabled = false;
+                alert(d.error || 'Could not resend invite.');
+              }
+            })
+            .catch(function () { btn.textContent = 'Resend'; btn.disabled = false; });
+        });
       });
       staffList.querySelectorAll('.staff-remove-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {

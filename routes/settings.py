@@ -181,13 +181,40 @@ def invite_staff():
 
     invite_url = url_for("auth.accept_invite_page", token=token, _external=True)
     church_name = current_user.church.name
-    threading.Thread(
-        target=send_invite_email,
-        args=(email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL),
-        daemon=True,
-    ).start()
+    _app = current_app._get_current_object()
+
+    def _send_invite():
+        with _app.app_context():
+            send_invite_email(email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+
+    threading.Thread(target=_send_invite, daemon=True).start()
 
     return jsonify({"ok": True}), 201
+
+
+@settings_bp.route("/api/staff/invite/<int:invite_id>/resend", methods=["POST"])
+@login_required
+def resend_invite(invite_id):
+    """Resend a pending staff invitation email (admin only)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Forbidden."}), 403
+
+    invite = Invite.query.filter_by(
+        id=invite_id, church_id=current_user.church_id, accepted=False
+    ).first()
+    if not invite:
+        return jsonify({"error": "Invite not found."}), 404
+
+    invite_url = url_for("auth.accept_invite_page", token=invite.token, _external=True)
+    church_name = current_user.church.name
+    _app = current_app._get_current_object()
+
+    def _resend():
+        with _app.app_context():
+            send_invite_email(invite.email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+
+    threading.Thread(target=_resend, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 @settings_bp.route("/api/staff/<int:user_id>", methods=["DELETE"])
