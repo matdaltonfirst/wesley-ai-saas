@@ -718,7 +718,7 @@
       flex-shrink: 0;
       transition: color 0.15s, background 0.15s;
     }
-    .staff-item:hover .staff-remove-btn { color: var(--text-muted); }
+    .staff-remove-btn { color: var(--text-muted) !important; }
     .staff-remove-btn:hover { color: #dc2626 !important; background: #fee2e2; }
     .staff-resend-btn {
       background: none;
@@ -1987,8 +1987,19 @@
             '<div class="staff-meta">Invite sent ' + new Date(inv.created_at).toLocaleDateString() + '</div>' +
           '</div>' +
           '<span class="staff-role-badge pending">Pending</span>' +
-          '<button class="staff-resend-btn" data-id="' + inv.id + '">Resend</button>';
+          '<button class="staff-resend-btn" data-id="' + inv.id + '">Resend</button>' +
+          '<button class="staff-remove-btn staff-cancel-btn" data-id="' + inv.id + '" title="Cancel invite">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+          '</button>';
         staffList.appendChild(div);
+      });
+      staffList.querySelectorAll('.staff-cancel-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Cancel this invitation?')) return;
+          fetch('/api/staff/invite/' + btn.dataset.id, { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d.ok) loadStaff(); else alert(d.error || 'Could not cancel invite.'); });
+        });
       });
       staffList.querySelectorAll('.staff-resend-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {

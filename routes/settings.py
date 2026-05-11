@@ -217,6 +217,24 @@ def resend_invite(invite_id):
     return jsonify({"ok": True})
 
 
+@settings_bp.route("/api/staff/invite/<int:invite_id>", methods=["DELETE"])
+@login_required
+def cancel_invite(invite_id):
+    """Cancel a pending staff invitation (admin only)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Forbidden."}), 403
+
+    invite = Invite.query.filter_by(
+        id=invite_id, church_id=current_user.church_id, accepted=False
+    ).first()
+    if not invite:
+        return jsonify({"error": "Invite not found."}), 404
+
+    db.session.delete(invite)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @settings_bp.route("/api/staff/<int:user_id>", methods=["DELETE"])
 @login_required
 def remove_staff(user_id):
