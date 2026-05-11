@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, date
 
 import stripe
-from flask import Blueprint, request, jsonify, render_template, url_for
+from flask import Blueprint, request, jsonify, render_template, url_for, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash
@@ -387,14 +387,16 @@ def admin_billing_send_invite(church_id):
     except stripe.StripeError as e:
         return jsonify({"error": getattr(e, "user_message", str(e))}), 502
 
-    # Send invite email in background thread (same pattern as codebase)
+    # Send invite email in background thread with app context
     _email = first_user.email
     _name  = church.name
-    threading.Thread(
-        target=send_stripe_invite_email,
-        args=(_email, _name, checkout_url, FROM_EMAIL, SUPPORT_EMAIL),
-        daemon=True,
-    ).start()
+    _app   = current_app._get_current_object()
+
+    def _send_stripe_invite():
+        with _app.app_context():
+            send_stripe_invite_email(_email, _name, checkout_url, FROM_EMAIL, SUPPORT_EMAIL)
+
+    threading.Thread(target=_send_stripe_invite, daemon=True).start()
 
     # Record invite timestamp
     now = datetime.utcnow()
