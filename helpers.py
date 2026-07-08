@@ -15,6 +15,7 @@ from google.genai import types
 from config import (
     DEFAULT_BOT_NAME, DEFAULT_WELCOME, DEFAULT_COLOR, DEFAULT_SUBTITLE,
     DEFAULT_SYSTEM_PROMPT, SUPER_ADMIN_EMAIL, EXEMPT_DOMAINS, GEMINI_MODEL,
+    GEMINI_FALLBACK_MODEL,
 )
 from models import SystemPrompt, TextSnippet, QnAPair
 
@@ -301,20 +302,35 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
+    models = [GEMINI_MODEL]
+    if GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
+        models.append(GEMINI_FALLBACK_MODEL)
+
     last_exc: Exception = Exception("Unknown error")
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=contents,
-                config=config,
-            )
-            return response.text
-        except Exception as e:
-            last_exc = e
-            err = str(e).lower()
-            if ("429" in err or "quota" in err or "rate" in err or "exhausted" in err) and attempt < 2:
-                time.sleep(2 ** attempt + 1)  # 2s, then 3s
-                continue
-            raise
+    for model_idx, model in enumerate(models):
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
+                return response.text
+            except Exception as e:
+                last_exc = e
+                err = str(e).lower()
+                if ("429" in err or "quota" in err or "rate" in err or "exhausted" in err) and attempt < 2:
+                    time.sleep(2 ** attempt + 1)  # 2s, then 3s
+                    continue
+                break  # non-retryable, or retries exhausted: consider fallback model
+        # Fall back only when the model itself is broken or overloaded
+        # (retired/renamed → 404, outage → 500/503), not for auth or bad requests.
+        err = str(last_exc).lower()
+        retryable = ("404" in err or "not found" in err or "503" in err
+                     or "unavailable" in err or "500" in err or "internal" in err)
+        if retryable and model_idx < len(models) - 1:
+            log.warning("[GEMINI] model %s failed (%s); falling back to %s",
+                        model, last_exc, models[model_idx + 1])
+            continue
+        raise last_exc
     raise last_exc
