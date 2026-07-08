@@ -7,7 +7,7 @@ import os
 APP_URL       = os.getenv("APP_URL",       "https://app.wesleyai.co")
 FROM_EMAIL    = os.getenv("FROM_EMAIL",    "Wesley AI <noreply@wesleyai.co>")
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "info@wesleyai.co")
-GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.0-flash")
+GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.5-flash-lite")
 
 # ── Branding defaults (single source of truth) ───────────────────────────────
 
