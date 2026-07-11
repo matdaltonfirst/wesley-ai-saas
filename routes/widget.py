@@ -18,7 +18,8 @@ from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
     load_church_web_content, load_chatbot_documents,
-    extract_keywords, score_chunk, find_relevant_chunks, build_context_block, build_citations,
+    extract_keywords, score_chunk, find_relevant_chunks,
+    build_cited_context, select_cited_sources,
 )
 
 log = logging.getLogger("wesley")
@@ -217,13 +218,7 @@ def widget_chat():
 
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
 
-    context_parts = []
-    if scored_docs:
-        context_parts.append(build_context_block(scored_docs))
-    if scored_web:
-        context_parts.append(build_context_block(scored_web))
-    context = "\n".join(context_parts)
-    sources = build_citations([scored_docs, scored_web])
+    context, candidate_sources = build_cited_context([scored_docs, scored_web])
 
     system_instruction = build_system_prompt(church, widget=True)
 
@@ -237,6 +232,7 @@ def widget_chat():
         user_msg, status = friendly_gemini_error(e)
         return cors_err(user_msg, status)
 
+    sources = select_cited_sources(answer, candidate_sources)
     db.session.add(WidgetMessage(
         widget_conversation_id=wconv.id,
         role="assistant",

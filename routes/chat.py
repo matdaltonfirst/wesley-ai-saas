@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 from models import db, Conversation, Message
 from helpers import build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from documents import (
-    load_church_documents, find_relevant_chunks, build_context_block, build_citations,
+    load_church_documents, find_relevant_chunks, build_cited_context, select_cited_sources,
 )
 
 chat_bp = Blueprint("chat", __name__)
@@ -54,13 +54,12 @@ def chat():
     uploads_dir = current_app.config["UPLOADS_DIR"]
     chunks = load_church_documents(current_user.church_id, uploads_dir)
     context = ""
-    sources = []
+    candidate_sources = []
 
     if chunks:
         scored = find_relevant_chunks(question, chunks)
         if scored:
-            context = build_context_block(scored)
-            sources = build_citations([scored])
+            context, candidate_sources = build_cited_context([scored])
 
     system_instruction = build_system_prompt(current_user.church, staff=True)
 
@@ -74,6 +73,7 @@ def chat():
         user_msg, status = friendly_gemini_error(e)
         return jsonify({"error": user_msg}), status
 
+    sources = select_cited_sources(answer, candidate_sources)
     db.session.add(Message(
         conversation_id=conv.id,
         role="assistant",

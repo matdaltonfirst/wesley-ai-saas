@@ -217,10 +217,13 @@ def build_context_block(scored_chunks: list[tuple[int, dict]]) -> str:
     return "\n".join(lines)
 
 
-def build_citations(scored_groups: list[list[tuple[int, dict]]], limit: int = 4) -> list[dict]:
-    """Build a stable, deduplicated citation list from retrieved chunks."""
+def build_cited_context(
+    scored_groups: list[list[tuple[int, dict]]], limit: int = 4
+) -> tuple[str, list[dict]]:
+    """Build numbered model context and its matching, deduplicated citations."""
     citations = []
-    seen = set()
+    citation_numbers = {}
+    context_lines = []
     for scored_chunks in scored_groups:
         for score, chunk in scored_chunks:
             if score <= 0:
@@ -229,15 +232,30 @@ def build_citations(scored_groups: list[list[tuple[int, dict]]], limit: int = 4)
             location = str(chunk.get("location") or "").strip()
             is_web = location.startswith(("http://", "https://"))
             key = (title, location)
-            if key in seen:
-                continue
-            seen.add(key)
-            citations.append({
-                "title": title,
-                "location": "Website" if is_web else location,
-                "url": location if is_web else None,
-                "type": "website" if is_web else "document",
-            })
-            if len(citations) >= limit:
-                return citations
-    return citations
+            if key not in citation_numbers:
+                if len(citations) >= limit:
+                    continue
+                citation_numbers[key] = len(citations) + 1
+                citations.append({
+                    "title": title,
+                    "location": "Website" if is_web else location,
+                    "url": location if is_web else None,
+                    "type": "website" if is_web else "document",
+                })
+            number = citation_numbers[key]
+            context_lines.extend([
+                f"[Source {number}: {title}, {location}]",
+                chunk["content"],
+                "",
+            ])
+    return "\n".join(context_lines), citations
+
+
+def select_cited_sources(answer: str, candidates: list[dict]) -> list[dict]:
+    """Return only sources explicitly cited by the model as [1], [2], etc."""
+    cited_numbers = []
+    for match in re.finditer(r"\[(\d+)\]", answer):
+        number = int(match.group(1))
+        if 1 <= number <= len(candidates) and number not in cited_numbers:
+            cited_numbers.append(number)
+    return [candidates[number - 1] for number in cited_numbers]

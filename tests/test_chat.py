@@ -110,7 +110,7 @@ class TestChat:
             "location": "Page 2",
         }]
         with patch("routes.chat.load_church_documents", return_value=chunks), \
-             patch("routes.chat.call_gemini", return_value="Worship begins at 10:30 AM."):
+             patch("routes.chat.call_gemini", return_value="Worship begins at 10:30 AM. [1]"):
             res = auth_client.post("/api/chat", json={"question": "When is Sunday worship?"})
 
         assert res.status_code == 200
@@ -126,6 +126,21 @@ class TestChat:
         assistant = history.get_json()["messages"][-1]
         assert assistant["sources"] == data["sources"]
 
+        db.session.delete(Conversation.query.get(data["conversation_id"]))
+        db.session.commit()
+
+    def test_chat_hides_retrieved_source_when_answer_does_not_cite_it(self, auth_client):
+        chunks = [{
+            "content": "The office is open Tuesday through Thursday.",
+            "source": "Office Guide.pdf",
+            "location": "Page 1",
+        }]
+        with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.call_gemini", return_value="I don't have that information."):
+            res = auth_client.post("/api/chat", json={"question": "Is the office open Friday?"})
+
+        data = res.get_json()
+        assert data["sources"] == []
         db.session.delete(Conversation.query.get(data["conversation_id"]))
         db.session.commit()
 

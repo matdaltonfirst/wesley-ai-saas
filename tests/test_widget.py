@@ -116,7 +116,7 @@ class TestWidgetChat:
         }]
         with patch("routes.widget.load_chatbot_documents", return_value=public_docs), \
              patch("routes.widget.load_church_web_content", return_value=web_pages), \
-             patch("routes.widget.call_gemini", return_value="Children meet at 9 AM."):
+             patch("routes.widget.call_gemini", return_value="Children meet at 9 AM. [1][2]"):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "When do children meet on Sunday?",

@@ -305,7 +305,12 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
         contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
 
     current_text = (
-        f"[Relevant church information:]\n{context}\n---\n{question}"
+        "[Relevant church information:]\n"
+        f"{context}\n---\n"
+        "Use only sources that directly support your answer. Cite each factual claim "
+        "drawn from a numbered source with its bracketed number, such as [1]. Do not "
+        "cite a source unless it supports that claim. If the sources do not support an "
+        f"answer, say that the information is unavailable and do not add a citation.\n\n{question}"
         if context.strip()
         else question
     )
