@@ -146,6 +146,21 @@ class TestChat:
         db.session.delete(Conversation.query.get(data["conversation_id"]))
         db.session.commit()
 
+    def test_chat_accepts_grouped_citation_markers(self, auth_client):
+        chunks = [
+            {"content": "Worship is Sunday.", "source": "Worship", "location": "Page 1"},
+            {"content": "Classes are Sunday.", "source": "Classes", "location": "Page 2"},
+        ]
+        with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.load_curated_content", return_value=[]), \
+             patch("routes.chat.call_gemini", return_value="Both meet Sunday [1, 2]."):
+            res = auth_client.post("/api/chat", json={"question": "What meets Sunday?"})
+
+        data = res.get_json()
+        assert [source["title"] for source in data["sources"]] == ["Worship", "Classes"]
+        db.session.delete(Conversation.query.get(data["conversation_id"]))
+        db.session.commit()
+
 
 # ── /api/conversations ────────────────────────────────────────────────────────
 
