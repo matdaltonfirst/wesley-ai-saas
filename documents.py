@@ -9,7 +9,7 @@ from pathlib import Path
 import pdfplumber
 from docx import Document as DocxDocument
 
-from models import Document, CrawledPage
+from models import Document, CrawledPage, QnAPair, TextSnippet
 
 log = logging.getLogger("wesley")
 
@@ -186,6 +186,26 @@ def load_church_web_content(church_id: int) -> list[dict]:
     return chunks
 
 
+def load_curated_content(church_id: int) -> list[dict]:
+    """Return active staff-approved Q&A and snippets as citable chunks."""
+    chunks = []
+    for pair in QnAPair.query.filter_by(church_id=church_id, is_active=True).all():
+        chunks.append({
+            "content": f"Question: {pair.question}\nAnswer: {pair.answer}",
+            "source": "Approved church answer",
+            "location": pair.question,
+            "type": "approved_answer",
+        })
+    for snippet in TextSnippet.query.filter_by(church_id=church_id, is_active=True).all():
+        chunks.append({
+            "content": snippet.content,
+            "source": snippet.title,
+            "location": "Church information",
+            "type": "church_information",
+        })
+    return chunks
+
+
 # ── Relevance scoring ────────────────────────────────────────────────────────
 
 
@@ -231,6 +251,7 @@ def build_cited_context(
             title = str(chunk.get("source") or "Church information").strip()
             location = str(chunk.get("location") or "").strip()
             is_web = location.startswith(("http://", "https://"))
+            source_type = chunk.get("type") or ("website" if is_web else "document")
             key = (title, location)
             if key not in citation_numbers:
                 if len(citations) >= limit:
@@ -240,7 +261,7 @@ def build_cited_context(
                     "title": title,
                     "location": "Website" if is_web else location,
                     "url": location if is_web else None,
-                    "type": "website" if is_web else "document",
+                    "type": source_type,
                 })
             number = citation_numbers[key]
             context_lines.extend([

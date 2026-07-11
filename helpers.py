@@ -139,7 +139,8 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
         qna_block = (
             "\n\n--- Approved Q&A — Always Use These Answers Exactly ---\n"
             "If a visitor asks something matching one of these questions, use the "
-            "provided answer. Do not paraphrase or modify these answers.\n\n"
+            "provided answer. Do not paraphrase or modify its wording. You may append "
+            "a numbered citation marker when citation instructions request one.\n\n"
             + lines
         )
 

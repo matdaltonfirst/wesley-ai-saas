@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-from models import db, WidgetConversation, WidgetMessage
+from models import db, WidgetConversation, WidgetMessage, QnAPair
 
 
 # ── Widget branding ───────────────────────────────────────────────────────────
@@ -115,6 +115,7 @@ class TestWidgetChat:
             "location": "https://grace.example/children",
         }]
         with patch("routes.widget.load_chatbot_documents", return_value=public_docs), \
+             patch("routes.widget.load_curated_content", return_value=[]), \
              patch("routes.widget.load_church_web_content", return_value=web_pages), \
              patch("routes.widget.call_gemini", return_value="Children meet at 9 AM. [1][2]"):
             res = client.post("/api/widget/chat", json={
@@ -137,6 +138,36 @@ class TestWidgetChat:
         assistant = next(m for m in wconv.messages if m.role == "assistant")
         assert "Children's Ministry" in assistant.sources
         db.session.delete(wconv)
+        db.session.commit()
+
+    def test_chat_cites_staff_approved_qna(self, client, church):
+        pair = QnAPair(
+            church_id=church.id,
+            question="What time is worship?",
+            answer="Worship begins at 10 AM.",
+        )
+        db.session.add(pair)
+        db.session.commit()
+
+        with patch("routes.widget.load_chatbot_documents", return_value=[]), \
+             patch("routes.widget.load_church_web_content", return_value=[]), \
+             patch("routes.widget.call_gemini", return_value="Worship begins at 10 AM. [1]"):
+            res = client.post("/api/widget/chat", json={
+                "church_id": church.id,
+                "question": "What time is worship?",
+            })
+
+        data = res.get_json()
+        assert data["sources"] == [{
+            "title": "Approved church answer",
+            "location": "What time is worship?",
+            "url": None,
+            "type": "approved_answer",
+        }]
+
+        wconv = WidgetConversation.query.filter_by(session_id=data["session_id"]).first()
+        db.session.delete(wconv)
+        db.session.delete(pair)
         db.session.commit()
 
     def test_chat_continues_existing_session(self, client, church):

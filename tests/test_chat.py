@@ -110,6 +110,7 @@ class TestChat:
             "location": "Page 2",
         }]
         with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.load_curated_content", return_value=[]), \
              patch("routes.chat.call_gemini", return_value="Worship begins at 10:30 AM. [1]"):
             res = auth_client.post("/api/chat", json={"question": "When is Sunday worship?"})
 
@@ -136,6 +137,7 @@ class TestChat:
             "location": "Page 1",
         }]
         with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.load_curated_content", return_value=[]), \
              patch("routes.chat.call_gemini", return_value="I don't have that information."):
             res = auth_client.post("/api/chat", json={"question": "Is the office open Friday?"})
 
