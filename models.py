@@ -27,6 +27,7 @@ class Message(db.Model):
     conversation_id = db.Column(db.Integer, db.ForeignKey("conversations.id"), nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
+    sources = db.Column(db.Text, nullable=True)       # JSON-encoded citation list
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -189,6 +190,7 @@ class WidgetMessage(db.Model):
     )
     role = db.Column(db.String(20), nullable=False)   # "user" or "assistant"
     content = db.Column(db.Text, nullable=False)
+    sources = db.Column(db.Text, nullable=True)       # JSON-encoded citation list
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

@@ -156,6 +156,14 @@
     "flex-shrink:0;display:flex;align-items:center;justify-content:center;",
     "font-size:0.6rem;font-weight:800;color:#fff;",
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}",
+    ".wai-bot-content{display:flex;flex-direction:column;align-items:flex-start;max-width:250px;}",
+    ".wai-sources{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;max-width:250px;}",
+    ".wai-source-label{width:100%;font-size:0.65rem;font-weight:600;color:#667085;}",
+    ".wai-source{display:inline-flex;align-items:center;max-width:230px;padding:4px 7px;",
+    "border:1px solid #cce7e9;border-radius:6px;background:#f5fbfb;color:#176d73;",
+    "font:500 0.67rem/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
+    "text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+    "a.wai-source:hover{background:#e8f7f8;}",
 
     /* Typing indicator */
     ".wai-typing{display:flex;gap:4px;padding:10px 12px;background:#eaf7f8;",
@@ -606,13 +614,24 @@
     this._refs.btn.setAttribute("aria-expanded", "false");
   };
 
-  WesleyWidget.prototype._appendBot = function (html) {
+  WesleyWidget.prototype._appendBot = function (html, sources) {
     var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
     var row = document.createElement("div");
     row.className = "wai-msg wai-msg-bot";
+    var sourceHtml = "";
+    if (sources && sources.length) {
+      sourceHtml = '<div class="wai-sources"><span class="wai-source-label">Sources</span>' +
+        sources.map(function (s) {
+          var detail = s.location ? " · " + esc(s.location) : "";
+          var label = esc(s.title) + detail;
+          return s.url
+            ? '<a class="wai-source" href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+            : '<span class="wai-source">' + label + '</span>';
+        }).join("") + "</div>";
+    }
     row.innerHTML =
       '<div class="wai-bot-av">' + esc(ini) + "</div>" +
-      '<div class="wai-bubble wai-bubble-bot">' + html + "</div>";
+      '<div class="wai-bot-content"><div class="wai-bubble wai-bubble-bot">' + html + "</div>" + sourceHtml + "</div>";
     this._refs.msgs.appendChild(row);
     this._refs.msgs.scrollTop = this._refs.msgs.scrollHeight;
     return row;
@@ -757,7 +776,7 @@
         if (!result.ok || result.data.error) {
           self._appendBot("⚠ " + esc(result.data.error || "Something went wrong. Please try again."));
         } else {
-          self._appendBot(renderMd(result.data.answer || ""));
+          self._appendBot(renderMd(result.data.answer || ""), result.data.sources || []);
           if (!self._connCardShown) {
             var interest = self._detectInterest(text);
             if (interest) {

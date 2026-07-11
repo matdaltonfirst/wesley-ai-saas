@@ -1,5 +1,7 @@
 """Chat API routes: staff chat, conversations list, conversation messages."""
 
+import json
+
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, current_app
@@ -8,7 +10,7 @@ from flask_login import login_required, current_user
 from models import db, Conversation, Message
 from helpers import build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from documents import (
-    load_church_documents, find_relevant_chunks, build_context_block,
+    load_church_documents, find_relevant_chunks, build_context_block, build_citations,
 )
 
 chat_bp = Blueprint("chat", __name__)
@@ -52,18 +54,13 @@ def chat():
     uploads_dir = current_app.config["UPLOADS_DIR"]
     chunks = load_church_documents(current_user.church_id, uploads_dir)
     context = ""
-    candidate_sources = []
+    sources = []
 
     if chunks:
         scored = find_relevant_chunks(question, chunks)
         if scored:
             context = build_context_block(scored)
-            seen: set[tuple] = set()
-            for _, chunk in scored:
-                key = (chunk["source"], chunk["location"])
-                if key not in seen:
-                    seen.add(key)
-                    candidate_sources.append({"file": chunk["source"], "location": chunk["location"]})
+            sources = build_citations([scored])
 
     system_instruction = build_system_prompt(current_user.church, staff=True)
 
@@ -77,12 +74,14 @@ def chat():
         user_msg, status = friendly_gemini_error(e)
         return jsonify({"error": user_msg}), status
 
-    db.session.add(Message(conversation_id=conv.id, role="assistant", content=answer))
+    db.session.add(Message(
+        conversation_id=conv.id,
+        role="assistant",
+        content=answer,
+        sources=json.dumps(sources) if sources else None,
+    ))
     conv.updated_at = datetime.utcnow()
     db.session.commit()
-
-    answer_lower = answer.lower()
-    sources = [s for s in candidate_sources if s["file"].lower() in answer_lower]
 
     return jsonify({"answer": answer, "sources": sources, "conversation_id": conv.id})
 
@@ -116,7 +115,12 @@ def get_conversation_messages(conv_id):
         "conversation_id": conv.id,
         "title": conv.title,
         "messages": [
-            {"role": m.role, "content": m.content, "created_at": iso_utc(m.created_at)}
+            {
+                "role": m.role,
+                "content": m.content,
+                "sources": json.loads(m.sources) if m.sources else [],
+                "created_at": iso_utc(m.created_at),
+            }
             for m in conv.messages
         ],
     })

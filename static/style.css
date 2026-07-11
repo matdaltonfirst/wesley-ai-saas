@@ -651,11 +651,18 @@ body {
 .assistant-text hr { border: none; border-top: 1px solid var(--border-light); margin: 1em 0; }
 
 /* ── Source chips ─────────────────────────────────────────────────────────── */
+.msg-source-block { margin-top: var(--sp-3); }
+.msg-source-label {
+  display: block;
+  margin-bottom: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
 .msg-sources {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
 }
 
 .source-chip {
@@ -674,9 +681,11 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
+  text-decoration: none;
   transition: background var(--duration) var(--ease-out);
 }
 .source-chip:hover { background: rgba(41,171,181,0.15); }
+a.source-chip { cursor: pointer; }
 .chip-dot {
   width: 5px;
   height: 5px;

@@ -1,6 +1,7 @@
 """Tests for document API routes: list, upload, delete, patch visibility."""
 
 import io
+from unittest.mock import patch
 
 import pytest
 from models import db, Document
@@ -255,3 +256,42 @@ class TestPatchVisibility:
 
         db.session.delete(doc)
         db.session.commit()
+
+    def test_public_loader_excludes_staff_only_documents(self, app, church):
+        from documents import load_chatbot_documents
+
+        church_dir = app.config["UPLOADS_DIR"] / str(church.id)
+        church_dir.mkdir(parents=True, exist_ok=True)
+        public_path = church_dir / "public.pdf"
+        private_path = church_dir / "private.pdf"
+        public_path.touch()
+        private_path.touch()
+
+        public_doc = Document(
+            church_id=church.id, filename=public_path.name,
+            original_name="Public Guide.pdf", size_bytes=1,
+            visibility="staff_and_chatbot",
+        )
+        private_doc = Document(
+            church_id=church.id, filename=private_path.name,
+            original_name="Staff Notes.pdf", size_bytes=1,
+            visibility="staff_only",
+        )
+        db.session.add_all([public_doc, private_doc])
+        db.session.commit()
+
+        with patch("documents._parse_doc_chunks") as parse_chunks:
+            parse_chunks.side_effect = lambda doc, _path: [{
+                "content": doc.original_name,
+                "source": doc.original_name,
+                "location": "Page 1",
+            }]
+            chunks = load_chatbot_documents(church.id, app.config["UPLOADS_DIR"])
+
+        assert [chunk["source"] for chunk in chunks] == ["Public Guide.pdf"]
+
+        db.session.delete(public_doc)
+        db.session.delete(private_doc)
+        db.session.commit()
+        public_path.unlink()
+        private_path.unlink()

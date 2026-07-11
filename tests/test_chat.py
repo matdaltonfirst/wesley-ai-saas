@@ -103,6 +103,32 @@ class TestChat:
             db.session.delete(conv)
             db.session.commit()
 
+    def test_chat_returns_and_persists_document_citations(self, auth_client, church):
+        chunks = [{
+            "content": "Sunday worship begins at 10:30 AM.",
+            "source": "Visitor Guide.pdf",
+            "location": "Page 2",
+        }]
+        with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.call_gemini", return_value="Worship begins at 10:30 AM."):
+            res = auth_client.post("/api/chat", json={"question": "When is Sunday worship?"})
+
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["sources"] == [{
+            "title": "Visitor Guide.pdf",
+            "location": "Page 2",
+            "url": None,
+            "type": "document",
+        }]
+
+        history = auth_client.get(f"/api/conversations/{data['conversation_id']}/messages")
+        assistant = history.get_json()["messages"][-1]
+        assert assistant["sources"] == data["sources"]
+
+        db.session.delete(Conversation.query.get(data["conversation_id"]))
+        db.session.commit()
+
 
 # ── /api/conversations ────────────────────────────────────────────────────────
 

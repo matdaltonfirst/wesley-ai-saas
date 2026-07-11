@@ -215,3 +215,29 @@ def build_context_block(scored_chunks: list[tuple[int, dict]]) -> str:
         lines.append(chunk["content"])
         lines.append("")
     return "\n".join(lines)
+
+
+def build_citations(scored_groups: list[list[tuple[int, dict]]], limit: int = 4) -> list[dict]:
+    """Build a stable, deduplicated citation list from retrieved chunks."""
+    citations = []
+    seen = set()
+    for scored_chunks in scored_groups:
+        for score, chunk in scored_chunks:
+            if score <= 0:
+                continue
+            title = str(chunk.get("source") or "Church information").strip()
+            location = str(chunk.get("location") or "").strip()
+            is_web = location.startswith(("http://", "https://"))
+            key = (title, location)
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append({
+                "title": title,
+                "location": "Website" if is_web else location,
+                "url": location if is_web else None,
+                "type": "website" if is_web else "document",
+            })
+            if len(citations) >= limit:
+                return citations
+    return citations

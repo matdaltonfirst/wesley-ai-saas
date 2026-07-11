@@ -1,5 +1,7 @@
 """Widget routes: public CORS endpoints for branding, chat, and JS serving."""
 
+import json
+
 import threading
 import uuid
 import logging
@@ -16,7 +18,7 @@ from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
     load_church_web_content, load_chatbot_documents,
-    extract_keywords, score_chunk, find_relevant_chunks, build_context_block,
+    extract_keywords, score_chunk, find_relevant_chunks, build_context_block, build_citations,
 )
 
 log = logging.getLogger("wesley")
@@ -121,7 +123,12 @@ def get_widget_conversation_messages(wconv_id):
         "id": wconv.id,
         "session_id": wconv.session_id,
         "messages": [
-            {"role": m.role, "content": m.content, "created_at": iso_utc(m.created_at)}
+            {
+                "role": m.role,
+                "content": m.content,
+                "sources": json.loads(m.sources) if m.sources else [],
+                "created_at": iso_utc(m.created_at),
+            }
             for m in wconv.messages
         ],
     })
@@ -216,6 +223,7 @@ def widget_chat():
     if scored_web:
         context_parts.append(build_context_block(scored_web))
     context = "\n".join(context_parts)
+    sources = build_citations([scored_docs, scored_web])
 
     system_instruction = build_system_prompt(church, widget=True)
 
@@ -230,7 +238,10 @@ def widget_chat():
         return cors_err(user_msg, status)
 
     db.session.add(WidgetMessage(
-        widget_conversation_id=wconv.id, role="assistant", content=answer
+        widget_conversation_id=wconv.id,
+        role="assistant",
+        content=answer,
+        sources=json.dumps(sources) if sources else None,
     ))
     wconv.updated_at = datetime.utcnow()
     try:
@@ -240,7 +251,7 @@ def widget_chat():
         log.error("[WIDGET] DB commit failed: %s", e)
         return cors_err("Failed to save conversation. Please try again.", 500)
 
-    resp = jsonify({"answer": answer, "session_id": session_id})
+    resp = jsonify({"answer": answer, "sources": sources, "session_id": session_id})
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp
 

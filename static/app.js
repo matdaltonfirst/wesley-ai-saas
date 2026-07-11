@@ -54,13 +54,15 @@ function appendAssistantMsg(text, sources) {
   row.className = "msg-row assistant";
 
   const sourcesHtml = sources && sources.length
-    ? `<div class="msg-sources">${
-        sources.map(s =>
-          `<span class="source-chip" title="${esc(s.file)} — ${esc(s.location)}">
-            <span class="chip-dot"></span>${esc(s.file)} · ${esc(s.location)}
-          </span>`
-        ).join("")
-      }</div>`
+    ? `<div class="msg-source-block"><span class="msg-source-label">Sources</span><div class="msg-sources">${
+        sources.map(s => {
+          const detail = s.location ? ` · ${esc(s.location)}` : "";
+          const content = `<span class="chip-dot"></span>${esc(s.title)}${detail}`;
+          return s.url
+            ? `<a class="source-chip" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="Open ${esc(s.title)}">${content}</a>`
+            : `<span class="source-chip" title="${esc(s.title)}${detail}">${content}</span>`;
+        }).join("")
+      }</div></div>`
     : "";
 
   row.innerHTML = `
@@ -193,7 +195,7 @@ async function loadConversation(convId) {
       if (m.role === "user") {
         appendUserMsg(m.content);
       } else {
-        appendAssistantMsg(m.content, []);
+        appendAssistantMsg(m.content, m.sources || []);
       }
     });
 

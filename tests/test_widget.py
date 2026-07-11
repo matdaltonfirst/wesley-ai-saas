@@ -103,6 +103,42 @@ class TestWidgetChat:
             db.session.delete(wconv)
             db.session.commit()
 
+    def test_chat_returns_public_website_and_document_citations(self, client, church):
+        public_docs = [{
+            "content": "Children meet at 9 AM on Sundays.",
+            "source": "Children's Ministry Guide.pdf",
+            "location": "Page 4",
+        }]
+        web_pages = [{
+            "content": "Sunday children programming begins at 9 AM.",
+            "source": "Children's Ministry",
+            "location": "https://grace.example/children",
+        }]
+        with patch("routes.widget.load_chatbot_documents", return_value=public_docs), \
+             patch("routes.widget.load_church_web_content", return_value=web_pages), \
+             patch("routes.widget.call_gemini", return_value="Children meet at 9 AM."):
+            res = client.post("/api/widget/chat", json={
+                "church_id": church.id,
+                "question": "When do children meet on Sunday?",
+            })
+
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["sources"][0]["title"] == "Children's Ministry Guide.pdf"
+        assert data["sources"][0]["type"] == "document"
+        assert data["sources"][1] == {
+            "title": "Children's Ministry",
+            "location": "Website",
+            "url": "https://grace.example/children",
+            "type": "website",
+        }
+
+        wconv = WidgetConversation.query.filter_by(session_id=data["session_id"]).first()
+        assistant = next(m for m in wconv.messages if m.role == "assistant")
+        assert "Children's Ministry" in assistant.sources
+        db.session.delete(wconv)
+        db.session.commit()
+
     def test_chat_continues_existing_session(self, client, church):
         """Subsequent messages with the same session_id reuse the conversation."""
         with patch("routes.widget.call_gemini", return_value="First response."):

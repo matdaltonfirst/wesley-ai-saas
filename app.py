@@ -192,6 +192,14 @@ def create_app(testing: bool = False) -> Flask:
 def _run_migrations() -> None:
     """Run all inline schema migrations for existing databases."""
 
+    for table_name in ("messages", "widget_messages"):
+        message_cols = {c["name"] for c in sa_inspect(db.engine).get_columns(table_name)}
+        if "sources" not in message_cols:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN sources TEXT"))
+                conn.commit()
+            log.info("Migration: added %s.sources", table_name)
+
     # ── churches table ───────────────────────────────────────────────────────
     insp = sa_inspect(db.engine)
     existing_cols = {c["name"] for c in insp.get_columns("churches")}
