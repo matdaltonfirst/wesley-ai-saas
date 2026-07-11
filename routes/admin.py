@@ -14,7 +14,7 @@ from werkzeug.security import generate_password_hash
 
 from models import db, User, Church, SystemPrompt
 from config import DEFAULT_SYSTEM_PROMPT, FROM_EMAIL, APP_URL, SUPPORT_EMAIL
-from helpers import is_super_admin, get_billing_status
+from helpers import is_super_admin, get_billing_status, iso_utc
 from emails import send_stripe_invite_email
 
 admin_bp = Blueprint("admin", __name__)
@@ -123,8 +123,8 @@ def admin_list_churches():
             "name":                  c.name,
             "admin_email":           admin_email,
             "church_city":           c.church_city or "",
-            "created_at":            c.created_at.isoformat() if c.created_at else "",
-            "trial_ends_at":         c.trial_ends_at.isoformat() if c.trial_ends_at else "",
+            "created_at":            iso_utc(c.created_at) or "",
+            "trial_ends_at":         iso_utc(c.trial_ends_at) or "",
             "plan":                  c.plan or "founders",
             "billing_exempt":        c.billing_exempt,
             "stripe_subscription_id": c.stripe_subscription_id or "",
@@ -238,8 +238,8 @@ def _billing_row(church) -> dict:
         "manual_payment_amount": float(church.manual_payment_amount) if getattr(church, "manual_payment_amount", None) else None,
         "manual_payment_start":  church.manual_payment_start.isoformat() if getattr(church, "manual_payment_start", None) else None,
         "stripe_customer_id":    church.stripe_customer_id or "",
-        "stripe_invite_sent_at":  invite_sent_at.isoformat() if invite_sent_at else None,
-        "stripe_invite_resent_at": invite_resent_at.isoformat() if invite_resent_at else None,
+        "stripe_invite_sent_at":  iso_utc(invite_sent_at),
+        "stripe_invite_resent_at": iso_utc(invite_resent_at),
         "stripe_invite_sent":    bool(invite_sent_at),
         "plan":                  church.plan or "",
     }

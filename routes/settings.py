@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 
 from models import db, User, Church, CrawledPage, Invite
 from config import DEFAULT_COLOR, FROM_EMAIL, SUPPORT_EMAIL
-from helpers import build_branding_dict
+from helpers import build_branding_dict, iso_utc
 from emails import send_invite_email
 
 settings_bp = Blueprint("settings", __name__)
@@ -67,7 +67,7 @@ def get_church_settings():
     page_count = CrawledPage.query.filter_by(church_id=church.id).count()
     return jsonify({
         "website_url": church.website_url or "",
-        "last_crawled_at": church.last_crawled_at.isoformat() if church.last_crawled_at else None,
+        "last_crawled_at": iso_utc(church.last_crawled_at),
         "page_count": page_count,
         "church_id": church.id,
     })
@@ -137,11 +137,11 @@ def list_staff():
     )
     return jsonify({
         "staff": [
-            {"id": u.id, "email": u.email, "role": u.role, "created_at": u.created_at.isoformat()}
+            {"id": u.id, "email": u.email, "role": u.role, "created_at": iso_utc(u.created_at)}
             for u in users
         ],
         "pending_invites": [
-            {"id": inv.id, "email": inv.email, "created_at": inv.created_at.isoformat()}
+            {"id": inv.id, "email": inv.email, "created_at": iso_utc(inv.created_at)}
             for inv in pending
         ],
     })

@@ -22,6 +22,20 @@ from models import SystemPrompt, TextSnippet, QnAPair
 log = logging.getLogger("wesley")
 
 
+def iso_utc(dt):
+    """Serialize a DB datetime as ISO 8601 with an explicit UTC marker.
+
+    Timestamps are stored naive-UTC (datetime.utcnow); without the trailing
+    "Z" browsers parse them as local time, skewing displayed times by the
+    viewer's UTC offset.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat() + "Z"
+    return dt.isoformat()
+
+
 # ── Branding ─────────────────────────────────────────────────────────────────
 
 def build_branding_dict(church) -> dict:

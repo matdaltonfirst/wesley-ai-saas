@@ -11,7 +11,7 @@ from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
 from models import db, Church, User, WidgetConversation, WidgetMessage, GuestConnection, TextSnippet, QnAPair
-from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error
+from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
@@ -101,8 +101,8 @@ def list_widget_conversations():
         result.append({
             "id": wc.id,
             "session_id": wc.session_id,
-            "created_at": wc.created_at.isoformat(),
-            "updated_at": wc.updated_at.isoformat(),
+            "created_at": iso_utc(wc.created_at),
+            "updated_at": iso_utc(wc.updated_at),
             "preview": preview,
             "message_count": len(wc.messages),
         })
@@ -121,7 +121,7 @@ def get_widget_conversation_messages(wconv_id):
         "id": wconv.id,
         "session_id": wconv.session_id,
         "messages": [
-            {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+            {"role": m.role, "content": m.content, "created_at": iso_utc(m.created_at)}
             for m in wconv.messages
         ],
     })
@@ -324,8 +324,8 @@ def analytics_chats():
             "id": c.id,
             "preview": preview or "(no messages)",
             "message_count": len(c.messages),
-            "created_at": c.created_at.isoformat(),
-            "updated_at": c.updated_at.isoformat(),
+            "created_at": iso_utc(c.created_at),
+            "updated_at": iso_utc(c.updated_at),
         })
 
     return jsonify({
@@ -391,7 +391,7 @@ def analytics_sentiment():
                     needs_attention.append({
                         "question": first_user.content[:150],
                         "response_snippet": bot_msg.content[:200],
-                        "date": conv.created_at.isoformat(),
+                        "date": iso_utc(conv.created_at),
                         "category": cat,
                     })
                 break
@@ -512,7 +512,7 @@ def list_guest_connections():
                 "opening_message": gc.opening_message or "",
                 "status": gc.status,
                 "notes": gc.notes or "",
-                "created_at": gc.created_at.isoformat(),
+                "created_at": iso_utc(gc.created_at),
             }
             for gc in connections
         ],
@@ -621,7 +621,7 @@ def _snippet_dict(s):
         "content": s.content,
         "category": s.category or "",
         "is_active": s.is_active,
-        "created_at": s.created_at.isoformat(),
+        "created_at": iso_utc(s.created_at),
     }
 
 
@@ -689,5 +689,5 @@ def _qna_dict(p):
         "question": p.question,
         "answer": p.answer,
         "is_active": p.is_active,
-        "created_at": p.created_at.isoformat(),
+        "created_at": iso_utc(p.created_at),
     }

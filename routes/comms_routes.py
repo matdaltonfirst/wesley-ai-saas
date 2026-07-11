@@ -11,6 +11,7 @@ from flask_login import login_required, current_user
 
 from models import db, CommsRequest
 from comms_triage import determine_priority, determine_tier, generate_triage_explanation
+from helpers import iso_utc
 
 comms_bp = Blueprint("comms", __name__)
 
@@ -368,6 +369,6 @@ def comms_detail(req_id):
         "production_tier":      req.production_tier,
         "estimated_completion": req.estimated_completion,
         "triage_explanation":   req.triage_explanation,
-        "created_at":           req.created_at.isoformat(),
-        "completed_at":         req.completed_at.isoformat() if req.completed_at else None,
+        "created_at":           iso_utc(req.created_at),
+        "completed_at":         iso_utc(req.completed_at),
     })

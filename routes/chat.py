@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 
 from models import db, Conversation, Message
-from helpers import build_system_prompt, call_gemini, friendly_gemini_error
+from helpers import build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from documents import (
     load_church_documents, find_relevant_chunks, build_context_block,
 )
@@ -98,7 +98,7 @@ def list_conversations():
     )
     return jsonify({
         "conversations": [
-            {"id": c.id, "title": c.title, "updated_at": c.updated_at.isoformat()}
+            {"id": c.id, "title": c.title, "updated_at": iso_utc(c.updated_at)}
             for c in convs
         ]
     })
@@ -116,7 +116,7 @@ def get_conversation_messages(conv_id):
         "conversation_id": conv.id,
         "title": conv.title,
         "messages": [
-            {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+            {"role": m.role, "content": m.content, "created_at": iso_utc(m.created_at)}
             for m in conv.messages
         ],
     })

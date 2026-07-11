@@ -433,11 +433,13 @@ const wconvRefreshBtn = document.getElementById("wconvRefreshBtn");
 
 function formatWconvDate(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
+  // Server timestamps are UTC; treat strings without a zone marker as UTC.
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso);
+  const d = new Date(hasZone ? iso : iso + "Z");
   const now = new Date();
-  const diffMs = now - d;
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffDays === 0) return "Today";
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays <= 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7)  return `${diffDays}d ago`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
