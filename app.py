@@ -201,6 +201,14 @@ def _run_migrations() -> None:
         ("pco_person_id",  "ALTER TABLE guest_connections ADD COLUMN pco_person_id VARCHAR(50)"),
         ("pco_synced_at",  "ALTER TABLE guest_connections ADD COLUMN pco_synced_at DATETIME"),
         ("pco_sync_error", "ALTER TABLE guest_connections ADD COLUMN pco_sync_error VARCHAR(500)"),
+        ("pco_sync_status", "ALTER TABLE guest_connections ADD COLUMN pco_sync_status VARCHAR(20)"),
+        ("pco_sync_attempts", "ALTER TABLE guest_connections ADD COLUMN pco_sync_attempts INTEGER NOT NULL DEFAULT 0"),
+        ("pco_next_retry_at", "ALTER TABLE guest_connections ADD COLUMN pco_next_retry_at DATETIME"),
+        ("pco_sync_started_at", "ALTER TABLE guest_connections ADD COLUMN pco_sync_started_at DATETIME"),
+        ("pco_email_synced", "ALTER TABLE guest_connections ADD COLUMN pco_email_synced BOOLEAN NOT NULL DEFAULT 0"),
+        ("pco_phone_synced", "ALTER TABLE guest_connections ADD COLUMN pco_phone_synced BOOLEAN NOT NULL DEFAULT 0"),
+        ("pco_note_synced", "ALTER TABLE guest_connections ADD COLUMN pco_note_synced BOOLEAN NOT NULL DEFAULT 0"),
+        ("pco_workflow_synced", "ALTER TABLE guest_connections ADD COLUMN pco_workflow_synced BOOLEAN NOT NULL DEFAULT 0"),
     ]
     for col, ddl in gc_migrations:
         if col not in gc_cols:
@@ -508,6 +516,15 @@ def weekly_digest_job():
         log.info("Weekly digest job: sent digest(s) for %d church(es).", sent)
 
 
+def pco_reconciliation_job():
+    """Recover interrupted and retryable Planning Center guest syncs."""
+    with app.app_context():
+        from pco import reconcile_pending_syncs
+        synced = reconcile_pending_syncs()
+        if synced:
+            log.info("Planning Center reconciliation: synced %d guest(s).", synced)
+
+
 # Only start the scheduler in production (not during tests or CLI commands)
 if not app.testing:
     scheduler = BackgroundScheduler(daemon=True)
@@ -519,6 +536,7 @@ if not app.testing:
     scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
     scheduler.add_job(weekly_digest_job, CronTrigger(day_of_week="mon", hour=13, minute=0))
     scheduler.add_job(calendar_refresh_job, CronTrigger(hour=1, minute=30))
+    scheduler.add_job(pco_reconciliation_job, "interval", minutes=5)
     if not scheduler.running:
         scheduler.start()
 

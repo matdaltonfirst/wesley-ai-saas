@@ -3,8 +3,16 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import pytest
+
 from models import db, PcoConnection, GuestConnection
 import pco
+
+
+@pytest.fixture(autouse=True)
+def _token_encryption_key():
+    with patch("pco.PCO_TOKEN_ENCRYPTION_KEY", "test-only-encryption-key"):
+        yield
 
 
 def _connect_church(church, **overrides):
@@ -55,7 +63,9 @@ class TestStatusAndSettings:
     def test_status_unconfigured(self, auth_client):
         res = auth_client.get("/api/pco/status")
         assert res.status_code == 200
-        assert res.get_json() == {"configured": False, "connected": False}
+        assert res.get_json() == {
+            "configured": False, "connected": False, "can_manage": True,
+        }
 
     def test_status_connected(self, auth_client, church):
         _connect_church(church, workflow_id="42", workflow_name="Website Leads")
@@ -65,6 +75,7 @@ class TestStatusAndSettings:
         assert data["connected"] is True
         assert data["organization_name"] == "Grace Community Church"
         assert data["workflow_name"] == "Website Leads"
+        assert data["can_manage"] is True
         _cleanup(church)
 
     def test_connect_unconfigured_rejected(self, auth_client):
@@ -92,6 +103,28 @@ class TestStatusAndSettings:
         conn = PcoConnection.query.filter_by(church_id=church.id).one()
         assert conn.auto_sync is False
         assert conn.workflow_id == "7"
+        _cleanup(church)
+
+    def test_staff_cannot_update_settings(self, client, church, app):
+        from models import User
+        from werkzeug.security import generate_password_hash
+
+        _connect_church(church)
+        staff = User(
+            email="staff-pco@example.org",
+            password_hash=generate_password_hash("password123", method="pbkdf2:sha256"),
+            church_id=church.id,
+            role="staff",
+        )
+        db.session.add(staff)
+        db.session.commit()
+        client.post("/api/auth/login", json={
+            "email": staff.email, "password": "password123",
+        })
+        res = client.post("/api/pco/settings", json={"auto_sync": False})
+        assert res.status_code == 403
+
+        db.session.delete(staff)
         _cleanup(church)
 
     def test_disconnect(self, auth_client, church):
@@ -122,6 +155,7 @@ class TestSyncGuestConnection:
             ("GET", "/people/v2/note_categories"): {"data": [
                 {"id": "5", "attributes": {"name": "Wesley AI"}}
             ]},
+            ("POST", "/people/v2/people/999/phone_numbers"): {"data": {"id": "p1"}},
             ("POST", "/people/v2/people/999/notes"): {"data": {"id": "n1"}},
         })
         with patch("pco.requests.request", fake):
@@ -183,6 +217,7 @@ class TestSyncGuestConnection:
             ("GET", "/people/v2/note_categories"): {"data": [
                 {"id": "5", "attributes": {"name": "Wesley AI"}}
             ]},
+            ("POST", "/people/v2/people/77/phone_numbers"): {"data": {"id": "p1"}},
             ("POST", "/people/v2/people/77/notes"): {"data": {"id": "n1"}},
         })
         with patch("pco.requests.request", fake):
@@ -198,4 +233,111 @@ class TestSyncGuestConnection:
         gc = self._guest(church)
         res = auth_client.post(f"/api/guest-connection/{gc.id}/sync-pco")
         assert res.status_code == 400
+        _cleanup(church)
+
+
+class TestDurableSync:
+    def _guest(self, church, **overrides):
+        values = {
+            "church_id": church.id,
+            "name": "Jamie Visitor",
+            "email": "jamie@example.org",
+            "phone": "555-0110",
+            "pco_sync_status": "pending",
+            "pco_next_retry_at": datetime.utcnow(),
+        }
+        values.update(overrides)
+        gc = GuestConnection(**values)
+        db.session.add(gc)
+        db.session.commit()
+        return gc
+
+    def test_plaintext_tokens_are_lazily_encrypted(self, app, church):
+        conn = _connect_church(church)
+        assert pco._stored_token(conn, "access_token") == "tok"
+        assert conn.access_token.startswith(pco.TOKEN_PREFIX)
+        assert pco.decrypt_token(conn.access_token) == "tok"
+        _cleanup(church)
+
+    def test_guest_is_durably_queued_before_background_thread(self, client, church):
+        _connect_church(church)
+        with patch("routes.widget.threading.Thread.start"):
+            res = client.post("/api/guest-connection", json={
+                "church_id": church.id,
+                "name": "Queued Visitor",
+                "email": "queued@example.org",
+                "interest_area": "New to Church",
+            })
+        assert res.status_code == 201
+        gc = GuestConnection.query.filter_by(email="queued@example.org").one()
+        assert gc.pco_sync_status == "pending"
+        assert gc.pco_next_retry_at is not None
+        _cleanup(church)
+
+    def test_email_failure_keeps_person_id_and_retry_does_not_recreate(self, app, church):
+        _connect_church(church)
+        gc = self._guest(church)
+        first = FakePcoApi({
+            ("GET", "/people/v2/emails"): {"data": []},
+            ("POST", "/people/v2/people"): {"data": {"id": "501"}},
+        })
+        with patch("pco.requests.request", first):
+            assert pco.sync_guest_connection(gc) is False
+
+        db.session.refresh(gc)
+        assert gc.pco_person_id == "501"
+        assert gc.pco_email_synced is False
+        assert gc.pco_sync_status == "partial"
+
+        second = FakePcoApi({
+            ("POST", "/people/v2/people/501/emails"): {"data": {"id": "e1"}},
+            ("POST", "/people/v2/people/501/phone_numbers"): {"data": {"id": "p1"}},
+            ("GET", "/people/v2/note_categories"): {
+                "data": [{"id": "5", "attributes": {"name": "Wesley AI"}}]
+            },
+            ("POST", "/people/v2/people/501/notes"): {"data": {"id": "n1"}},
+        })
+        with patch("pco.requests.request", second):
+            assert pco.sync_guest_connection(gc, force=True) is True
+
+        paths = [call[1] for call in second.calls]
+        assert "/people/v2/people" not in paths
+        assert "/people/v2/emails" not in paths
+        assert gc.pco_sync_status == "synced"
+        _cleanup(church)
+
+    def test_retry_skips_completed_note_and_only_adds_workflow(self, app, church):
+        _connect_church(church, workflow_id="42")
+        gc = self._guest(
+            church,
+            pco_person_id="777",
+            pco_email_synced=True,
+            pco_phone_synced=True,
+            pco_note_synced=True,
+            pco_workflow_synced=False,
+            pco_sync_status="partial",
+        )
+        fake = FakePcoApi({
+            ("POST", "/people/v2/workflows/42/cards"): {"data": {"id": "c1"}},
+        })
+        with patch("pco.requests.request", fake):
+            assert pco.sync_guest_connection(gc, force=True) is True
+        assert [call[1] for call in fake.calls] == ["/people/v2/workflows/42/cards"]
+        _cleanup(church)
+
+    def test_reconciliation_processes_due_pending_guest(self, app, church):
+        _connect_church(church)
+        gc = self._guest(church, phone=None)
+        fake = FakePcoApi({
+            ("GET", "/people/v2/emails"): {"data": [
+                {"relationships": {"person": {"data": {"type": "Person", "id": "888"}}}}
+            ]},
+            ("GET", "/people/v2/note_categories"): {
+                "data": [{"id": "5", "attributes": {"name": "Wesley AI"}}]
+            },
+            ("POST", "/people/v2/people/888/notes"): {"data": {"id": "n1"}},
+        })
+        with patch("pco.requests.request", fake):
+            assert pco.reconcile_pending_syncs() == 1
+        assert gc.pco_sync_status == "synced"
         _cleanup(church)

@@ -14,6 +14,7 @@ GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
 PCO_CLIENT_ID     = os.getenv("PCO_CLIENT_ID", "")
 PCO_CLIENT_SECRET = os.getenv("PCO_CLIENT_SECRET", "")
+PCO_TOKEN_ENCRYPTION_KEY = os.getenv("PCO_TOKEN_ENCRYPTION_KEY", "")
 PCO_API_BASE      = "https://api.planningcenteronline.com"
 
 # ── Branding defaults (single source of truth) ───────────────────────────────

@@ -14,7 +14,7 @@ from flask_login import login_required, current_user
 
 from models import (
     db, Church, User, WidgetConversation, WidgetMessage, GuestConnection,
-    TextSnippet, QnAPair, AnswerFeedback,
+    TextSnippet, QnAPair, AnswerFeedback, PcoConnection,
 )
 from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
@@ -670,15 +670,15 @@ def create_guest_connection():
         return cors_err("Failed to save. Please try again.", 500)
 
     # Push into Planning Center if connected with auto-sync (non-blocking)
-    from models import PcoConnection
     pco_conn = PcoConnection.query.filter_by(church_id=church_id, auto_sync=True).first()
     if pco_conn:
+        import pco
+        pco.queue_guest_sync(gc)
         _app_pco = current_app._get_current_object()
         gc_id = gc.id
 
         def _sync(app_obj=_app_pco, target_id=gc_id):
             with app_obj.app_context():
-                import pco
                 target = GuestConnection.query.get(target_id)
                 if target:
                     pco.sync_guest_connection(target)
@@ -715,6 +715,9 @@ def list_guest_connections():
     connected_count = GuestConnection.query.filter_by(church_id=current_user.church_id, status="connected").count()
 
     return jsonify({
+        "pco_connected": PcoConnection.query.filter_by(
+            church_id=current_user.church_id
+        ).first() is not None,
         "stats": {
             "new": new_count,
             "contacted": contacted_count,
@@ -734,6 +737,8 @@ def list_guest_connections():
                 "pco_person_id": gc.pco_person_id or "",
                 "pco_url": pco_person_url(gc.pco_person_id) if gc.pco_person_id else "",
                 "pco_sync_error": gc.pco_sync_error or "",
+                "pco_sync_status": gc.pco_sync_status or "",
+                "pco_sync_attempts": gc.pco_sync_attempts or 0,
             }
             for gc in connections
         ],

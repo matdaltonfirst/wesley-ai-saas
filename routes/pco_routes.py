@@ -20,10 +20,16 @@ pco_bp = Blueprint("pco", __name__)
 @login_required
 def pco_status():
     if not pco.is_configured():
-        return jsonify({"configured": False, "connected": False})
+        return jsonify({
+            "configured": False, "connected": False,
+            "can_manage": current_user.role == "admin",
+        })
     conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
     if not conn:
-        return jsonify({"configured": True, "connected": False})
+        return jsonify({
+            "configured": True, "connected": False,
+            "can_manage": current_user.role == "admin",
+        })
     return jsonify({
         "configured": True,
         "connected": True,
@@ -31,6 +37,7 @@ def pco_status():
         "auto_sync": conn.auto_sync,
         "workflow_id": conn.workflow_id or "",
         "workflow_name": conn.workflow_name or "",
+        "can_manage": current_user.role == "admin",
     })
 
 
@@ -67,8 +74,8 @@ def pco_callback():
     if not conn:
         conn = PcoConnection(church_id=current_user.church_id)
         db.session.add(conn)
-    conn.access_token = tokens["access_token"]
-    conn.refresh_token = tokens["refresh_token"]
+    conn.access_token = pco.encrypt_token(tokens["access_token"])
+    conn.refresh_token = pco.encrypt_token(tokens["refresh_token"])
     conn.token_expires_at = datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 7200))
     conn.connected_by_id = current_user.id
     db.session.commit()
@@ -111,6 +118,8 @@ def pco_workflows():
 @pco_bp.route("/api/pco/settings", methods=["POST"])
 @login_required
 def pco_settings():
+    if current_user.role != "admin":
+        return jsonify({"error": "Only church admins can change integration settings."}), 403
     conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
     if not conn:
         return jsonify({"error": "Planning Center is not connected."}), 400
@@ -135,7 +144,7 @@ def sync_guest_to_pco(gc_id):
     if not PcoConnection.query.filter_by(church_id=current_user.church_id).first():
         return jsonify({"error": "Planning Center is not connected."}), 400
 
-    ok = pco.sync_guest_connection(gc)
+    ok = pco.sync_guest_connection(gc, force=True)
     return jsonify({
         "ok": ok,
         "pco_person_id": gc.pco_person_id,

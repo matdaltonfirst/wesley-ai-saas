@@ -836,14 +836,14 @@ async function loadIntegrations() {
       return;
     }
     if (!st.connected) {
-      body.innerHTML = `
+      body.innerHTML = st.can_manage ? `
         <a class="teal-btn" href="/pco/connect" style="text-decoration:none;display:inline-block;">
           Connect Planning Center
         </a>
         <p style="font-size:0.76rem;color:#94a3b8;margin:10px 0 0;">
           You'll sign in on Planning Center's website and approve access to People.
           Wesley never sees your Planning Center password.
-        </p>`;
+        </p>` : '<div class="an-empty">Ask a church administrator to connect Planning Center.</div>';
       return;
     }
 
@@ -853,26 +853,28 @@ async function loadIntegrations() {
         <span style="font-size:0.86rem;font-weight:600;color:#0f172a;">
           Connected${st.organization_name ? " to " + esc(st.organization_name) : ""}
         </span>
-        <button class="cancel-btn" id="pcoDisconnectBtn" style="margin-left:auto;">Disconnect</button>
+        ${st.can_manage ? '<button class="cancel-btn" id="pcoDisconnectBtn" style="margin-left:auto;">Disconnect</button>' : ''}
       </div>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;color:#334155;margin-bottom:14px;cursor:pointer;">
-        <input type="checkbox" id="pcoAutoSync" ${st.auto_sync ? "checked" : ""}>
+        <input type="checkbox" id="pcoAutoSync" ${st.auto_sync ? "checked" : ""} ${st.can_manage ? "" : "disabled"}>
         Automatically send new guest connections to Planning Center People
       </label>
       <div class="website-field-label">Add each guest to a follow-up workflow (optional)</div>
-      <select class="ds-field-input" id="pcoWorkflowSel" style="max-width:380px;">
+      <select class="ds-field-input" id="pcoWorkflowSel" style="max-width:380px;" ${st.can_manage ? "" : "disabled"}>
         <option value="">Loading workflows…</option>
       </select>
       <div id="pcoMsg" style="font-size:0.78rem;margin-top:10px;color:#176d73;"></div>`;
 
-    document.getElementById("pcoDisconnectBtn").addEventListener("click", async () => {
-      if (!confirm("Disconnect Planning Center? New guests will no longer sync.")) return;
-      await fetch("/api/pco/disconnect", { method: "POST" });
-      loadIntegrations();
-    });
-    document.getElementById("pcoAutoSync").addEventListener("change", (e) => {
-      savePcoSettings({ auto_sync: e.target.checked });
-    });
+    if (st.can_manage) {
+      document.getElementById("pcoDisconnectBtn").addEventListener("click", async () => {
+        if (!confirm("Disconnect Planning Center? New guests will no longer sync.")) return;
+        await fetch("/api/pco/disconnect", { method: "POST" });
+        loadIntegrations();
+      });
+      document.getElementById("pcoAutoSync").addEventListener("change", (e) => {
+        savePcoSettings({ auto_sync: e.target.checked });
+      });
+    }
 
     const sel = document.getElementById("pcoWorkflowSel");
     try {
@@ -883,12 +885,14 @@ async function loadIntegrations() {
         workflows.map(w =>
           `<option value="${esc(w.id)}" ${w.id === st.workflow_id ? "selected" : ""}>${esc(w.name)}</option>`
         ).join("");
-      sel.addEventListener("change", () => {
-        savePcoSettings({
-          workflow_id: sel.value,
-          workflow_name: sel.options[sel.selectedIndex].text,
+      if (st.can_manage) {
+        sel.addEventListener("change", () => {
+          savePcoSettings({
+            workflow_id: sel.value,
+            workflow_name: sel.options[sel.selectedIndex].text,
+          });
         });
-      });
+      }
     } catch {
       sel.innerHTML = '<option value="">Could not load workflows</option>';
     }

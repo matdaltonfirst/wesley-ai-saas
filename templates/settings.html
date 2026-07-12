@@ -2379,17 +2379,22 @@
     }
 
     function pcoCell(gc) {
-      if (gc.pco_person_id) {
+      if (gc.pco_sync_status === 'synced' && gc.pco_person_id) {
         var badge = '<a href="' + esc(gc.pco_url) + '" target="_blank" rel="noopener noreferrer" ' +
           'style="font-size:0.75rem;color:#176d73;text-decoration:none;font-weight:600;">Synced ↗</a>';
-        if (gc.pco_sync_error) {
-          badge += ' <span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.72rem;">⚠</span>';
-        }
         return badge;
       }
-      if (gc.pco_sync_error) {
-        return '<span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.75rem;color:#b91c1c;">Failed</span> ' +
+      if (gc.pco_sync_status === 'syncing' || gc.pco_sync_status === 'pending') {
+        return '<span style="font-size:0.75rem;color:#64748b;">Pending</span> ' +
+          '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync now</button>';
+      }
+      if (gc.pco_sync_error || gc.pco_sync_status === 'partial' || gc.pco_sync_status === 'failed') {
+        var state = gc.pco_person_id ? 'Partial' : 'Failed';
+        return '<span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.75rem;color:#b91c1c;">' + state + '</span> ' +
           '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Retry</button>';
+      }
+      if (allData && allData.pco_connected) {
+        return '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync</button>';
       }
       return '<span style="color:#cbd5e0;font-size:0.75rem;">—</span>';
     }

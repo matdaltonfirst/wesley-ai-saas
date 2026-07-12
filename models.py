@@ -262,6 +262,14 @@ class GuestConnection(db.Model):
     pco_person_id  = db.Column(db.String(50), nullable=True)
     pco_synced_at  = db.Column(db.DateTime, nullable=True)
     pco_sync_error = db.Column(db.String(500), nullable=True)
+    pco_sync_status = db.Column(db.String(20), nullable=True)  # pending | syncing | partial | synced | failed
+    pco_sync_attempts = db.Column(db.Integer, nullable=False, default=0)
+    pco_next_retry_at = db.Column(db.DateTime, nullable=True)
+    pco_sync_started_at = db.Column(db.DateTime, nullable=True)
+    pco_email_synced = db.Column(db.Boolean, nullable=False, default=False)
+    pco_phone_synced = db.Column(db.Boolean, nullable=False, default=False)
+    pco_note_synced = db.Column(db.Boolean, nullable=False, default=False)
+    pco_workflow_synced = db.Column(db.Boolean, nullable=False, default=False)
 
 
 class TextSnippet(db.Model):
@@ -344,8 +352,8 @@ class PcoConnection(db.Model):
     church_id         = db.Column(
         db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
     )
-    access_token      = db.Column(db.String(500), nullable=False)
-    refresh_token     = db.Column(db.String(500), nullable=False)
+    access_token      = db.Column(db.String(1000), nullable=False)
+    refresh_token     = db.Column(db.String(1000), nullable=False)
     token_expires_at  = db.Column(db.DateTime, nullable=False)
     organization_name = db.Column(db.String(200), nullable=True)
     auto_sync         = db.Column(db.Boolean, nullable=False, default=True)
