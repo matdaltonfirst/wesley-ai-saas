@@ -60,6 +60,10 @@ def add_calendar():
     if not url or len(url) > 1000:
         return jsonify({"error": "Enter a calendar feed URL."}), 400
 
+    # Planning Center and Apple hand out webcal:// links — same feed over HTTPS.
+    if url.lower().startswith("webcal://"):
+        url = "https://" + url[len("webcal://"):]
+
     # Google Calendar shows an easy-to-copy HTML link next to the ICS one —
     # rewrite the common mistake instead of rejecting it.
     if "calendar.google.com" in url and "/embed?" in url:

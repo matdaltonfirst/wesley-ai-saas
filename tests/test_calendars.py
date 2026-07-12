@@ -218,3 +218,18 @@ class TestCalendarChat:
         for cal in ChurchCalendar.query.filter_by(church_id=church.id).all():
             db.session.delete(cal)  # ORM delete so events cascade
         db.session.commit()
+
+
+class TestWebcalNormalization:
+    def test_webcal_url_is_rewritten_to_https(self, auth_client, church):
+        data = _ics(_event("Fall Festival", _dt(10)))
+        with _no_validate, _patch_fetch(data):
+            res = auth_client.post("/api/calendars", json={
+                "url": "webcal://calendar.planningcenteronline.com/icals/abc123.ics",
+            })
+        assert res.status_code == 201
+        cal = ChurchCalendar.query.filter_by(church_id=church.id).one()
+        assert cal.url == "https://calendar.planningcenteronline.com/icals/abc123.ics"
+
+        db.session.delete(cal)
+        db.session.commit()
