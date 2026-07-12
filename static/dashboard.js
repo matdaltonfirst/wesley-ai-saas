@@ -818,7 +818,101 @@ document.addEventListener("panelShow", function(e) {
   else if (id === "snippets")            loadSnippets();
   else if (id === "qna")                 loadQna();
   else if (id === "calendars")           loadCalendars();
+  else if (id === "integrations")        loadIntegrations();
 });
+
+// ── Integrations: Planning Center ───────────────────────────────────────────
+async function loadIntegrations() {
+  const body = document.getElementById("pcoBody");
+  if (!body) return;
+  body.innerHTML = '<div class="an-empty">Loading…</div>';
+  try {
+    const res = await fetch("/api/pco/status");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const st = await res.json();
+
+    if (!st.configured) {
+      body.innerHTML = '<div class="an-empty">Planning Center integration is not enabled on this server yet. Contact Wesley AI support.</div>';
+      return;
+    }
+    if (!st.connected) {
+      body.innerHTML = `
+        <a class="teal-btn" href="/pco/connect" style="text-decoration:none;display:inline-block;">
+          Connect Planning Center
+        </a>
+        <p style="font-size:0.76rem;color:#94a3b8;margin:10px 0 0;">
+          You'll sign in on Planning Center's website and approve access to People.
+          Wesley never sees your Planning Center password.
+        </p>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;"></span>
+        <span style="font-size:0.86rem;font-weight:600;color:#0f172a;">
+          Connected${st.organization_name ? " to " + esc(st.organization_name) : ""}
+        </span>
+        <button class="cancel-btn" id="pcoDisconnectBtn" style="margin-left:auto;">Disconnect</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;color:#334155;margin-bottom:14px;cursor:pointer;">
+        <input type="checkbox" id="pcoAutoSync" ${st.auto_sync ? "checked" : ""}>
+        Automatically send new guest connections to Planning Center People
+      </label>
+      <div class="website-field-label">Add each guest to a follow-up workflow (optional)</div>
+      <select class="ds-field-input" id="pcoWorkflowSel" style="max-width:380px;">
+        <option value="">Loading workflows…</option>
+      </select>
+      <div id="pcoMsg" style="font-size:0.78rem;margin-top:10px;color:#176d73;"></div>`;
+
+    document.getElementById("pcoDisconnectBtn").addEventListener("click", async () => {
+      if (!confirm("Disconnect Planning Center? New guests will no longer sync.")) return;
+      await fetch("/api/pco/disconnect", { method: "POST" });
+      loadIntegrations();
+    });
+    document.getElementById("pcoAutoSync").addEventListener("change", (e) => {
+      savePcoSettings({ auto_sync: e.target.checked });
+    });
+
+    const sel = document.getElementById("pcoWorkflowSel");
+    try {
+      const wres = await fetch("/api/pco/workflows");
+      const wdata = await wres.json();
+      const workflows = wdata.workflows || [];
+      sel.innerHTML = '<option value="">No workflow — just create the person</option>' +
+        workflows.map(w =>
+          `<option value="${esc(w.id)}" ${w.id === st.workflow_id ? "selected" : ""}>${esc(w.name)}</option>`
+        ).join("");
+      sel.addEventListener("change", () => {
+        savePcoSettings({
+          workflow_id: sel.value,
+          workflow_name: sel.options[sel.selectedIndex].text,
+        });
+      });
+    } catch {
+      sel.innerHTML = '<option value="">Could not load workflows</option>';
+    }
+  } catch {
+    body.innerHTML = '<div class="an-empty">Could not load integration status.</div>';
+  }
+}
+
+async function savePcoSettings(payload) {
+  const msg = document.getElementById("pcoMsg");
+  try {
+    const res = await fetch("/api/pco/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (msg) {
+      msg.textContent = res.ok ? "Saved." : "Could not save settings.";
+      setTimeout(() => { msg.textContent = ""; }, 2500);
+    }
+  } catch {
+    if (msg) msg.textContent = "Could not save settings.";
+  }
+}
 
 // ── Event Calendars ─────────────────────────────────────────────────────────
 const calendarUrlEl   = document.getElementById("calendarUrl");

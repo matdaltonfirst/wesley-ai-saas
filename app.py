@@ -150,6 +150,7 @@ def create_app(testing: bool = False) -> Flask:
     from routes.stripe_routes import stripe_bp
     from routes.comms_routes import comms_bp
     from routes.calendars import calendars_bp
+    from routes.pco_routes import pco_bp
 
     _app.register_blueprint(auth_bp)
     _app.register_blueprint(pages_bp)
@@ -161,6 +162,7 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(stripe_bp)
     _app.register_blueprint(comms_bp)
     _app.register_blueprint(calendars_bp)
+    _app.register_blueprint(pco_bp)
 
     # ── Flask CLI commands ───────────────────────────────────────────────────
 
@@ -193,6 +195,19 @@ def create_app(testing: bool = False) -> Flask:
 
 def _run_migrations() -> None:
     """Run all inline schema migrations for existing databases."""
+
+    gc_cols = {c["name"] for c in sa_inspect(db.engine).get_columns("guest_connections")}
+    gc_migrations = [
+        ("pco_person_id",  "ALTER TABLE guest_connections ADD COLUMN pco_person_id VARCHAR(50)"),
+        ("pco_synced_at",  "ALTER TABLE guest_connections ADD COLUMN pco_synced_at DATETIME"),
+        ("pco_sync_error", "ALTER TABLE guest_connections ADD COLUMN pco_sync_error VARCHAR(500)"),
+    ]
+    for col, ddl in gc_migrations:
+        if col not in gc_cols:
+            with db.engine.connect() as conn:
+                conn.execute(text(ddl))
+                conn.commit()
+            log.info("Migration: added guest_connections.%s", col)
 
     for table_name in ("messages", "widget_messages"):
         message_cols = {c["name"] for c in sa_inspect(db.engine).get_columns(table_name)}

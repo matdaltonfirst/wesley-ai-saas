@@ -1513,6 +1513,13 @@
               </svg>
               Team
             </button>
+            <button class="db-nav-item" data-panel="integrations">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              Integrations
+            </button>
             {% endif %}
             {% if has_stripe_sub %}
             <button class="db-nav-item" data-panel="subscription">
@@ -1993,6 +2000,25 @@
         </div><!-- /.pg-layout -->
       </div><!-- /#panel-playground -->
 
+      <!-- ── Integrations ── -->
+      <div class="db-panel" id="panel-integrations">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Integrations</h1>
+          <p class="db-panel-subtitle">Connect the tools your church already uses.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Planning Center</h2>
+          </div>
+          <p style="font-size:0.84rem;color:#64748b;line-height:1.55;margin:0 0 16px;">
+            Send new guest connections from the website chat straight into
+            Planning Center People — with a note about what they asked, and
+            optionally into a follow-up workflow.
+          </p>
+          <div id="pcoBody"><div class="an-empty">Loading…</div></div>
+        </section>
+      </div>
+
       <!-- ── Team (admin only) ── -->
       {% if user_role == 'admin' %}
       <div class="db-panel" id="panel-team">
@@ -2192,7 +2218,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','embed','playground','team','integrations','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -2309,13 +2335,25 @@
             '</select>' +
           '</td>' +
           '<td><input class="gc-notes-inp" data-id="' + gc.id + '" data-field="notes" type="text" placeholder="Add notes…" value="' + esc(gc.notes) + '"></td>' +
+          '<td style="white-space:nowrap;">' + pcoCell(gc) + '</td>' +
           '<td style="color:#94a3b8;font-size:0.78rem;white-space:nowrap;">' + date + '</td>' +
         '</tr>';
       }).join('');
 
       wrap.innerHTML = '<table class="gc-table"><thead><tr>' +
-        '<th>Guest</th><th>Interest</th><th>Opening Message</th><th>Status</th><th>Notes</th><th>Date</th>' +
+        '<th>Guest</th><th>Interest</th><th>Opening Message</th><th>Status</th><th>Notes</th><th>Planning Center</th><th>Date</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+      // PCO retry buttons
+      wrap.querySelectorAll('.gc-pco-retry').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          btn.textContent = 'Syncing…';
+          fetch('/api/guest-connection/' + btn.dataset.id + '/sync-pco', { method: 'POST' })
+            .then(function () { load(); })
+            .catch(function () { load(); });
+        });
+      });
 
       // Status change
       wrap.querySelectorAll('.gc-status-select').forEach(function (sel) {
@@ -2338,6 +2376,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       }).catch(function () {});
+    }
+
+    function pcoCell(gc) {
+      if (gc.pco_person_id) {
+        var badge = '<a href="' + esc(gc.pco_url) + '" target="_blank" rel="noopener noreferrer" ' +
+          'style="font-size:0.75rem;color:#176d73;text-decoration:none;font-weight:600;">Synced ↗</a>';
+        if (gc.pco_sync_error) {
+          badge += ' <span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.72rem;">⚠</span>';
+        }
+        return badge;
+      }
+      if (gc.pco_sync_error) {
+        return '<span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.75rem;color:#b91c1c;">Failed</span> ' +
+          '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Retry</button>';
+      }
+      return '<span style="color:#cbd5e0;font-size:0.75rem;">—</span>';
     }
 
     function esc(s) {

@@ -25,6 +25,7 @@ from documents import (
     build_cited_context, select_cited_sources,
 )
 from calendar_feed import load_calendar_chunks, score_calendar_chunks
+from pco import person_url as pco_person_url
 
 log = logging.getLogger("wesley")
 
@@ -668,6 +669,21 @@ def create_guest_connection():
         log.error("[GUEST] DB commit failed: %s", e)
         return cors_err("Failed to save. Please try again.", 500)
 
+    # Push into Planning Center if connected with auto-sync (non-blocking)
+    from models import PcoConnection
+    pco_conn = PcoConnection.query.filter_by(church_id=church_id, auto_sync=True).first()
+    if pco_conn:
+        _app_pco = current_app._get_current_object()
+        gc_id = gc.id
+
+        def _sync(app_obj=_app_pco, target_id=gc_id):
+            with app_obj.app_context():
+                import pco
+                target = GuestConnection.query.get(target_id)
+                if target:
+                    pco.sync_guest_connection(target)
+        threading.Thread(target=_sync, daemon=True).start()
+
     # Notify all admin users for this church (non-blocking)
     admin_users = User.query.filter_by(church_id=church_id, role="admin").all()
     dashboard_url = APP_URL.rstrip("/") + "/dashboard#guest-connections"
@@ -715,6 +731,9 @@ def list_guest_connections():
                 "status": gc.status,
                 "notes": gc.notes or "",
                 "created_at": iso_utc(gc.created_at),
+                "pco_person_id": gc.pco_person_id or "",
+                "pco_url": pco_person_url(gc.pco_person_id) if gc.pco_person_id else "",
+                "pco_sync_error": gc.pco_sync_error or "",
             }
             for gc in connections
         ],

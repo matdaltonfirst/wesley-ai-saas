@@ -258,6 +258,11 @@ class GuestConnection(db.Model):
     notes           = db.Column(db.Text)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Planning Center sync state
+    pco_person_id  = db.Column(db.String(50), nullable=True)
+    pco_synced_at  = db.Column(db.DateTime, nullable=True)
+    pco_sync_error = db.Column(db.String(500), nullable=True)
+
 
 class TextSnippet(db.Model):
     """Short text blurbs that supplement uploaded docs in the bot's context."""
@@ -330,3 +335,21 @@ class CalendarEvent(db.Model):
     starts_at   = db.Column(db.DateTime, nullable=False, index=True)
     ends_at     = db.Column(db.DateTime, nullable=True)
     all_day     = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class PcoConnection(db.Model):
+    """A church's Planning Center OAuth connection (one per church)."""
+    __tablename__ = "pco_connections"
+    id                = db.Column(db.Integer, primary_key=True)
+    church_id         = db.Column(
+        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
+    )
+    access_token      = db.Column(db.String(500), nullable=False)
+    refresh_token     = db.Column(db.String(500), nullable=False)
+    token_expires_at  = db.Column(db.DateTime, nullable=False)
+    organization_name = db.Column(db.String(200), nullable=True)
+    auto_sync         = db.Column(db.Boolean, nullable=False, default=True)
+    workflow_id       = db.Column(db.String(50), nullable=True)
+    workflow_name     = db.Column(db.String(200), nullable=True)
+    connected_by_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)

@@ -10,6 +10,12 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "info@wesleyai.co")
 GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.5-flash-lite")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
+# ── Planning Center OAuth (register the app at api.planningcenteronline.com) ──
+
+PCO_CLIENT_ID     = os.getenv("PCO_CLIENT_ID", "")
+PCO_CLIENT_SECRET = os.getenv("PCO_CLIENT_SECRET", "")
+PCO_API_BASE      = "https://api.planningcenteronline.com"
+
 # ── Branding defaults (single source of truth) ───────────────────────────────
 
 DEFAULT_BOT_NAME = "Wesley"
