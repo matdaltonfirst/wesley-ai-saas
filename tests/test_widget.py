@@ -373,6 +373,16 @@ class TestAutoFlaggedFeedback:
         assert feedback.church_id == church.id
         self._cleanup(answer)
 
+    def test_phrasing_variations_are_auto_flagged(self, client, church):
+        answer = self._chat(client, church,
+                            "I don't have that specific information about the WiFi password.")
+        feedback = AnswerFeedback.query.filter_by(
+            widget_message_id=answer["message_id"]).one()
+        assert feedback.rating == "auto_flagged"
+        assert feedback.status == "open"
+        assert feedback.church_id == church.id
+        self._cleanup(answer)
+
     def test_confident_answer_is_not_flagged(self, client, church):
         answer = self._chat(client, church,
                             "The fall festival is October 12 at 5pm on the lawn.")

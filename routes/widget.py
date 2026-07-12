@@ -1,7 +1,7 @@
 """Widget routes: public CORS endpoints for branding, chat, and JS serving."""
 
 import json
-
+import re
 import threading
 import uuid
 import logging
@@ -454,19 +454,20 @@ _TOPIC_CATEGORIES = [
     ("Other",                []),
 ]
 
-_LOW_CONFIDENCE_PHRASES = [
-    "i don't have information",
-    "i'm not sure",
-    "i don't know",
-    "couldn't find",
-    "no information available",
-    "i apologize",
-]
+# Patterns tolerate the model's phrasing variations, e.g. "I don't have that
+# specific information" or "I do not currently have details about that".
+_LOW_CONFIDENCE_RE = re.compile(
+    r"i (?:don'?t|do not) (?:\w+ ){0,3}(?:have|know)"
+    r"|i'?m not (?:\w+ )?sure"
+    r"|couldn'?t find|could not find"
+    r"|no (?:\w+ )?information (?:is )?(?:available|about|on)"
+    r"|(?:information|that) is(?:n'?t| not) available"
+    r"|i apologize"
+)
 
 
 def _is_low_confidence(text):
-    lowered = (text or "").lower()
-    return any(phrase in lowered for phrase in _LOW_CONFIDENCE_PHRASES)
+    return bool(_LOW_CONFIDENCE_RE.search((text or "").lower()))
 
 
 def _categorize(text):
