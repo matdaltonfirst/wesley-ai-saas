@@ -12,7 +12,10 @@ from flask import Blueprint, request, jsonify, make_response, send_from_director
 from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
-from models import db, Church, User, WidgetConversation, WidgetMessage, GuestConnection, TextSnippet, QnAPair
+from models import (
+    db, Church, User, WidgetConversation, WidgetMessage, GuestConnection,
+    TextSnippet, QnAPair, AnswerFeedback,
+)
 from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
@@ -223,12 +226,13 @@ def widget_chat():
         return cors_err(user_msg, status)
 
     sources = select_cited_sources(answer, candidate_sources)
-    db.session.add(WidgetMessage(
+    assistant_message = WidgetMessage(
         widget_conversation_id=wconv.id,
         role="assistant",
         content=answer,
         sources=json.dumps(sources) if sources else None,
-    ))
+    )
+    db.session.add(assistant_message)
     wconv.updated_at = datetime.utcnow()
     try:
         db.session.commit()
@@ -237,9 +241,191 @@ def widget_chat():
         log.error("[WIDGET] DB commit failed: %s", e)
         return cors_err("Failed to save conversation. Please try again.", 500)
 
-    resp = jsonify({"answer": answer, "sources": sources, "session_id": session_id})
+    resp = jsonify({
+        "answer": answer,
+        "sources": sources,
+        "session_id": session_id,
+        "message_id": assistant_message.id,
+    })
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp
+
+
+# ── Answer Feedback API ──────────────────────────────────────────────────────
+
+_FEEDBACK_REASONS = {"incorrect", "outdated", "incomplete", "confusing", "other"}
+
+
+@widget_bp.route("/api/widget/feedback", methods=["POST", "OPTIONS"])
+def submit_answer_feedback():
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    data = request.get_json(silent=True) or {}
+    rating = (data.get("rating") or "").strip()
+    reason = (data.get("reason") or "").strip() or None
+    comment = (data.get("comment") or "").strip() or None
+    session_id = (data.get("session_id") or "").strip()
+
+    try:
+        church_id = int(data.get("church_id"))
+        message_id = int(data.get("message_id"))
+    except (TypeError, ValueError):
+        return _feedback_cors_error("Invalid feedback target.")
+
+    if rating not in ("helpful", "not_helpful"):
+        return _feedback_cors_error("Invalid rating.")
+    if reason and reason not in _FEEDBACK_REASONS:
+        return _feedback_cors_error("Invalid feedback reason.")
+    if len(comment or "") > 1000:
+        return _feedback_cors_error("Feedback must be 1,000 characters or fewer.")
+
+    message = (
+        WidgetMessage.query
+        .join(WidgetConversation)
+        .filter(
+            WidgetMessage.id == message_id,
+            WidgetMessage.role == "assistant",
+            WidgetConversation.church_id == church_id,
+            WidgetConversation.session_id == session_id,
+        )
+        .first()
+    )
+    if not message:
+        return _feedback_cors_error("Answer not found.", 404)
+
+    feedback = AnswerFeedback.query.filter_by(widget_message_id=message.id).first()
+    if not feedback:
+        feedback = AnswerFeedback(church_id=church_id, widget_message_id=message.id)
+        db.session.add(feedback)
+    feedback.rating = rating
+    feedback.reason = reason if rating == "not_helpful" else None
+    feedback.comment = comment if rating == "not_helpful" else None
+    feedback.status = "open" if rating == "not_helpful" else "dismissed"
+    if rating == "helpful":
+        feedback.resolved_at = datetime.utcnow()
+    else:
+        feedback.resolved_at = None
+    db.session.commit()
+
+    resp = jsonify({"ok": True})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp, 201
+
+
+def _feedback_cors_error(message, status=400):
+    resp = jsonify({"error": message})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp, status
+
+
+@widget_bp.route("/api/feedback")
+@login_required
+def list_answer_feedback():
+    status_filter = request.args.get("status", "open").strip()
+    query = AnswerFeedback.query.filter_by(church_id=current_user.church_id)
+    if status_filter in ("open", "corrected", "dismissed"):
+        query = query.filter_by(status=status_filter)
+    if status_filter == "dismissed":
+        query = query.filter_by(rating="not_helpful")
+    items = query.order_by(AnswerFeedback.created_at.desc()).all()
+
+    return jsonify({
+        "stats": {
+            "open": AnswerFeedback.query.filter_by(
+                church_id=current_user.church_id, status="open"
+            ).count(),
+            "helpful": AnswerFeedback.query.filter_by(
+                church_id=current_user.church_id, rating="helpful"
+            ).count(),
+            "not_helpful": AnswerFeedback.query.filter_by(
+                church_id=current_user.church_id, rating="not_helpful"
+            ).count(),
+            "corrected": AnswerFeedback.query.filter_by(
+                church_id=current_user.church_id, status="corrected"
+            ).count(),
+        },
+        "items": [_feedback_dict(item) for item in items],
+    })
+
+
+@widget_bp.route("/api/feedback/<int:feedback_id>/correct", methods=["POST"])
+@login_required
+def correct_answer_feedback(feedback_id):
+    feedback = AnswerFeedback.query.filter_by(
+        id=feedback_id, church_id=current_user.church_id
+    ).first()
+    if not feedback:
+        return jsonify({"error": "Feedback not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or "").strip()
+    answer = (data.get("answer") or "").strip()
+    if not question or not answer:
+        return jsonify({"error": "Question and corrected answer are required."}), 400
+
+    pair = QnAPair(
+        church_id=current_user.church_id,
+        question=question[:500],
+        answer=answer,
+        is_active=True,
+    )
+    db.session.add(pair)
+    db.session.flush()
+    feedback.status = "corrected"
+    feedback.corrected_answer = answer
+    feedback.qna_pair_id = pair.id
+    feedback.resolved_by_id = current_user.id
+    feedback.resolved_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True, "pair": _qna_dict(pair)})
+
+
+@widget_bp.route("/api/feedback/<int:feedback_id>/dismiss", methods=["POST"])
+@login_required
+def dismiss_answer_feedback(feedback_id):
+    feedback = AnswerFeedback.query.filter_by(
+        id=feedback_id, church_id=current_user.church_id
+    ).first()
+    if not feedback:
+        return jsonify({"error": "Feedback not found."}), 404
+    feedback.status = "dismissed"
+    feedback.resolved_by_id = current_user.id
+    feedback.resolved_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+def _feedback_dict(feedback):
+    message = feedback.widget_message
+    question_message = (
+        WidgetMessage.query
+        .filter(
+            WidgetMessage.widget_conversation_id == message.widget_conversation_id,
+            WidgetMessage.role == "user",
+            WidgetMessage.id < message.id,
+        )
+        .order_by(WidgetMessage.id.desc())
+        .first()
+    )
+    return {
+        "id": feedback.id,
+        "rating": feedback.rating,
+        "reason": feedback.reason or "",
+        "comment": feedback.comment or "",
+        "status": feedback.status,
+        "question": question_message.content if question_message else "",
+        "answer": message.content,
+        "sources": json.loads(message.sources) if message.sources else [],
+        "corrected_answer": feedback.corrected_answer or "",
+        "qna_pair_id": feedback.qna_pair_id,
+        "created_at": iso_utc(feedback.created_at),
+        "resolved_at": iso_utc(feedback.resolved_at),
+    }
 
 
 # ── Analytics API (authenticated) ────────────────────────────────────────────

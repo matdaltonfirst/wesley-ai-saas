@@ -814,9 +814,153 @@ document.addEventListener("panelShow", function(e) {
   if (id === "analytics-chats")      loadChatsAnalytics();
   else if (id === "analytics-topics")    loadTopicsAnalytics();
   else if (id === "analytics-sentiment") loadSentimentAnalytics();
+  else if (id === "feedback")            loadFeedback();
   else if (id === "snippets")            loadSnippets();
   else if (id === "qna")                 loadQna();
 });
+
+// ── Feedback & Corrections ──────────────────────────────────────────────────
+
+var _feedbackItems = [];
+var _feedbackStatus = "open";
+
+async function loadFeedback(status) {
+  if (status) _feedbackStatus = status;
+  const list = document.getElementById("feedbackList");
+  if (!list) return;
+  list.innerHTML = '<div class="an-empty">Loading…</div>';
+  try {
+    const res = await fetch(`/api/feedback?status=${encodeURIComponent(_feedbackStatus)}`);
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    if (!res.ok) throw new Error("Feedback request failed");
+    const data = await res.json();
+    _feedbackItems = data.items || [];
+    const stats = data.stats || {};
+    document.getElementById("fbStatOpen").textContent = stats.open || 0;
+    document.getElementById("fbStatHelpful").textContent = stats.helpful || 0;
+    document.getElementById("fbStatNotHelpful").textContent = stats.not_helpful || 0;
+    document.getElementById("fbStatCorrected").textContent = stats.corrected || 0;
+    renderFeedback();
+  } catch {
+    list.innerHTML = '<div class="an-empty">Could not load feedback.</div>';
+  }
+}
+
+function feedbackReasonLabel(reason) {
+  const labels = {
+    incorrect: "Incorrect", outdated: "Outdated", incomplete: "Incomplete",
+    confusing: "Confusing", other: "Other", "": "Not helpful",
+  };
+  return labels[reason] || "Not helpful";
+}
+
+function renderFeedback() {
+  const list = document.getElementById("feedbackList");
+  if (!list) return;
+  if (!_feedbackItems.length) {
+    const copy = _feedbackStatus === "open"
+      ? "No answers need review. New thumbs-down feedback will appear here."
+      : `No ${_feedbackStatus} feedback yet.`;
+    list.innerHTML = `<div class="an-empty">${esc(copy)}</div>`;
+    return;
+  }
+  list.innerHTML = _feedbackItems.map(item => {
+    const sourceHtml = (item.sources || []).map(source => {
+      const label = `${source.title}${source.location ? " · " + source.location : ""}`;
+      return source.url
+        ? `<a class="fb-source" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
+        : `<span class="fb-source">${esc(label)}</span>`;
+    }).join("");
+    const cleanAnswer = item.answer.replace(/\s*\[[\d,\s]+\]/g, "").trim();
+    const resolvedCopy = item.status === "corrected"
+      ? `<div class="fb-comment" style="background:#ecfdf5;color:#166534;">Published correction: ${esc(item.corrected_answer)}</div>`
+      : "";
+    return `
+      <article class="fb-item" data-id="${item.id}">
+        <div class="fb-item-head">
+          <span class="fb-reason">${esc(feedbackReasonLabel(item.reason))}</span>
+          <span class="fb-date">${esc(formatWconvDate(item.created_at))}</span>
+        </div>
+        <div class="fb-item-body">
+          <div class="fb-field-label">Visitor question</div>
+          <div class="fb-question">${esc(item.question)}</div>
+          <div class="fb-field-label">Wesley's answer</div>
+          <div class="fb-answer">${esc(item.answer)}</div>
+          ${sourceHtml ? `<div class="fb-sources">${sourceHtml}</div>` : ""}
+          ${item.comment ? `<div class="fb-comment">Visitor note: ${esc(item.comment)}</div>` : ""}
+          ${resolvedCopy}
+          ${item.status === "open" ? `
+            <div class="fb-actions">
+              <button class="teal-btn" type="button" onclick="feedbackShowCorrection(${item.id})">Correct Answer</button>
+              <button class="cancel-btn" type="button" onclick="feedbackDismiss(${item.id})">Dismiss</button>
+            </div>
+            <div class="fb-correction" id="fb-correction-${item.id}">
+              <label class="field-label" for="fb-question-${item.id}">Approved question</label>
+              <input class="ds-field-input" id="fb-question-${item.id}" maxlength="500" value="${esc(item.question)}">
+              <label class="field-label" for="fb-answer-${item.id}">Correct answer</label>
+              <textarea class="ds-field-input" id="fb-answer-${item.id}" rows="5">${esc(cleanAnswer)}</textarea>
+              <div class="fb-actions">
+                <button class="teal-btn" type="button" onclick="feedbackPublishCorrection(${item.id})">Publish to Q&amp;A</button>
+                <button class="cancel-btn" type="button" onclick="feedbackHideCorrection(${item.id})">Cancel</button>
+              </div>
+              <div id="fb-msg-${item.id}" style="font-size:0.78rem;margin-top:8px;"></div>
+            </div>` : ""}
+        </div>
+      </article>`;
+  }).join("");
+}
+
+function feedbackShowCorrection(id) {
+  document.getElementById(`fb-correction-${id}`)?.classList.add("fb-visible");
+  document.getElementById(`fb-answer-${id}`)?.focus();
+}
+
+function feedbackHideCorrection(id) {
+  document.getElementById(`fb-correction-${id}`)?.classList.remove("fb-visible");
+}
+
+async function feedbackPublishCorrection(id) {
+  const question = document.getElementById(`fb-question-${id}`).value.trim();
+  const answer = document.getElementById(`fb-answer-${id}`).value.trim();
+  const msg = document.getElementById(`fb-msg-${id}`);
+  if (!question || !answer) {
+    msg.textContent = "Question and corrected answer are required.";
+    msg.style.color = "#dc2626";
+    return;
+  }
+  const res = await fetch(`/api/feedback/${id}/correct`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, answer }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    msg.textContent = data.error || "Could not publish correction.";
+    msg.style.color = "#dc2626";
+    return;
+  }
+  _qnaPairs = [];
+  const qnaPanel = document.getElementById("panel-qna");
+  if (qnaPanel) delete qnaPanel.dataset.loaded;
+  loadFeedback(_feedbackStatus);
+}
+
+async function feedbackDismiss(id) {
+  if (!confirm("Dismiss this feedback without creating a correction?")) return;
+  const res = await fetch(`/api/feedback/${id}/dismiss`, { method: "POST" });
+  if (res.ok) loadFeedback(_feedbackStatus);
+}
+
+(function wireFeedback() {
+  document.querySelectorAll(".fb-filter-btn").forEach(button => {
+    button.addEventListener("click", function () {
+      document.querySelectorAll(".fb-filter-btn").forEach(b => b.classList.remove("fb-filter-active"));
+      button.classList.add("fb-filter-active");
+      loadFeedback(button.dataset.status);
+    });
+  });
+  document.getElementById("feedbackRefreshBtn")?.addEventListener("click", () => loadFeedback());
+})();
 
 // ── Text Snippets ─────────────────────────────────────────────────────────────
 

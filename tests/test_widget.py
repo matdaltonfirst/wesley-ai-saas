@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-from models import db, WidgetConversation, WidgetMessage, QnAPair
+from models import db, WidgetConversation, WidgetMessage, QnAPair, AnswerFeedback
 
 
 # ── Widget branding ───────────────────────────────────────────────────────────
@@ -93,6 +93,7 @@ class TestWidgetChat:
         data = res.get_json()
         assert data["answer"] == "Hello! How can I help?"
         assert "session_id" in data
+        assert isinstance(data["message_id"], int)
         assert res.headers.get("Access-Control-Allow-Origin") == "*"
 
         # Cleanup the widget conversation created during this test
@@ -213,6 +214,112 @@ class TestWidgetChat:
         res = client.options("/api/widget/chat")
         assert res.status_code == 204
         assert res.headers.get("Access-Control-Allow-Origin") == "*"
+
+
+# ── Answer feedback ───────────────────────────────────────────────────────────
+
+class TestAnswerFeedback:
+    def _create_answer(self, client, church):
+        with patch("routes.widget.call_gemini", return_value="The office is open Friday."):
+            res = client.post("/api/widget/chat", json={
+                "church_id": church.id,
+                "question": "Is the office open Friday?",
+            })
+        assert res.status_code == 200
+        return res.get_json()
+
+    def test_submit_not_helpful_feedback(self, client, church):
+        answer = self._create_answer(client, church)
+        res = client.post("/api/widget/feedback", json={
+            "church_id": church.id,
+            "session_id": answer["session_id"],
+            "message_id": answer["message_id"],
+            "rating": "not_helpful",
+            "reason": "incorrect",
+        })
+
+        assert res.status_code == 201
+        feedback = AnswerFeedback.query.filter_by(widget_message_id=answer["message_id"]).one()
+        assert feedback.status == "open"
+        assert feedback.reason == "incorrect"
+
+        db.session.delete(feedback.widget_message.widget_conversation)
+        db.session.commit()
+
+    def test_feedback_requires_matching_session(self, client, church):
+        answer = self._create_answer(client, church)
+        res = client.post("/api/widget/feedback", json={
+            "church_id": church.id,
+            "session_id": "wrong-session",
+            "message_id": answer["message_id"],
+            "rating": "not_helpful",
+            "reason": "incorrect",
+        })
+
+        assert res.status_code == 404
+        assert AnswerFeedback.query.filter_by(widget_message_id=answer["message_id"]).first() is None
+
+        wconv = WidgetConversation.query.filter_by(session_id=answer["session_id"]).one()
+        db.session.delete(wconv)
+        db.session.commit()
+
+    def test_helpful_feedback_counts_but_stays_out_of_dismissed_queue(self, auth_client, church):
+        answer = self._create_answer(auth_client, church)
+        res = auth_client.post("/api/widget/feedback", json={
+            "church_id": church.id,
+            "session_id": answer["session_id"],
+            "message_id": answer["message_id"],
+            "rating": "helpful",
+        })
+        assert res.status_code == 201
+
+        inbox = auth_client.get("/api/feedback?status=dismissed").get_json()
+        assert inbox["stats"]["helpful"] == 1
+        assert inbox["items"] == []
+
+        wconv = WidgetConversation.query.filter_by(session_id=answer["session_id"]).one()
+        db.session.delete(wconv)
+        db.session.commit()
+
+    def test_feedback_list_requires_auth(self, client):
+        assert client.get("/api/feedback").status_code == 401
+
+    def test_staff_can_publish_feedback_correction_to_qna(self, auth_client, church):
+        answer = self._create_answer(auth_client, church)
+        submitted = auth_client.post("/api/widget/feedback", json={
+            "church_id": church.id,
+            "session_id": answer["session_id"],
+            "message_id": answer["message_id"],
+            "rating": "not_helpful",
+            "reason": "outdated",
+        })
+        assert submitted.status_code == 201
+
+        inbox = auth_client.get("/api/feedback?status=open")
+        assert inbox.status_code == 200
+        item = inbox.get_json()["items"][0]
+        assert item["question"] == "Is the office open Friday?"
+        assert item["answer"] == "The office is open Friday."
+
+        corrected = auth_client.post(f"/api/feedback/{item['id']}/correct", json={
+            "question": "Is the church office open Friday?",
+            "answer": "The church office is closed on Fridays.",
+        })
+        assert corrected.status_code == 200
+        pair_id = corrected.get_json()["pair"]["id"]
+        pair = QnAPair.query.get(pair_id)
+        assert pair.is_active is True
+        assert pair.answer == "The church office is closed on Fridays."
+
+        feedback = AnswerFeedback.query.get(item["id"])
+        assert feedback.status == "corrected"
+        assert feedback.qna_pair_id == pair.id
+
+        wconv = WidgetConversation.query.filter_by(session_id=answer["session_id"]).one()
+        db.session.delete(feedback)
+        db.session.delete(pair)
+        db.session.delete(wconv)
+        db.session.commit()
 
 
 # ── Authenticated widget conversation list ────────────────────────────────────

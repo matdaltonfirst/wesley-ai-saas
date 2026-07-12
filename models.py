@@ -193,6 +193,30 @@ class WidgetMessage(db.Model):
     sources = db.Column(db.Text, nullable=True)       # JSON-encoded citation list
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    feedback = db.relationship(
+        "AnswerFeedback", backref="widget_message", uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class AnswerFeedback(db.Model):
+    """Visitor rating and staff correction state for a widget answer."""
+    __tablename__ = "answer_feedback"
+    id = db.Column(db.Integer, primary_key=True)
+    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    widget_message_id = db.Column(
+        db.Integer, db.ForeignKey("widget_messages.id"), nullable=False, unique=True, index=True
+    )
+    rating = db.Column(db.String(20), nullable=False)  # helpful | not_helpful
+    reason = db.Column(db.String(40), nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="open")  # open | corrected | dismissed
+    corrected_answer = db.Column(db.Text, nullable=True)
+    qna_pair_id = db.Column(db.Integer, db.ForeignKey("qna_pairs.id"), nullable=True)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+
 
 class CommsRequest(db.Model):
     __tablename__ = "comms_requests"

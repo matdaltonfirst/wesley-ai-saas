@@ -1260,6 +1260,27 @@
     .qna-item.qna-open .qna-body { display: block; }
     .qna-answer { font-size: 0.855rem; color: #334155; line-height: 1.6; padding-top: 12px; white-space: pre-wrap; }
     .qna-body-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+    /* ── Feedback & Corrections ── */
+    .fb-filter-row { display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap; }
+    .fb-filter-btn { border:1px solid var(--border);background:#fff;color:#64748b;border-radius:7px;padding:7px 12px;font:600 0.75rem var(--font);cursor:pointer; }
+    .fb-filter-btn.fb-filter-active { background:#e8f7f8;border-color:#8fcbd0;color:#176d73; }
+    .fb-list { display:flex;flex-direction:column;gap:12px; }
+    .fb-item { border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden; }
+    .fb-item-head { display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #f1f5f9;background:#fafcfc; }
+    .fb-reason { font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;padding:3px 6px; }
+    .fb-date { margin-left:auto;font-size:0.72rem;color:#94a3b8; }
+    .fb-item-body { padding:14px; }
+    .fb-field-label { font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;margin-bottom:4px; }
+    .fb-question { font-size:0.9rem;font-weight:600;color:#0f172a;margin-bottom:12px; }
+    .fb-answer { font-size:0.84rem;line-height:1.55;color:#475569;white-space:pre-wrap; }
+    .fb-comment { margin-top:10px;padding:9px 10px;background:#fff7ed;border-radius:7px;font-size:0.8rem;color:#92400e; }
+    .fb-sources { display:flex;flex-wrap:wrap;gap:5px;margin-top:10px; }
+    .fb-source { font-size:0.68rem;color:#176d73;background:#f0f9fa;border:1px solid #cce7e9;border-radius:5px;padding:3px 6px; }
+    .fb-actions { display:flex;gap:8px;margin-top:14px; }
+    .fb-correction { display:none;margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9; }
+    .fb-correction.fb-visible { display:block; }
+    .fb-correction .ds-field-input { margin-bottom:10px; }
   </style>
 </head>
 <body class="settings-page">
@@ -1325,6 +1346,12 @@
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
               Guest Connections
+            </button>
+            <button class="db-nav-item" data-panel="feedback">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+              Feedback &amp; Corrections
             </button>
           </div>
         </div>
@@ -1540,6 +1567,29 @@
           <div id="gcTableWrap">
             <div class="wconv-empty">Loading…</div>
           </div>
+        </section>
+      </div>
+
+      <!-- ── Feedback & Corrections ── -->
+      <div class="db-panel" id="panel-feedback">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Feedback &amp; Corrections</h1>
+          <p class="db-panel-subtitle">Review answers visitors marked as unhelpful and publish corrections to Q&amp;A.</p>
+        </div>
+        <div class="an-stat-grid" id="feedbackStats">
+          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatOpen">—</div><div class="an-stat-label">Needs Review</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatHelpful">—</div><div class="an-stat-label">Helpful</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatNotHelpful">—</div><div class="an-stat-label">Not Helpful</div></div>
+          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatCorrected">—</div><div class="an-stat-label">Corrected</div></div>
+        </div>
+        <section class="settings-card" style="margin-top:20px;">
+          <div class="fb-filter-row">
+            <button class="fb-filter-btn fb-filter-active" data-status="open">Needs Review</button>
+            <button class="fb-filter-btn" data-status="corrected">Corrected</button>
+            <button class="fb-filter-btn" data-status="dismissed">Dismissed</button>
+            <button class="refresh-btn-sm" id="feedbackRefreshBtn" style="margin-left:auto;">Refresh</button>
+          </div>
+          <div class="fb-list" id="feedbackList"><div class="an-empty">Loading…</div></div>
         </section>
       </div>
 
@@ -2080,7 +2130,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');

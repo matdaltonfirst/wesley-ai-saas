@@ -164,6 +164,18 @@
     "font:500 0.67rem/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
     "text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
     "a.wai-source:hover{background:#e8f7f8;}",
+    ".wai-feedback{display:flex;align-items:center;gap:5px;margin-top:6px;color:#7b8794;}",
+    ".wai-feedback-label{font:500 0.65rem/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin-right:2px;}",
+    ".wai-feedback-btn{width:24px;height:24px;border:1px solid #dbe5e7;border-radius:6px;",
+    "background:#fff;color:#64748b;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.72rem;}",
+    ".wai-feedback-btn:hover{background:#f0f9fa;color:#176d73;border-color:#b9dfe2;}",
+    ".wai-feedback-btn.wai-selected{background:#e8f7f8;color:#176d73;border-color:#8fcbd0;}",
+    ".wai-feedback-reasons{display:none;flex-wrap:wrap;gap:5px;margin-top:6px;max-width:250px;}",
+    ".wai-feedback-reasons.wai-visible{display:flex;}",
+    ".wai-reason-btn{border:1px solid #dbe5e7;border-radius:6px;background:#fff;color:#52606d;",
+    "padding:4px 7px;cursor:pointer;font:500 0.65rem/1.2 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}",
+    ".wai-reason-btn:hover{background:#f0f9fa;border-color:#8fcbd0;color:#176d73;}",
+    ".wai-feedback-thanks{font:500 0.65rem/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#17816f;margin-top:7px;}",
 
     /* Typing indicator */
     ".wai-typing{display:flex;gap:4px;padding:10px 12px;background:#eaf7f8;",
@@ -614,7 +626,8 @@
     this._refs.btn.setAttribute("aria-expanded", "false");
   };
 
-  WesleyWidget.prototype._appendBot = function (html, sources) {
+  WesleyWidget.prototype._appendBot = function (html, sources, messageId) {
+    var self = this;
     var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
     var row = document.createElement("div");
     row.className = "wai-msg wai-msg-bot";
@@ -632,9 +645,71 @@
     row.innerHTML =
       '<div class="wai-bot-av">' + esc(ini) + "</div>" +
       '<div class="wai-bot-content"><div class="wai-bubble wai-bubble-bot">' + html + "</div>" + sourceHtml + "</div>";
+    if (messageId) {
+      var content = row.querySelector(".wai-bot-content");
+      var feedback = document.createElement("div");
+      feedback.className = "wai-feedback";
+      feedback.innerHTML = '<span class="wai-feedback-label">Helpful?</span>' +
+        '<button class="wai-feedback-btn wai-feedback-up" type="button" title="Helpful" aria-label="Helpful">&#128077;</button>' +
+        '<button class="wai-feedback-btn wai-feedback-down" type="button" title="Not helpful" aria-label="Not helpful">&#128078;</button>';
+      var reasons = document.createElement("div");
+      reasons.className = "wai-feedback-reasons";
+      reasons.innerHTML = [
+        ["incorrect", "Incorrect"], ["outdated", "Outdated"],
+        ["incomplete", "Incomplete"], ["confusing", "Confusing"], ["other", "Other"]
+      ].map(function (item) {
+        return '<button class="wai-reason-btn" type="button" data-reason="' + item[0] + '">' + item[1] + '</button>';
+      }).join("");
+      content.appendChild(feedback);
+      content.appendChild(reasons);
+
+      feedback.querySelector(".wai-feedback-up").addEventListener("click", function () {
+        self._submitFeedback(messageId, "helpful", null, content);
+      });
+      feedback.querySelector(".wai-feedback-down").addEventListener("click", function () {
+        reasons.classList.add("wai-visible");
+        this.classList.add("wai-selected");
+      });
+      reasons.querySelectorAll(".wai-reason-btn").forEach(function (button) {
+        button.addEventListener("click", function () {
+          self._submitFeedback(messageId, "not_helpful", button.getAttribute("data-reason"), content);
+        });
+      });
+    }
     this._refs.msgs.appendChild(row);
     this._refs.msgs.scrollTop = this._refs.msgs.scrollHeight;
     return row;
+  };
+
+  WesleyWidget.prototype._submitFeedback = function (messageId, rating, reason, content) {
+    var self = this;
+    var buttons = content.querySelectorAll(".wai-feedback-btn, .wai-reason-btn");
+    buttons.forEach(function (button) { button.disabled = true; });
+    fetch(this._apiBase + "/api/widget/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        church_id: this._churchId,
+        session_id: this._sessionId,
+        message_id: messageId,
+        rating: rating,
+        reason: reason,
+      }),
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Feedback failed");
+        var controls = content.querySelector(".wai-feedback");
+        var reasons = content.querySelector(".wai-feedback-reasons");
+        if (controls) controls.remove();
+        if (reasons) reasons.remove();
+        var thanks = document.createElement("div");
+        thanks.className = "wai-feedback-thanks";
+        thanks.textContent = rating === "helpful" ? "Thanks for your feedback." : "Thanks. Our team will review this answer.";
+        content.appendChild(thanks);
+      })
+      .catch(function () {
+        buttons.forEach(function (button) { button.disabled = false; });
+      });
   };
 
   WesleyWidget.prototype._appendUser = function (text) {
@@ -776,7 +851,11 @@
         if (!result.ok || result.data.error) {
           self._appendBot("⚠ " + esc(result.data.error || "Something went wrong. Please try again."));
         } else {
-          self._appendBot(renderMd(result.data.answer || ""), result.data.sources || []);
+          self._appendBot(
+            renderMd(result.data.answer || ""),
+            result.data.sources || [],
+            result.data.message_id
+          );
           if (!self._connCardShown) {
             var interest = self._detectInterest(text);
             if (interest) {
