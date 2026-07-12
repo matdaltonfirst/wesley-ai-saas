@@ -18,7 +18,7 @@ from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
     load_church_web_content, load_chatbot_documents, load_curated_content,
-    extract_keywords, score_chunk, find_relevant_chunks,
+    find_relevant_chunks,
     build_cited_context, select_cited_sources,
 )
 
@@ -205,17 +205,7 @@ def widget_chat():
     web_chunks = load_church_web_content(church_id)
     doc_chunks = load_chatbot_documents(church_id, uploads_dir) + load_curated_content(church_id)
 
-    scored_docs: list[tuple[int, dict]] = []
-    if doc_chunks:
-        keywords = extract_keywords(question)
-        if keywords:
-            scored_docs = sorted(
-                [(score_chunk(c, keywords), c) for c in doc_chunks],
-                key=lambda x: x[0], reverse=True,
-            )[:MAX_DOC_CHUNKS]
-        else:
-            scored_docs = [(0, c) for c in doc_chunks[:MAX_DOC_CHUNKS]]
-
+    scored_docs = find_relevant_chunks(question, doc_chunks, top_n=MAX_DOC_CHUNKS) if doc_chunks else []
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
 
     context, candidate_sources = build_cited_context([scored_docs, scored_web])

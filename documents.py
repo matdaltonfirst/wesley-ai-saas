@@ -214,9 +214,40 @@ def extract_keywords(query: str) -> list[str]:
     return [w for w in words if w not in STOP_WORDS]
 
 
+_KEYWORD_EXPANSIONS = {
+    "service": ("service", "services", "worship"),
+    "services": ("service", "services", "worship"),
+    "worship": ("worship", "service", "services"),
+    "time": ("time", "times", "schedule"),
+    "times": ("time", "times", "schedule"),
+    "schedule": ("schedule", "time", "times"),
+    "child": ("child", "children", "kids"),
+    "children": ("children", "child", "kids"),
+    "kids": ("kids", "children", "child"),
+    "event": ("event", "events"),
+    "events": ("events", "event"),
+}
+
+
+def _keyword_variants(keyword: str) -> tuple[str, ...]:
+    return _KEYWORD_EXPANSIONS.get(keyword, (keyword,))
+
+
 def score_chunk(chunk: dict, keywords: list[str]) -> int:
-    content_lower = chunk["content"].lower()
-    return sum(content_lower.count(kw) for kw in keywords)
+    """Score relevance while favoring topic-specific titles over boilerplate."""
+    content_lower = str(chunk.get("content") or "").lower()
+    title_lower = str(chunk.get("source") or "").lower()
+    location_lower = str(chunk.get("location") or "").lower()
+    score = 0
+    for keyword in keywords:
+        variants = _keyword_variants(keyword)
+        # Cap body repetition so long pages with repeated footer text cannot win.
+        score += min(sum(content_lower.count(v) for v in variants), 3)
+        if any(v in title_lower for v in variants):
+            score += 6
+        if any(v in location_lower for v in variants):
+            score += 3
+    return score
 
 
 def find_relevant_chunks(query: str, chunks: list[dict], top_n: int = 8) -> list[tuple[int, dict]]:
@@ -225,7 +256,13 @@ def find_relevant_chunks(query: str, chunks: list[dict], top_n: int = 8) -> list
         return []
     scored = [(score_chunk(c, keywords), c) for c in chunks]
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [(score, c) for score, c in scored[:top_n] if score > 0]
+    positive = [(score, c) for score, c in scored if score > 0]
+    if not positive:
+        return []
+    # Keep only results reasonably close to the best match. This removes pages
+    # where query words appear incidentally in shared or long-form content.
+    cutoff = max(2, positive[0][0] * 0.6)
+    return [(score, c) for score, c in positive if score >= cutoff][:top_n]
 
 
 def build_context_block(scored_chunks: list[tuple[int, dict]]) -> str:

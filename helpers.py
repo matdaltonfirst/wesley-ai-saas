@@ -310,7 +310,9 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
         f"{context}\n---\n"
         "Use only sources that directly support your answer. Cite each factual claim "
         "drawn from a numbered source with its bracketed number, such as [1]. Do not "
-        "cite a source unless it supports that claim. If the sources do not support an "
+        "cite a source unless it supports that claim. Use the smallest number of sources "
+        "needed, preferring a page specifically about the question over home pages, blog "
+        "posts, or pages where the fact appears only incidentally. If the sources do not support an "
         f"answer, say that the information is unavailable and do not add a citation.\n\n{question}"
         if context.strip()
         else question

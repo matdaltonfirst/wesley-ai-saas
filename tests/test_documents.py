@@ -295,3 +295,46 @@ class TestPatchVisibility:
         db.session.commit()
         public_path.unlink()
         private_path.unlink()
+
+
+class TestRelevanceScoring:
+    def test_topic_page_outranks_long_page_with_incidental_matches(self):
+        from documents import find_relevant_chunks
+
+        chunks = [
+            {
+                "source": "Traditional Worship",
+                "location": "https://church.example/worship/traditional",
+                "content": "Traditional worship meets Sunday at 11:00 AM.",
+            },
+            {
+                "source": "When Relationships Get Stuck in the Ditch",
+                "location": "https://church.example/blog/relationships",
+                "content": ("Sunday service information appears in shared text. " * 30),
+            },
+        ]
+
+        results = find_relevant_chunks("What time are Sunday services?", chunks)
+
+        assert [chunk["source"] for _, chunk in results] == ["Traditional Worship"]
+
+    def test_exact_curated_question_receives_metadata_boost(self):
+        from documents import find_relevant_chunks
+
+        chunks = [
+            {
+                "source": "Approved church answer",
+                "location": "What time are Sunday services?",
+                "content": "Sunday services are at 9:30 and 11:00.",
+                "type": "approved_answer",
+            },
+            {
+                "source": "Weekly Article",
+                "location": "https://church.example/article",
+                "content": "Sunday services are mentioned here.",
+            },
+        ]
+
+        results = find_relevant_chunks("What time are Sunday services?", chunks)
+
+        assert results[0][1]["type"] == "approved_answer"

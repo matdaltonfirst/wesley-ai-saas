@@ -148,8 +148,8 @@ class TestChat:
 
     def test_chat_accepts_grouped_citation_markers(self, auth_client):
         chunks = [
-            {"content": "Worship is Sunday.", "source": "Worship", "location": "Page 1"},
-            {"content": "Classes are Sunday.", "source": "Classes", "location": "Page 2"},
+            {"content": "Worship meets Sunday.", "source": "Worship", "location": "Page 1"},
+            {"content": "Classes meet on Sunday and Sunday classes meet weekly.", "source": "Classes", "location": "Page 2"},
         ]
         with patch("routes.chat.load_church_documents", return_value=chunks), \
              patch("routes.chat.load_curated_content", return_value=[]), \
