@@ -161,6 +161,31 @@ class TestChat:
         db.session.delete(Conversation.query.get(data["conversation_id"]))
         db.session.commit()
 
+    def test_chat_groups_multiple_pages_from_same_document(self, auth_client):
+        chunks = [
+            {"content": "Modern Sunday service is at 9:30.", "source": "Service Guide.pdf", "location": "Page 2"},
+            {"content": "Traditional Sunday service is at 11.", "source": "Service Guide.pdf", "location": "Page 5"},
+            {"content": "Services meet Sunday.", "source": "Service Guide.pdf", "location": "Page 8"},
+        ]
+        with patch("routes.chat.load_church_documents", return_value=chunks), \
+             patch("routes.chat.load_curated_content", return_value=[]), \
+             patch("routes.chat.call_gemini", return_value="Services are at 9:30 and 11 [1].") as gemini:
+            res = auth_client.post("/api/chat", json={"question": "When are services Sunday?"})
+
+        data = res.get_json()
+        assert data["sources"] == [{
+            "title": "Service Guide.pdf",
+            "location": "Pages 2, 5, 8",
+            "url": None,
+            "type": "document",
+        }]
+        context = gemini.call_args.args[1]
+        assert context.count("[Source 1:") == 3
+        assert "[Source 2:" not in context
+
+        db.session.delete(Conversation.query.get(data["conversation_id"]))
+        db.session.commit()
+
 
 # ── /api/conversations ────────────────────────────────────────────────────────
 

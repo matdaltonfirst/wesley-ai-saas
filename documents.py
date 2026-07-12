@@ -243,6 +243,7 @@ def build_cited_context(
     """Build numbered model context and its matching, deduplicated citations."""
     citations = []
     citation_numbers = {}
+    citation_locations = {}
     context_lines = []
     for scored_chunks in scored_groups:
         for score, chunk in scored_chunks:
@@ -252,23 +253,43 @@ def build_cited_context(
             location = str(chunk.get("location") or "").strip()
             is_web = location.startswith(("http://", "https://"))
             source_type = chunk.get("type") or ("website" if is_web else "document")
-            key = (title, location)
+            # Multiple pages from one uploaded file are one source. Website pages
+            # and curated entries remain distinct because their locations matter.
+            key = (source_type, title) if source_type == "document" else (source_type, title, location)
             if key not in citation_numbers:
                 if len(citations) >= limit:
                     continue
                 citation_numbers[key] = len(citations) + 1
+                citation_locations[key] = [location] if location else []
                 citations.append({
                     "title": title,
                     "location": "Website" if is_web else location,
                     "url": location if is_web else None,
                     "type": source_type,
                 })
+            elif location and location not in citation_locations[key]:
+                citation_locations[key].append(location)
             number = citation_numbers[key]
             context_lines.extend([
                 f"[Source {number}: {title}, {location}]",
                 chunk["content"],
                 "",
             ])
+    for key, number in citation_numbers.items():
+        locations = citation_locations[key]
+        if citations[number - 1]["type"] != "document" or len(locations) < 2:
+            continue
+        page_numbers = []
+        for location in locations:
+            match = re.fullmatch(r"Page\s+(\d+)", location, flags=re.IGNORECASE)
+            if not match:
+                break
+            page_numbers.append(match.group(1))
+        citations[number - 1]["location"] = (
+            "Pages " + ", ".join(sorted(page_numbers, key=int))
+            if len(page_numbers) == len(locations)
+            else "; ".join(locations)
+        )
     return "\n".join(context_lines), citations
 
 
