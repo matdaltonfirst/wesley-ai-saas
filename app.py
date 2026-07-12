@@ -22,7 +22,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from models import db, User, Church, SystemPrompt, Conversation, WidgetConversation, Invite
-from config import DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB, AUTO_RECRAWL_DAYS
+from config import DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB
 from helpers import csrf_token
 
 load_dotenv()
@@ -186,11 +186,6 @@ def create_app(testing: bool = False) -> Flask:
             db.session.commit()
             log.info("System prompt seeded with default.")
 
-    if not testing and AUTO_RECRAWL_DAYS > 0:
-        from crawler import start_recrawl_scheduler
-        start_recrawl_scheduler(_app)
-        log.info("Auto-recrawl scheduler started (every %d days).", AUTO_RECRAWL_DAYS)
-
     return _app
 
 
@@ -236,6 +231,7 @@ def _run_migrations() -> None:
             ("starter_questions",   "ALTER TABLE churches ADD COLUMN starter_questions TEXT"),
             ("bot_subtitle",        "ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"),
             ("comms_enabled",       "ALTER TABLE churches ADD COLUMN comms_enabled BOOLEAN NOT NULL DEFAULT 1"),
+            ("digest_last_sent_at", "ALTER TABLE churches ADD COLUMN digest_last_sent_at DATETIME"),
         ]
         manual_billing_migrations = [
             ("manual_payment_active",   "ALTER TABLE churches ADD COLUMN manual_payment_active BOOLEAN NOT NULL DEFAULT 0"),
@@ -478,6 +474,15 @@ def manual_billing_check_job():
             db.session.commit()
 
 
+def weekly_digest_job():
+    """Monday 13:00 UTC (early morning US) job: email each church a summary of
+    last week's widget activity."""
+    with app.app_context():
+        from digest import send_weekly_digests
+        sent = send_weekly_digests()
+        log.info("Weekly digest job: sent digest(s) for %d church(es).", sent)
+
+
 # Only start the scheduler in production (not during tests or CLI commands)
 if not app.testing:
     scheduler = BackgroundScheduler(daemon=True)
@@ -487,6 +492,7 @@ if not app.testing:
     scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
     scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
     scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
+    scheduler.add_job(weekly_digest_job, CronTrigger(day_of_week="mon", hour=13, minute=0))
     if not scheduler.running:
         scheduler.start()
 

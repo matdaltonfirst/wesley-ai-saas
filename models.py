@@ -61,6 +61,9 @@ class Church(db.Model):
     # Features
     comms_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
+    # Weekly activity digest email
+    digest_last_sent_at = db.Column(db.DateTime, nullable=True)
+
     # Billing — Stripe
     trial_ends_at          = db.Column(db.DateTime, nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)

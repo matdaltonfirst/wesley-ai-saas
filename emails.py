@@ -221,3 +221,26 @@ def send_manual_expired_email(
         })
     except Exception as exc:
         log.error("Manual expired email failed for %s: %s", to_email, exc)
+
+
+def send_weekly_digest_email(
+    to_email: str, church_name: str, stats: dict,
+    from_email: str, app_url: str, support_email: str,
+) -> None:
+    """Send the Monday-morning widget activity digest via Resend."""
+    html = render_template(
+        "emails/weekly_digest.html",
+        church_name=church_name,
+        stats=stats,
+        app_url=app_url,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": f"Your week with Wesley — {stats['conversations']} conversations at {church_name}",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Weekly digest email failed for %s: %s", to_email, exc)

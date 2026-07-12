@@ -15,9 +15,8 @@ Usage (inside a Flask app context):
 
 import time
 import logging
-import threading
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from urllib.parse import urlparse, urljoin, urldefrag
 
 import requests as req_lib
@@ -368,58 +367,3 @@ def crawl_church_website(church_id: int, start_url: str) -> dict:
         "method":        method,
     }
 
-
-# ── Scheduled re-crawls ───────────────────────────────────────────────────────
-
-RECRAWL_CHECK_SECONDS = 3600   # how often the scheduler looks for stale churches
-RECRAWL_BOOT_DELAY    = 120    # let the app finish booting before the first check
-
-
-def run_due_recrawls() -> list[int]:
-    """Re-crawl every church whose content is older than AUTO_RECRAWL_DAYS.
-
-    Must be called inside a Flask application context. Each church is claimed
-    by bumping ``last_crawled_at`` before its (slow) crawl starts, so a crash,
-    restart, or concurrent scheduler cannot double-crawl it; a failed crawl is
-    therefore not retried until the next interval. Returns crawled church ids.
-    """
-    from config import AUTO_RECRAWL_DAYS
-    from models import db, Church
-
-    if AUTO_RECRAWL_DAYS <= 0:
-        return []
-
-    cutoff = datetime.utcnow() - timedelta(days=AUTO_RECRAWL_DAYS)
-    due = (
-        Church.query
-        .filter(Church.website_url.isnot(None), Church.website_url != "")
-        .filter(db.or_(Church.last_crawled_at.is_(None),
-                       Church.last_crawled_at < cutoff))
-        .all()
-    )
-
-    crawled: list[int] = []
-    for church in due:
-        church.last_crawled_at = datetime.utcnow()   # claim before crawling
-        db.session.commit()
-        result = crawl_church_website(church.id, church.website_url)
-        _log(f"Scheduled crawl church_id={church.id}: {result}")
-        crawled.append(church.id)
-    return crawled
-
-
-def start_recrawl_scheduler(app) -> threading.Thread:
-    """Run ``run_due_recrawls`` on an hourly loop in a daemon thread."""
-    def loop():
-        time.sleep(RECRAWL_BOOT_DELAY)
-        while True:
-            try:
-                with app.app_context():
-                    run_due_recrawls()
-            except Exception as exc:
-                _log(f"Recrawl scheduler error: {exc}", level="error")
-            time.sleep(RECRAWL_CHECK_SECONDS)
-
-    t = threading.Thread(target=loop, name="recrawl-scheduler", daemon=True)
-    t.start()
-    return t
