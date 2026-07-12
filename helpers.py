@@ -158,18 +158,22 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
         # Fallback path (widget=False, staff=False) — unchanged behaviour
         return base + ctx + qna_block + snippet_block
 
-    # Public widget addendum — unchanged
+    # Public widget addendum
     addendum = (
         "\n\nWhen answering questions about schedules, events, menus, or anything "
         "time-sensitive, use today's date to give a specific, direct answer — "
         "do not list every option when only today's is relevant."
-        "\n\nIMPORTANT: Never mention that you are referencing a document, file, "
-        "or uploaded file of any kind. Never reveal or repeat file names (including "
-        ".pdf and .docx filenames). Answer naturally and directly, as if you simply "
-        "know the information."
+        "\n\nIMPORTANT: Never mention in your prose that you are referencing a "
+        "document, file, or uploaded file of any kind. Never reveal or repeat file "
+        "names (including .pdf and .docx filenames). Answer naturally and directly, "
+        "as if you simply know the information. Bracketed citation markers such as "
+        "[1] are the one exception: they are not mentioning a document, and you must "
+        "still append them exactly as the citation instructions direct."
         "\n\nRespond in plain text only. Do not use markdown formatting such as "
         "headings (##), bullet points (-), bold (**text**), italic (*text*), "
-        "or any other markdown syntax. Write in natural, conversational sentences."
+        "or any other markdown syntax. Write in natural, conversational sentences. "
+        "Bracketed citation markers like [1] are required and do not count as "
+        "markdown."
     )
     return base + ctx + qna_block + snippet_block + addendum
 

@@ -271,6 +271,11 @@
       .replace(/\n/g, "<br>");
   }
 
+  /** Remove citation markers like [1] or [1, 2] — sources render as chips instead. */
+  function stripCitations(s) {
+    return String(s).replace(/\s*\[[\d,\s]+\]/g, "");
+  }
+
   /** First letter of bot name, uppercased. Falls back to "W". */
   function initial(name) {
     var ch = ((name || "W").trim().charAt(0) || "W");
@@ -852,7 +857,7 @@
           self._appendBot("⚠ " + esc(result.data.error || "Something went wrong. Please try again."));
         } else {
           self._appendBot(
-            renderMd(result.data.answer || ""),
+            renderMd(stripCitations(result.data.answer || "")),
             result.data.sources || [],
             result.data.message_id
           );
