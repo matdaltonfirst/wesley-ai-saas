@@ -420,3 +420,15 @@ class TestAutoFlaggedFeedback:
         assert flagged[0]["rating"] == "auto_flagged"
         assert flagged[0]["question"] == "When is the fall festival?"
         self._cleanup(answer)
+
+
+class TestMultiLanguage:
+    def test_widget_prompt_instructs_language_matching(self, app, church):
+        from helpers import build_system_prompt
+        prompt = build_system_prompt(church, widget=True)
+        assert "language the visitor writes in" in prompt
+
+    def test_staff_prompt_unchanged(self, app, church):
+        from helpers import build_system_prompt
+        prompt = build_system_prompt(church, staff=True)
+        assert "language the visitor writes in" not in prompt

@@ -276,6 +276,44 @@
     return String(s).replace(/\s*\[[\d,\s]+\]/g, "");
   }
 
+  // ── Localization ────────────────────────────────────────────────────────────
+  // UI chrome follows the browser language; the bot itself answers in whatever
+  // language the visitor writes (instructed server-side). English strings stay
+  // inline as fallbacks, so adding a language here is all that's needed.
+  var LOCALES = {
+    es: {
+      placeholder: "Escribe tu pregunta sobre nuestra iglesia…",
+      sources: "Fuentes",
+      helpful: "¿Te ayudó?",
+      thanksHelpful: "¡Gracias por tu opinión!",
+      thanksNotHelpful: "Gracias. Nuestro equipo revisará esta respuesta.",
+      reasonIncorrect: "Incorrecta",
+      reasonOutdated: "Desactualizada",
+      reasonIncomplete: "Incompleta",
+      reasonConfusing: "Confusa",
+      reasonOther: "Otro",
+      errGeneric: "Algo salió mal. Por favor, inténtalo de nuevo.",
+      errNetwork: "Error de red — inténtalo de nuevo.",
+      ccTitle: "💛 ¿Te gustaría que alguien de nuestro equipo se comunique contigo personalmente? Solo toma unos segundos.",
+      ccYes: "Sí, me encantaría",
+      ccName: "Tu nombre *",
+      ccEmail: "Correo electrónico *",
+      ccPhone: "Opcional — para una llamada personal",
+      ccSubmit: "Conéctate con nosotros →",
+      ccSending: "Enviando…",
+      ccConfirmPrefix: "¡Gracias, ",
+      ccConfirmSuffix: "! Alguien de nuestro equipo se comunicará contigo pronto. Nos encantaría conocerte. 🙏",
+      ariaOpen: "Abrir el chat de la iglesia",
+      ariaPanel: "Chat de la iglesia",
+      ariaMessage: "Mensaje",
+    },
+  };
+  var _lang = ((navigator.language || "en").toLowerCase().split("-")[0]);
+  var _locale = LOCALES[_lang] || {};
+  function t(key, fallback) {
+    return _locale[key] || fallback;
+  }
+
   /** First letter of bot name, uppercased. Falls back to "W". */
   function initial(name) {
     var ch = ((name || "W").trim().charAt(0) || "W");
@@ -458,7 +496,7 @@
     // ── Floating button ──────────────────────────────────────────────────────
     var btn = document.createElement("button");
     btn.id = "wai-btn";
-    btn.setAttribute("aria-label", "Open church chat");
+    btn.setAttribute("aria-label", t("ariaOpen", "Open church chat"));
     btn.setAttribute("aria-expanded", "false");
     btn.style.background = color;
     btn.innerHTML = [
@@ -473,7 +511,7 @@
     var panel = document.createElement("div");
     panel.id = "wai-panel";
     panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", "Church chat");
+    panel.setAttribute("aria-label", t("ariaPanel", "Church chat"));
     panel.innerHTML = [
       '<div class="wai-header" id="wai-e-hdr">',
       '  <div class="wai-header-left">',
@@ -495,8 +533,8 @@
       '<div class="wai-msgs" id="wai-e-msgs" role="log" aria-live="polite"></div>',
       '<div class="wai-footer">',
       '  <textarea class="wai-input" id="wai-e-input" rows="1"',
-      '            placeholder="Ask a question about our church\u2026"',
-      '            aria-label="Message"></textarea>',
+      '            placeholder="' + esc(t("placeholder", "Ask a question about our church\u2026")) + '"',
+      '            aria-label="' + esc(t("ariaMessage", "Message")) + '"></textarea>',
       '  <button class="wai-send" id="wai-e-send" disabled aria-label="Send">',
       '    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"',
       '         stroke="#fff" stroke-width="2.5"',
@@ -638,7 +676,7 @@
     row.className = "wai-msg wai-msg-bot";
     var sourceHtml = "";
     if (sources && sources.length) {
-      sourceHtml = '<div class="wai-sources"><span class="wai-source-label">Sources</span>' +
+      sourceHtml = '<div class="wai-sources"><span class="wai-source-label">' + esc(t("sources", "Sources")) + '</span>' +
         sources.map(function (s) {
           var detail = s.location ? " · " + esc(s.location) : "";
           var label = esc(s.title) + detail;
@@ -654,14 +692,14 @@
       var content = row.querySelector(".wai-bot-content");
       var feedback = document.createElement("div");
       feedback.className = "wai-feedback";
-      feedback.innerHTML = '<span class="wai-feedback-label">Helpful?</span>' +
+      feedback.innerHTML = '<span class="wai-feedback-label">' + esc(t("helpful", "Helpful?")) + '</span>' +
         '<button class="wai-feedback-btn wai-feedback-up" type="button" title="Helpful" aria-label="Helpful">&#128077;</button>' +
         '<button class="wai-feedback-btn wai-feedback-down" type="button" title="Not helpful" aria-label="Not helpful">&#128078;</button>';
       var reasons = document.createElement("div");
       reasons.className = "wai-feedback-reasons";
       reasons.innerHTML = [
-        ["incorrect", "Incorrect"], ["outdated", "Outdated"],
-        ["incomplete", "Incomplete"], ["confusing", "Confusing"], ["other", "Other"]
+        ["incorrect", t("reasonIncorrect", "Incorrect")], ["outdated", t("reasonOutdated", "Outdated")],
+        ["incomplete", t("reasonIncomplete", "Incomplete")], ["confusing", t("reasonConfusing", "Confusing")], ["other", t("reasonOther", "Other")]
       ].map(function (item) {
         return '<button class="wai-reason-btn" type="button" data-reason="' + item[0] + '">' + item[1] + '</button>';
       }).join("");
@@ -709,7 +747,7 @@
         if (reasons) reasons.remove();
         var thanks = document.createElement("div");
         thanks.className = "wai-feedback-thanks";
-        thanks.textContent = rating === "helpful" ? "Thanks for your feedback." : "Thanks. Our team will review this answer.";
+        thanks.textContent = rating === "helpful" ? t("thanksHelpful", "Thanks for your feedback.") : t("thanksNotHelpful", "Thanks. Our team will review this answer.");
         content.appendChild(thanks);
       })
       .catch(function () {
@@ -747,11 +785,11 @@
   WesleyWidget.prototype._detectInterest = function (text) {
     var t = text.toLowerCase();
     var groups = [
-      ["New to Church",           ["first time","first visit","new here","checking out","visiting","never been","want to visit","thinking about attending"]],
-      ["Worship & Service Times", ["service time","worship time","what time","sunday service","when do you meet","when does church start"]],
-      ["Prayer Request",          ["need prayer","pray for","prayer request","struggling","going through","hard time","difficult"]],
-      ["Get Connected",           ["get involved","join","membership","become a member","small group","volunteer","how do i get connected","learn more about your church"]],
-      ["Children & Family",       ["nursery","children's ministry","kids church","youth group","student ministry","do you have kids"]],
+      ["New to Church",           ["first time","first visit","new here","checking out","visiting","never been","want to visit","thinking about attending","primera vez","soy nuevo","soy nueva","quiero visitar","de visita"]],
+      ["Worship & Service Times", ["service time","worship time","what time","sunday service","when do you meet","when does church start","horario","a qué hora","el culto","servicio dominical","la misa"]],
+      ["Prayer Request",          ["need prayer","pray for","prayer request","struggling","going through","hard time","difficult","oración","oren por","orar por","necesito oración"]],
+      ["Get Connected",           ["get involved","join","membership","become a member","small group","volunteer","how do i get connected","learn more about your church","involucrarme","ser miembro","grupo pequeño","voluntario"]],
+      ["Children & Family",       ["nursery","children's ministry","kids church","youth group","student ministry","do you have kids","guardería","ministerio de niños","jóvenes","para niños"]],
     ];
     for (var i = 0; i < groups.length; i++) {
       var keywords = groups[i][1];
@@ -767,13 +805,13 @@
     var card = document.createElement("div");
     card.className = "wai-connect-card";
     card.innerHTML =
-      '<p class="wai-cc-title">💛 Would you like someone from our team to reach out to you personally? It only takes a few seconds.</p>' +
-      '<button class="wai-cc-yes">Yes, I\'d love that</button>' +
+      '<p class="wai-cc-title">' + esc(t("ccTitle", "💛 Would you like someone from our team to reach out to you personally? It only takes a few seconds.")) + '</p>' +
+      '<button class="wai-cc-yes">' + esc(t("ccYes", "Yes, I\'d love that")) + '</button>' +
       '<div class="wai-cc-form" id="wai-cc-form-inner">' +
-      '  <input class="wai-cf-inp" type="text"  placeholder="Your name *" id="wai-cf-name" />' +
-      '  <input class="wai-cf-inp" type="email" placeholder="Email address *" id="wai-cf-email" />' +
-      '  <input class="wai-cf-inp" type="tel"   placeholder="Optional — for a personal call" id="wai-cf-phone" />' +
-      '  <button class="wai-cf-submit" id="wai-cf-submit">Connect with Us →</button>' +
+      '  <input class="wai-cf-inp" type="text"  placeholder="' + esc(t("ccName", "Your name *")) + '" id="wai-cf-name" />' +
+      '  <input class="wai-cf-inp" type="email" placeholder="' + esc(t("ccEmail", "Email address *")) + '" id="wai-cf-email" />' +
+      '  <input class="wai-cf-inp" type="tel"   placeholder="' + esc(t("ccPhone", "Optional — for a personal call")) + '" id="wai-cf-phone" />' +
+      '  <button class="wai-cf-submit" id="wai-cf-submit">' + esc(t("ccSubmit", "Connect with Us →")) + '</button>' +
       '</div>';
 
     this._refs.msgs.appendChild(card);
@@ -799,7 +837,7 @@
       }
 
       submitBtn.disabled = true;
-      submitBtn.textContent = "Sending…";
+      submitBtn.textContent = t("ccSending", "Sending…");
 
       fetch(self._apiBase + "/api/guest-connection", {
         method: "POST",
@@ -815,12 +853,12 @@
       })
         .then(function (r) { return r.json(); })
         .then(function () {
-          card.innerHTML = '<p class="wai-cc-confirm">Thank you, ' + esc(nameVal) + '! Someone from our team will reach out soon. We\'d love to meet you. 🙏</p>';
+          card.innerHTML = '<p class="wai-cc-confirm">' + esc(t("ccConfirmPrefix", "Thank you, ")) + esc(nameVal) + esc(t("ccConfirmSuffix", "! Someone from our team will reach out soon. We'd love to meet you. 🙏")) + '</p>';
           self._refs.msgs.scrollTop = self._refs.msgs.scrollHeight;
         })
         .catch(function () {
           submitBtn.disabled = false;
-          submitBtn.textContent = "Connect with Us →";
+          submitBtn.textContent = t("ccSubmit", "Connect with Us →");
         });
     });
   };
@@ -854,7 +892,7 @@
       .then(function (result) {
         self._removeTyping();
         if (!result.ok || result.data.error) {
-          self._appendBot("⚠ " + esc(result.data.error || "Something went wrong. Please try again."));
+          self._appendBot("⚠ " + esc(result.data.error || t("errGeneric", "Something went wrong. Please try again.")));
         } else {
           self._appendBot(
             renderMd(stripCitations(result.data.answer || "")),
@@ -878,7 +916,7 @@
       })
       .catch(function () {
         self._removeTyping();
-        self._appendBot("⚠ Network error — please try again.");
+        self._appendBot("⚠ " + esc(t("errNetwork", "Network error — please try again.")));
       })
       .finally(function () {
         self._isBusy = false;

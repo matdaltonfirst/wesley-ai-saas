@@ -160,6 +160,10 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
 
     # Public widget addendum
     addendum = (
+        "\n\nAlways respond in the language the visitor writes in. If they write "
+        "in Spanish, answer entirely in Spanish; translate information from the "
+        "church's sources into their language as needed. Only fall back to "
+        "English when you cannot determine the visitor's language."
         "\n\nWhen answering questions about schedules, events, menus, or anything "
         "time-sensitive, use today's date to give a specific, direct answer — "
         "do not list every option when only today's is relevant."
