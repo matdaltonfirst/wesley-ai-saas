@@ -1281,6 +1281,25 @@
     .fb-correction { display:none;margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9; }
     .fb-correction.fb-visible { display:block; }
     .fb-correction .ds-field-input { margin-bottom:10px; }
+
+    /* ── Event Calendars ── */
+    .cal-warning { font-size:0.8rem;line-height:1.5;color:#92400e;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin:0 0 16px; }
+    .cal-list { display:flex;flex-direction:column;gap:12px;margin-top:16px; }
+    .cal-item { border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden; }
+    .cal-item-head { display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fafcfc;border-bottom:1px solid #f1f5f9; }
+    .cal-item-title { font-size:0.86rem;font-weight:600;color:#0f172a; }
+    .cal-item-meta { font-size:0.72rem;color:#94a3b8; }
+    .cal-item-error { font-size:0.75rem;color:#b91c1c;background:#fef2f2;border-radius:6px;padding:8px 10px;margin:10px 14px; }
+    .cal-item-actions { margin-left:auto;display:flex;gap:6px; }
+    .cal-icon-btn { width:26px;height:26px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#64748b;display:flex;align-items:center;justify-content:center;cursor:pointer; }
+    .cal-icon-btn:hover { background:#f0f9fa;color:#176d73;border-color:#8fcbd0; }
+    .cal-events { padding:8px 14px 12px; }
+    .cal-events-label { font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;margin:6px 0; }
+    .cal-event-row { display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f8fafc;font-size:0.8rem; }
+    .cal-event-row:last-child { border-bottom:none; }
+    .cal-event-when { color:#176d73;font-weight:600;white-space:nowrap; }
+    .cal-event-title { color:#334155; }
+    .cal-event-loc { color:#94a3b8; }
   </style>
 </head>
 <body class="settings-page">
@@ -1416,6 +1435,15 @@
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
               Website
+            </button>
+            <button class="db-nav-item" data-panel="calendars">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Calendars
             </button>
             <button class="db-nav-item" data-panel="snippets">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1843,6 +1871,40 @@
         </section>
       </div>
 
+      <!-- ── Event Calendars ── -->
+      <div class="db-panel" id="panel-calendars">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Event Calendars</h1>
+          <p class="db-panel-subtitle">Connect public calendar feeds so Wesley always knows what's coming up — no re-crawling, never stale.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Connected Calendars</h2>
+          </div>
+          <p class="cal-warning">
+            ⚠ Every event in a connected feed can be shared with website visitors.
+            Connect your <strong>public events calendar</strong> only — never staff or personal calendars.
+          </p>
+          <div class="website-field-label">Calendar feed URL (iCal / ICS)</div>
+          <div class="website-url-row">
+            <input
+              type="url"
+              id="calendarUrl"
+              class="website-url-input"
+              placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="website-save-btn" id="calendarAddBtn">Connect</button>
+          </div>
+          <div class="website-status" id="calendarStatus">
+            In Google Calendar: Settings → your calendar → Integrate calendar → "Public address in iCal format".
+            In Planning Center: Calendar → feeds → iCal link.
+          </div>
+          <div id="calendarList" class="cal-list"></div>
+        </section>
+      </div>
+
       <!-- ── Embed Code ── -->
       <div class="db-panel" id="panel-embed">
         <div class="db-panel-header">
@@ -2130,7 +2192,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','embed','playground','team','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','embed','playground','team','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');

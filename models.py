@@ -293,3 +293,40 @@ class Invite(db.Model):
     token      = db.Column(db.String(100), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     accepted   = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class ChurchCalendar(db.Model):
+    """A public ICS calendar feed (Google Calendar, Planning Center, etc.)."""
+    __tablename__ = "church_calendars"
+    id              = db.Column(db.Integer, primary_key=True)
+    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    url             = db.Column(db.String(1000), nullable=False)
+    label           = db.Column(db.String(200), nullable=False, default="Church calendar")
+    last_fetched_at = db.Column(db.DateTime, nullable=True)
+    last_error      = db.Column(db.String(500), nullable=True)
+    event_count     = db.Column(db.Integer, nullable=False, default=0)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+    events = db.relationship(
+        "CalendarEvent", backref="calendar", cascade="all, delete-orphan",
+    )
+
+
+class CalendarEvent(db.Model):
+    """One occurrence of a calendar event, expanded from the ICS feed.
+
+    Times are stored as the event's local wall-clock time (what a visitor
+    would read on a poster), not UTC.
+    """
+    __tablename__ = "calendar_events"
+    id          = db.Column(db.Integer, primary_key=True)
+    calendar_id = db.Column(
+        db.Integer, db.ForeignKey("church_calendars.id"), nullable=False, index=True,
+    )
+    church_id   = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    title       = db.Column(db.String(500), nullable=False)
+    location    = db.Column(db.String(500), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    starts_at   = db.Column(db.DateTime, nullable=False, index=True)
+    ends_at     = db.Column(db.DateTime, nullable=True)
+    all_day     = db.Column(db.Boolean, nullable=False, default=False)

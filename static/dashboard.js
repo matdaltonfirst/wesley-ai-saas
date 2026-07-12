@@ -817,7 +817,108 @@ document.addEventListener("panelShow", function(e) {
   else if (id === "feedback")            loadFeedback();
   else if (id === "snippets")            loadSnippets();
   else if (id === "qna")                 loadQna();
+  else if (id === "calendars")           loadCalendars();
 });
+
+// ── Event Calendars ─────────────────────────────────────────────────────────
+const calendarUrlEl   = document.getElementById("calendarUrl");
+const calendarAddBtn  = document.getElementById("calendarAddBtn");
+const calendarListEl  = document.getElementById("calendarList");
+
+function renderCalendarItem(cal) {
+  const meta = cal.last_error
+    ? ""
+    : `${cal.event_count} upcoming event${cal.event_count === 1 ? "" : "s"}`;
+  const preview = (cal.preview || []).slice(0, 10).map(ev => `
+    <div class="cal-event-row">
+      <span class="cal-event-when">${esc(ev.when)}</span>
+      <span class="cal-event-title">${esc(ev.title)}</span>
+      ${ev.location ? `<span class="cal-event-loc">· ${esc(ev.location)}</span>` : ""}
+    </div>`).join("");
+  return `
+    <div class="cal-item" data-id="${cal.id}">
+      <div class="cal-item-head">
+        <div>
+          <div class="cal-item-title" title="${esc(cal.url)}">${esc(cal.label)}</div>
+          <div class="cal-item-meta">${esc(meta)}</div>
+        </div>
+        <div class="cal-item-actions">
+          <button class="cal-icon-btn cal-refresh-btn" data-id="${cal.id}" title="Refresh now">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+          <button class="cal-icon-btn cal-delete-btn" data-id="${cal.id}" title="Disconnect calendar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      ${cal.last_error ? `<div class="cal-item-error">${esc(cal.last_error)}</div>` : ""}
+      ${preview ? `<div class="cal-events"><div class="cal-events-label">This is what Wesley will know about</div>${preview}</div>` : ""}
+    </div>`;
+}
+
+function bindCalendarButtons() {
+  calendarListEl.querySelectorAll(".cal-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Disconnect this calendar? Wesley will forget its events.")) return;
+      await fetch(`/api/calendars/${btn.dataset.id}`, { method: "DELETE" });
+      loadCalendars();
+    });
+  });
+  calendarListEl.querySelectorAll(".cal-refresh-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      await fetch(`/api/calendars/${btn.dataset.id}/refresh`, { method: "POST" });
+      loadCalendars();
+    });
+  });
+}
+
+async function loadCalendars() {
+  if (!calendarListEl) return;
+  calendarListEl.innerHTML = '<div class="an-empty">Loading…</div>';
+  try {
+    const res = await fetch("/api/calendars");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+    const cals = data.calendars || [];
+    calendarListEl.innerHTML = cals.length
+      ? cals.map(renderCalendarItem).join("")
+      : '<div class="an-empty">No calendars connected yet. Paste your public events calendar feed above.</div>';
+    bindCalendarButtons();
+  } catch {
+    calendarListEl.innerHTML = '<div class="an-empty">Could not load calendars.</div>';
+  }
+}
+
+if (calendarAddBtn) {
+  calendarAddBtn.addEventListener("click", async () => {
+    const url = (calendarUrlEl.value || "").trim();
+    if (!url) return;
+    calendarAddBtn.disabled = true;
+    calendarAddBtn.textContent = "Connecting…";
+    try {
+      const res = await fetch("/api/calendars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Could not connect that calendar."); return; }
+      calendarUrlEl.value = "";
+      loadCalendars();
+    } catch {
+      alert("Could not connect that calendar. Check your connection and try again.");
+    } finally {
+      calendarAddBtn.disabled = false;
+      calendarAddBtn.textContent = "Connect";
+    }
+  });
+}
 
 // ── Feedback & Corrections ──────────────────────────────────────────────────
 

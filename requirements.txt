@@ -13,3 +13,5 @@ beautifulsoup4>=4.12
 requests>=2.31
 stripe>=7.0
 resend>=2.0
+icalendar>=5.0,<6
+recurring-ical-events>=2.1,<3

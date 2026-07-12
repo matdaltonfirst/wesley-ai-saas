@@ -149,6 +149,7 @@ def create_app(testing: bool = False) -> Flask:
     from routes.admin import admin_bp
     from routes.stripe_routes import stripe_bp
     from routes.comms_routes import comms_bp
+    from routes.calendars import calendars_bp
 
     _app.register_blueprint(auth_bp)
     _app.register_blueprint(pages_bp)
@@ -159,6 +160,7 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(admin_bp)
     _app.register_blueprint(stripe_bp)
     _app.register_blueprint(comms_bp)
+    _app.register_blueprint(calendars_bp)
 
     # ── Flask CLI commands ───────────────────────────────────────────────────
 
@@ -474,6 +476,14 @@ def manual_billing_check_job():
             db.session.commit()
 
 
+def calendar_refresh_job():
+    """Nightly 1:30 AM job: re-fetch every connected calendar feed."""
+    with app.app_context():
+        from calendar_feed import refresh_all_calendars
+        ok = refresh_all_calendars()
+        log.info("Calendar refresh job: %d feed(s) refreshed successfully.", ok)
+
+
 def weekly_digest_job():
     """Monday 13:00 UTC (early morning US) job: email each church a summary of
     last week's widget activity."""
@@ -493,6 +503,7 @@ if not app.testing:
     scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
     scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
     scheduler.add_job(weekly_digest_job, CronTrigger(day_of_week="mon", hour=13, minute=0))
+    scheduler.add_job(calendar_refresh_job, CronTrigger(hour=1, minute=30))
     if not scheduler.running:
         scheduler.start()
 

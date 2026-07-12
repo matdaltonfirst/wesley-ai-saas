@@ -24,6 +24,7 @@ from documents import (
     find_relevant_chunks,
     build_cited_context, select_cited_sources,
 )
+from calendar_feed import load_calendar_chunks, score_calendar_chunks
 
 log = logging.getLogger("wesley")
 
@@ -210,8 +211,9 @@ def widget_chat():
 
     scored_docs = find_relevant_chunks(question, doc_chunks, top_n=MAX_DOC_CHUNKS) if doc_chunks else []
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
+    scored_cal = score_calendar_chunks(question, load_calendar_chunks(church_id))
 
-    context, candidate_sources = build_cited_context([scored_docs, scored_web])
+    context, candidate_sources = build_cited_context([scored_docs, scored_web, scored_cal])
 
     system_instruction = build_system_prompt(church, widget=True)
 

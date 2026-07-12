@@ -13,6 +13,7 @@ from documents import (
     load_church_documents, load_curated_content, find_relevant_chunks,
     build_cited_context, select_cited_sources,
 )
+from calendar_feed import load_calendar_chunks, score_calendar_chunks
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -60,10 +61,12 @@ def chat():
     context = ""
     candidate_sources = []
 
-    if chunks:
-        scored = find_relevant_chunks(question, chunks)
-        if scored:
-            context, candidate_sources = build_cited_context([scored])
+    scored = find_relevant_chunks(question, chunks) if chunks else []
+    scored_cal = score_calendar_chunks(
+        question, load_calendar_chunks(current_user.church_id)
+    )
+    if scored or scored_cal:
+        context, candidate_sources = build_cited_context([scored, scored_cal])
 
     system_instruction = build_system_prompt(current_user.church, staff=True)
 
