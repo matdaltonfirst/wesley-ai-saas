@@ -234,6 +234,16 @@ def widget_chat():
     )
     db.session.add(assistant_message)
     wconv.updated_at = datetime.utcnow()
+    if _is_low_confidence(answer):
+        # Surface unanswerable questions in the Feedback & Corrections inbox
+        # even when the visitor never rates the answer.
+        db.session.flush()
+        db.session.add(AnswerFeedback(
+            church_id=church_id,
+            widget_message_id=assistant_message.id,
+            rating="auto_flagged",
+            status="open",
+        ))
     try:
         db.session.commit()
     except Exception as e:
@@ -331,7 +341,9 @@ def list_answer_feedback():
     if status_filter in ("open", "corrected", "dismissed"):
         query = query.filter_by(status=status_filter)
     if status_filter == "dismissed":
-        query = query.filter_by(rating="not_helpful")
+        # Helpful ratings are stored as dismissed bookkeeping rows; only staff-
+        # dismissed items (thumbs-down or auto-flagged) belong in this tab.
+        query = query.filter(AnswerFeedback.rating != "helpful")
     items = query.order_by(AnswerFeedback.created_at.desc()).all()
 
     return jsonify({
@@ -452,6 +464,11 @@ _LOW_CONFIDENCE_PHRASES = [
 ]
 
 
+def _is_low_confidence(text):
+    lowered = (text or "").lower()
+    return any(phrase in lowered for phrase in _LOW_CONFIDENCE_PHRASES)
+
+
 def _categorize(text):
     t = text.lower()
     for name, keywords in _TOPIC_CATEGORIES[:-1]:
@@ -565,8 +582,7 @@ def analytics_sentiment():
 
         flagged = False
         for bot_msg in bot_msgs:
-            cl = bot_msg.content.lower()
-            if any(phrase in cl for phrase in _LOW_CONFIDENCE_PHRASES):
+            if _is_low_confidence(bot_msg.content):
                 flagged = True
                 if first_user:
                     cat = _categorize(first_user.content)

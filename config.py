@@ -10,6 +10,9 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "info@wesleyai.co")
 GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.5-flash-lite")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
+# Re-crawl church websites whose content is older than this many days (0 disables)
+AUTO_RECRAWL_DAYS = int(os.getenv("AUTO_RECRAWL_DAYS", "7"))
+
 # ── Branding defaults (single source of truth) ───────────────────────────────
 
 DEFAULT_BOT_NAME = "Wesley"

@@ -22,7 +22,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from models import db, User, Church, SystemPrompt, Conversation, WidgetConversation, Invite
-from config import DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB
+from config import DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB, AUTO_RECRAWL_DAYS
 from helpers import csrf_token
 
 load_dotenv()
@@ -185,6 +185,11 @@ def create_app(testing: bool = False) -> Flask:
             db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
             db.session.commit()
             log.info("System prompt seeded with default.")
+
+    if not testing and AUTO_RECRAWL_DAYS > 0:
+        from crawler import start_recrawl_scheduler
+        start_recrawl_scheduler(_app)
+        log.info("Auto-recrawl scheduler started (every %d days).", AUTO_RECRAWL_DAYS)
 
     return _app
 

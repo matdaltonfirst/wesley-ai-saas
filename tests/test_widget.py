@@ -346,3 +346,67 @@ class TestWidgetConversationList:
 
         db.session.delete(wconv)
         db.session.commit()
+
+
+class TestAutoFlaggedFeedback:
+    def _chat(self, client, church, reply):
+        with patch("routes.widget.call_gemini", return_value=reply):
+            res = client.post("/api/widget/chat", json={
+                "church_id": church.id,
+                "question": "When is the fall festival?",
+            })
+        assert res.status_code == 200
+        return res.get_json()
+
+    def _cleanup(self, answer):
+        wconv = WidgetConversation.query.filter_by(session_id=answer["session_id"]).one()
+        db.session.delete(wconv)
+        db.session.commit()
+
+    def test_low_confidence_answer_is_auto_flagged(self, client, church):
+        answer = self._chat(client, church,
+                            "I don't have information about the fall festival.")
+        feedback = AnswerFeedback.query.filter_by(
+            widget_message_id=answer["message_id"]).one()
+        assert feedback.rating == "auto_flagged"
+        assert feedback.status == "open"
+        assert feedback.church_id == church.id
+        self._cleanup(answer)
+
+    def test_confident_answer_is_not_flagged(self, client, church):
+        answer = self._chat(client, church,
+                            "The fall festival is October 12 at 5pm on the lawn.")
+        assert AnswerFeedback.query.filter_by(
+            widget_message_id=answer["message_id"]).first() is None
+        self._cleanup(answer)
+
+    def test_visitor_feedback_upgrades_auto_flag_in_place(self, client, church):
+        answer = self._chat(client, church, "I'm not sure about that event.")
+        res = client.post("/api/widget/feedback", json={
+            "church_id": church.id,
+            "session_id": answer["session_id"],
+            "message_id": answer["message_id"],
+            "rating": "not_helpful",
+            "reason": "incomplete",
+        })
+        assert res.status_code == 201
+        rows = AnswerFeedback.query.filter_by(
+            widget_message_id=answer["message_id"]).all()
+        assert len(rows) == 1
+        assert rows[0].rating == "not_helpful"
+        assert rows[0].reason == "incomplete"
+        assert rows[0].status == "open"
+        self._cleanup(answer)
+
+    def test_auto_flagged_appears_in_open_inbox(self, auth_client, church):
+        answer = self._chat(auth_client, church,
+                            "I don't know the answer to that one.")
+        res = auth_client.get("/api/feedback?status=open")
+        assert res.status_code == 200
+        data = res.get_json()
+        flagged = [i for i in data["items"]
+                   if i["answer"] == "I don't know the answer to that one."]
+        assert len(flagged) == 1
+        assert flagged[0]["rating"] == "auto_flagged"
+        assert flagged[0]["question"] == "When is the fall festival?"
+        self._cleanup(answer)

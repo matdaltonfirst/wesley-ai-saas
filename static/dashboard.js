@@ -846,12 +846,13 @@ async function loadFeedback(status) {
   }
 }
 
-function feedbackReasonLabel(reason) {
+function feedbackReasonLabel(item) {
+  if (item.rating === "auto_flagged") return "Couldn't answer";
   const labels = {
     incorrect: "Incorrect", outdated: "Outdated", incomplete: "Incomplete",
     confusing: "Confusing", other: "Other", "": "Not helpful",
   };
-  return labels[reason] || "Not helpful";
+  return labels[item.reason] || "Not helpful";
 }
 
 function renderFeedback() {
@@ -859,7 +860,7 @@ function renderFeedback() {
   if (!list) return;
   if (!_feedbackItems.length) {
     const copy = _feedbackStatus === "open"
-      ? "No answers need review. New thumbs-down feedback will appear here."
+      ? "No answers need review. Thumbs-down feedback and questions Wesley couldn't answer will appear here."
       : `No ${_feedbackStatus} feedback yet.`;
     list.innerHTML = `<div class="an-empty">${esc(copy)}</div>`;
     return;
@@ -878,7 +879,7 @@ function renderFeedback() {
     return `
       <article class="fb-item" data-id="${item.id}">
         <div class="fb-item-head">
-          <span class="fb-reason">${esc(feedbackReasonLabel(item.reason))}</span>
+          <span class="fb-reason">${esc(feedbackReasonLabel(item))}</span>
           <span class="fb-date">${esc(formatWconvDate(item.created_at))}</span>
         </div>
         <div class="fb-item-body">
