@@ -852,8 +852,8 @@ async function loadSermons() {
     const sermons = st.sermons || [];
     const listHtml = sermons.length ? sermons.map(s => `
       <div class="ser-item" data-id="${s.id}">
-        <div style="display:flex;align-items:center;">
-          <div>
+        <div style="display:flex;align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
             <span class="ser-title">${esc(s.title)}</span>
             <span class="ser-status ${esc(s.status)}">${esc(s.status)}</span>
             <div class="ser-meta">
@@ -863,6 +863,11 @@ async function loadSermons() {
               · <a href="${esc(s.video_url)}" target="_blank" rel="noopener noreferrer" style="color:#176d73;">Watch ↗</a>
             </div>
           </div>
+          <button class="cal-icon-btn ser-remove" data-id="${s.id}" data-title="${esc(s.title)}" title="Remove from Wesley's knowledge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
         ${s.summary ? `<div class="ser-summary">${esc(s.summary.slice(0, 250))}${s.summary.length > 250 ? "…" : ""}</div>` : ""}
         ${s.status === "failed" ? `
@@ -908,6 +913,14 @@ async function loadSermons() {
       e.target.textContent = "Rebuilding…";
       await fetch("/api/sermons/reingest-all", { method: "POST" });
       setTimeout(loadSermons, 4000);
+    });
+    body.querySelectorAll(".ser-remove").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(`Remove "${btn.dataset.title}" from Wesley's knowledge? It won't be re-ingested on future checks.`)) return;
+        btn.disabled = true;
+        await fetch(`/api/sermons/${btn.dataset.id}`, { method: "DELETE" });
+        loadSermons();
+      });
     });
     body.querySelectorAll(".ser-retry").forEach(btn => {
       btn.addEventListener("click", async () => {

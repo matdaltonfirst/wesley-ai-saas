@@ -41,7 +41,10 @@ def sermons_status():
         return jsonify({"configured": True, "connected": False})
     sermon_rows = (
         Sermon.query
-        .filter_by(church_id=current_user.church_id)
+        .filter(
+            Sermon.church_id == current_user.church_id,
+            Sermon.status != "excluded",
+        )
         .order_by(Sermon.published_at.desc())
         .limit(25)
         .all()
@@ -133,7 +136,10 @@ def check_now():
 @login_required
 def reingest_all():
     """Regenerate every sermon's summary (e.g. after a distillation improvement)."""
-    sermon_rows = Sermon.query.filter_by(church_id=current_user.church_id).all()
+    sermon_rows = Sermon.query.filter(
+        Sermon.church_id == current_user.church_id,
+        Sermon.status != "excluded",
+    ).all()
     if not sermon_rows:
         return jsonify({"error": "No sermons to rebuild."}), 400
     ids = []
@@ -191,3 +197,23 @@ def paste_transcript(sermon_id):
     db.session.commit()
     ok = sermon_lib.ingest_sermon(sermon)
     return jsonify({"ok": ok, "sermon": _sermon_dict(sermon)}), (200 if ok else 502)
+
+
+@sermons_bp.route("/api/sermons/<int:sermon_id>", methods=["DELETE"])
+@login_required
+def exclude_sermon(sermon_id):
+    """Remove a video from Wesley's knowledge. The row is kept (status
+    "excluded") so the daily channel check never re-ingests it."""
+    sermon = Sermon.query.filter_by(
+        id=sermon_id, church_id=current_user.church_id
+    ).first()
+    if not sermon:
+        return jsonify({"error": "Sermon not found."}), 404
+    sermon.status = "excluded"
+    sermon.transcript = None
+    sermon.summary = None
+    sermon.main_points = None
+    sermon.error = None
+    db.session.commit()
+    log.info("Sermon excluded: %r (church_id=%d)", sermon.title, sermon.church_id)
+    return jsonify({"ok": True})

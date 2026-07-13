@@ -247,3 +247,31 @@ class TestSermonRoutes:
         statuses = {s.status for s in Sermon.query.filter_by(church_id=church.id)}
         assert statuses == {"pending"}
         _cleanup(church)
+
+    def test_exclude_sermon(self, auth_client, church):
+        src = _source(church)
+        sermon = _sermon(church, src, video_id="unwanted", title="Worship Night")
+        res = auth_client.delete(f"/api/sermons/{sermon.id}")
+        assert res.status_code == 200
+        assert sermon.status == "excluded"
+        assert sermon.summary is None
+
+        # Hidden from the dashboard list
+        with patch("sermons.YOUTUBE_API_KEY", "key"):
+            data = auth_client.get("/api/sermons/status").get_json()
+        assert all(s["title"] != "Worship Night" for s in data["sermons"])
+
+        # Invisible to the bot
+        assert load_sermon_chunks(church.id) == []
+
+        # Not re-created by the daily check (video_id still known)
+        videos = [{"video_id": "unwanted", "title": "Worship Night",
+                   "published_at": datetime.utcnow()}]
+        with patch("sermons.list_recent_videos", return_value=videos):
+            assert check_source(src) == 0
+        assert Sermon.query.filter_by(church_id=church.id).count() == 1
+
+        # Skipped by rebuild-all
+        res = auth_client.post("/api/sermons/reingest-all")
+        assert res.status_code == 400  # nothing left to rebuild
+        _cleanup(church)
