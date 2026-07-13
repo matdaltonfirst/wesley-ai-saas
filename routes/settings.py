@@ -4,16 +4,18 @@ import re
 import json
 import secrets
 import threading
+import logging
 
 from flask import Blueprint, request, jsonify, url_for, current_app
 from flask_login import login_required, current_user
 
 from models import db, User, Church, CrawledPage, Invite
 from config import DEFAULT_COLOR, FROM_EMAIL, SUPPORT_EMAIL
-from helpers import build_branding_dict, iso_utc
+from helpers import build_branding_dict, iso_utc, is_safe_url
 from emails import send_invite_email
 
 settings_bp = Blueprint("settings", __name__)
+log = logging.getLogger("wesley")
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -82,6 +84,8 @@ def save_church_settings():
         return jsonify({"error": "URL must start with http:// or https://"}), 400
     if len(url) > 500:
         return jsonify({"error": "URL must be 500 characters or fewer."}), 400
+    if url and not is_safe_url(url):
+        return jsonify({"error": "URL must not point to a private or internal network address."}), 400
     current_user.church.website_url = url or None
     db.session.commit()
     return jsonify({"ok": True})
@@ -104,10 +108,13 @@ def trigger_crawl():
     app = current_app._get_current_object()
 
     def run_crawl():
-        with app.app_context():
-            from crawler import crawl_church_website
-            result = crawl_church_website(church_id, crawl_url)
-            log.info("Manual crawl church_id=%d: %s", church_id, result)
+        try:
+            with app.app_context():
+                from crawler import crawl_church_website
+                result = crawl_church_website(church_id, crawl_url)
+                log.info("Manual crawl church_id=%d: %s", church_id, result)
+        except Exception:
+            log.exception("Background crawl failed for church_id=%d", church_id)
 
     t = threading.Thread(target=run_crawl, daemon=True)
     t.start()
@@ -184,8 +191,11 @@ def invite_staff():
     _app = current_app._get_current_object()
 
     def _send_invite():
-        with _app.app_context():
-            send_invite_email(email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+        try:
+            with _app.app_context():
+                send_invite_email(email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+        except Exception:
+            log.exception("Failed sending staff invite email to %s", email)
 
     threading.Thread(target=_send_invite, daemon=True).start()
 
@@ -210,8 +220,11 @@ def resend_invite(invite_id):
     _app = current_app._get_current_object()
 
     def _resend():
-        with _app.app_context():
-            send_invite_email(invite.email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+        try:
+            with _app.app_context():
+                send_invite_email(invite.email, church_name, invite_url, FROM_EMAIL, SUPPORT_EMAIL)
+        except Exception:
+            log.exception("Failed resending staff invite email to %s", invite.email)
 
     threading.Thread(target=_resend, daemon=True).start()
     return jsonify({"ok": True})

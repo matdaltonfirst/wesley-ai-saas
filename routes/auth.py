@@ -13,6 +13,9 @@ from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_reset_email, send_welcome_email, send_invite_email
 from helpers import validate_csrf_json
 
+# Pre-computed dummy hash for constant-time comparison on failed lookups
+_DUMMY_HASH = generate_password_hash("dummy-constant-time-compare", method="pbkdf2:sha256")
+
 auth_bp = Blueprint("auth", __name__)
 
 
@@ -127,8 +130,12 @@ def api_signup():
     _app = current_app._get_current_object()
 
     def _send_welcome():
-        with _app.app_context():
-            send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
+        try:
+            with _app.app_context():
+                send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
+        except Exception:
+            import logging
+            logging.getLogger("wesley").exception("Failed to send welcome email")
 
     threading.Thread(target=_send_welcome, daemon=True).start()
 
@@ -146,7 +153,8 @@ def api_login():
     password = (data.get("password") or "").strip()
 
     user = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password_hash, password):
+    # Always perform password hash comparison to prevent timing-based user enumeration
+    if not check_password_hash(user.password_hash if user else _DUMMY_HASH, password) or not user:
         return jsonify({"error": "Invalid email or password."}), 401
 
     login_user(user)

@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 
 from models import db, ChurchCalendar, CalendarEvent
 from calendar_feed import refresh_calendar, event_dict, CalendarFeedError
-from helpers import iso_utc
+from helpers import iso_utc, is_safe_url
 
 log = logging.getLogger("wesley")
 
@@ -63,6 +63,9 @@ def add_calendar():
     # Planning Center and Apple hand out webcal:// links — same feed over HTTPS.
     if url.lower().startswith("webcal://"):
         url = "https://" + url[len("webcal://"):]
+
+    if not is_safe_url(url):
+        return jsonify({"error": "URL must not point to a private or internal network address."}), 400
 
     # Google Calendar shows an easy-to-copy HTML link next to the ICS one —
     # rewrite the common mistake instead of rejecting it.

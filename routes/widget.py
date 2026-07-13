@@ -682,10 +682,13 @@ def create_guest_connection():
         gc_id = gc.id
 
         def _sync(app_obj=_app_pco, target_id=gc_id):
-            with app_obj.app_context():
-                target = GuestConnection.query.get(target_id)
-                if target:
-                    pco.sync_guest_connection(target)
+            try:
+                with app_obj.app_context():
+                    target = GuestConnection.query.get(target_id)
+                    if target:
+                        pco.sync_guest_connection(target)
+            except Exception:
+                log.exception("Background guest sync failed for guest_connection_id=%s", target_id)
         threading.Thread(target=_sync, daemon=True).start()
 
     # Notify all admin users for this church (non-blocking)
@@ -696,8 +699,11 @@ def create_guest_connection():
     for admin in admin_users:
         def _send(to=admin.email, cn=_church_name, gn=name, ge=email, gp=phone,
                   ia=interest_area, om=opening_message, du=dashboard_url):
-            with _app.app_context():
-                send_guest_connection_email(to, cn, gn, ge, gp, ia, om, du, FROM_EMAIL, SUPPORT_EMAIL)
+            try:
+                with _app.app_context():
+                    send_guest_connection_email(to, cn, gn, ge, gp, ia, om, du, FROM_EMAIL, SUPPORT_EMAIL)
+            except Exception:
+                log.exception("Failed sending guest connection email to %s", to)
         threading.Thread(target=_send, daemon=True).start()
 
     resp = jsonify({"ok": True})

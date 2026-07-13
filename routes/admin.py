@@ -393,8 +393,12 @@ def admin_billing_send_invite(church_id):
     _app   = current_app._get_current_object()
 
     def _send_stripe_invite():
-        with _app.app_context():
-            send_stripe_invite_email(_email, _name, checkout_url, FROM_EMAIL, SUPPORT_EMAIL)
+        try:
+            with _app.app_context():
+                send_stripe_invite_email(_email, _name, checkout_url, FROM_EMAIL, SUPPORT_EMAIL)
+        except Exception:
+            import logging
+            logging.getLogger("wesley").exception("Failed to send Stripe invite email")
 
     threading.Thread(target=_send_stripe_invite, daemon=True).start()
 
