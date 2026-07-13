@@ -1328,7 +1328,7 @@ function renderFeedback() {
         ? `<a class="fb-source" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
         : `<span class="fb-source">${esc(label)}</span>`;
     }).join("");
-    const cleanAnswer = item.answer.replace(/\s*\[[\d,\s]+\]/g, "").trim();
+    const cleanAnswer = item.answer.replace(/\s*\[(?:sources?\s*)?[\d,\s]+\]/gi, "").trim();
     const resolvedCopy = item.status === "corrected"
       ? `<div class="fb-comment" style="background:#ecfdf5;color:#166534;">Published correction: ${esc(item.corrected_answer)}</div>`
       : "";

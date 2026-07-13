@@ -273,7 +273,7 @@
 
   /** Remove citation markers like [1] or [1, 2] — sources render as chips instead. */
   function stripCitations(s) {
-    return String(s).replace(/\s*\[[\d,\s]+\]/g, "");
+    return String(s).replace(/\s*\[(?:sources?\s*)?[\d,\s]+\]/gi, "");
   }
 
   // ── Localization ────────────────────────────────────────────────────────────

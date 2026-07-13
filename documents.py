@@ -336,7 +336,8 @@ def build_cited_context(
 def select_cited_sources(answer: str, candidates: list[dict]) -> list[dict]:
     """Return only sources explicitly cited by the model as [1], [2], etc."""
     cited_numbers = []
-    for marker in re.findall(r"\[([\d,\s]+)\]", answer):
+    # Tolerate the model writing "[Source 2]" or "[Sources 1, 3]" instead of "[2]"
+    for marker in re.findall(r"\[(?:sources?\s*)?([\d,\s]+)\]", answer, flags=re.IGNORECASE):
         for raw_number in re.findall(r"\d+", marker):
             number = int(raw_number)
             if 1 <= number <= len(candidates) and number not in cited_numbers:

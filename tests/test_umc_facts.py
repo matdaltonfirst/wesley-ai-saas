@@ -47,3 +47,13 @@ class TestDenominationChunks:
             church_id=church.id, session_id=data["session_id"]).first()
         db.session.delete(wconv)
         db.session.commit()
+
+
+class TestCitationMarkerVariants:
+    def test_source_word_variant_is_parsed(self):
+        from documents import select_cited_sources
+        candidates = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
+        assert select_cited_sources("Yes [Source 2].", candidates) == [{"title": "B"}]
+        assert select_cited_sources("Yes [sources 1, 3].", candidates) == [
+            {"title": "A"}, {"title": "C"}]
+        assert select_cited_sources("Plain [2] still works.", candidates) == [{"title": "B"}]
