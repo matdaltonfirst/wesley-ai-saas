@@ -10,12 +10,12 @@ A multi-tenant AI assistant platform built for United Methodist churches. Wesley
 - **Website Crawler** — Automatically crawls and indexes a church's website so the bot can answer questions about ministries, events, and policies.
 - **Sermon Ingestion** — Connects to a church's YouTube channel, transcribes new sermons, and distills summaries, main points, and scripture references.
 - **Calendar Integration** — Imports iCal/ICS feeds so the assistant can answer "What's happening this week?" with live event data.
-- **Communications Triage** — Staff submit communications requests (bulletins, social media, videos) and Wesley prioritises and drafts content.
+- **Communications Triage** — Staff submit communications requests (bulletins, social media, videos) and Wesley prioritizes and drafts content.
 - **Planning Center Integration** — OAuth connection to Planning Center Online for people and group data.
-- **Weekly Activity Digest** — Automated Monday email summarising widget conversations, guest connections, and engagement stats.
+- **Weekly Activity Digest** — Automated Monday email summarizing widget conversations, guest connections, and engagement stats.
 - **Multi-Tenant & Team Support** — Each church is an isolated tenant; admins can invite staff members with scoped roles.
 - **Billing (Stripe + Manual)** — Built-in subscription management with Stripe Checkout, trials, and manual payment tracking for churches paying by check.
-- **Customisable Branding** — Per-church bot name, welcome message, colour theme, starter questions, and subtitle.
+- **Customizable Branding** — Per-church bot name, welcome message, color theme, starter questions, and subtitle.
 
 ## Tech Stack
 
@@ -41,7 +41,7 @@ A multi-tenant AI assistant platform built for United Methodist churches. Wesley
 ├── crawler.py             # Website crawling logic
 ├── sermons.py             # YouTube sermon ingestion & transcription
 ├── digest.py              # Weekly activity digest email assembly
-├── comms_triage.py        # Communications request prioritisation
+├── comms_triage.py        # Communications request prioritization
 ├── calendar_feed.py       # iCal feed parsing
 ├── documents.py           # PDF/DOCX extraction
 ├── emails.py              # Transactional email templates
