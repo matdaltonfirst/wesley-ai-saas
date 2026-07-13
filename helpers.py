@@ -426,16 +426,13 @@ def is_safe_url(url: str) -> bool:
     if not hostname:
         return False
 
-    # Block obviously dangerous hostnames
-    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
-        return False
-
     try:
         # Resolve hostname and check all resulting IPs
         addrinfos = socket.getaddrinfo(hostname, None)
         for family, _, _, _, sockaddr in addrinfos:
             ip = ipaddress.ip_address(sockaddr[0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            if (ip.is_private or ip.is_loopback or ip.is_link_local
+                    or ip.is_reserved or ip.is_multicast):
                 return False
     except (socket.gaierror, ValueError):
         # If DNS resolution fails, reject the URL

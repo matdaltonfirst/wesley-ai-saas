@@ -13,6 +13,9 @@ from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_reset_email, send_welcome_email, send_invite_email
 from helpers import validate_csrf_json
 
+# Pre-computed dummy hash for constant-time comparison on failed lookups
+_DUMMY_HASH = generate_password_hash("dummy-constant-time-compare")
+
 auth_bp = Blueprint("auth", __name__)
 
 
@@ -151,8 +154,7 @@ def api_login():
 
     user = User.query.filter_by(email=email).first()
     # Always perform password hash comparison to prevent timing-based user enumeration
-    _dummy_hash = generate_password_hash("dummy-constant-time-compare")
-    if not check_password_hash(user.password_hash if user else _dummy_hash, password) or not user:
+    if not check_password_hash(user.password_hash if user else _DUMMY_HASH, password) or not user:
         return jsonify({"error": "Invalid email or password."}), 401
 
     login_user(user)
