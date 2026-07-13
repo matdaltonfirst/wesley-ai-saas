@@ -115,6 +115,9 @@ def create_app(testing: bool = False) -> Flask:
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
             "UPLOADS_DIR": UPLOADS_DIR,
+            "SESSION_COOKIE_HTTPONLY": True,
+            "SESSION_COOKIE_SAMESITE": "Lax",
+            "SESSION_COOKIE_SECURE": os.getenv("FLASK_ENV") == "production",
             "CHAT_LIMITER": _RateLimiter(max_requests=120, window_seconds=60),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
@@ -167,6 +170,15 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(pco_bp)
     _app.register_blueprint(sermons_bp)
     _app.register_blueprint(knowledge_bp)
+
+    # ── Security headers ─────────────────────────────────────────────────────
+
+    @_app.after_request
+    def set_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
 
     # ── Flask CLI commands ───────────────────────────────────────────────────
 

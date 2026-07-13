@@ -1,10 +1,12 @@
 """Shared helper functions used across multiple route modules."""
 
+import ipaddress
 import json
 import os
 import secrets
 import logging
 import time
+from urllib.parse import urlparse
 
 from datetime import datetime
 from flask import redirect, url_for, session, request, abort
@@ -398,3 +400,45 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
             continue
         raise last_exc
     raise last_exc
+
+
+# ── SSRF Protection ───────────────────────────────────────────────────────────
+
+def is_safe_url(url: str) -> bool:
+    """Validate that a URL does not point to internal/private network addresses.
+
+    Returns True if the URL is safe to fetch, False if it targets a private
+    or reserved IP range (SSRF risk).
+    """
+    import socket
+    from flask import current_app
+
+    # Skip SSRF check in test mode (mirrors CSRF handling pattern)
+    if current_app and current_app.config.get("TESTING"):
+        return True
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+
+    # Block obviously dangerous hostnames
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return False
+
+    try:
+        # Resolve hostname and check all resulting IPs
+        addrinfos = socket.getaddrinfo(hostname, None)
+        for family, _, _, _, sockaddr in addrinfos:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+    except (socket.gaierror, ValueError):
+        # If DNS resolution fails, reject the URL
+        return False
+
+    return True

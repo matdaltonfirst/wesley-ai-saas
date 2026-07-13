@@ -127,8 +127,12 @@ def api_signup():
     _app = current_app._get_current_object()
 
     def _send_welcome():
-        with _app.app_context():
-            send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
+        try:
+            with _app.app_context():
+                send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
+        except Exception:
+            import logging
+            logging.getLogger("wesley").exception("Failed to send welcome email")
 
     threading.Thread(target=_send_welcome, daemon=True).start()
 
@@ -146,7 +150,9 @@ def api_login():
     password = (data.get("password") or "").strip()
 
     user = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password_hash, password):
+    # Always perform password hash comparison to prevent timing-based user enumeration
+    _dummy_hash = generate_password_hash("dummy-constant-time-compare")
+    if not check_password_hash(user.password_hash if user else _dummy_hash, password) or not user:
         return jsonify({"error": "Invalid email or password."}), 401
 
     login_user(user)

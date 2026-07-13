@@ -218,7 +218,6 @@ def _crawl_with_playwright(church_id: int, start_url: str, base_host: str) -> tu
         )
         context = browser.new_context(
             user_agent=CRAWLER_UA,
-            ignore_https_errors=True,
         )
         page = context.new_page()
         page.set_default_timeout(15_000)
