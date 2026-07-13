@@ -117,7 +117,7 @@ def create_app(testing: bool = False) -> Flask:
             "UPLOADS_DIR": UPLOADS_DIR,
             "SESSION_COOKIE_HTTPONLY": True,
             "SESSION_COOKIE_SAMESITE": "Lax",
-            "SESSION_COOKIE_SECURE": os.getenv("FLASK_ENV") == "production",
+            "SESSION_COOKIE_SECURE": os.getenv("SESSION_COOKIE_SECURE", "1" if os.getenv("FLASK_ENV") == "production" else "0").lower() in ("1", "true", "yes"),
             "CHAT_LIMITER": _RateLimiter(max_requests=120, window_seconds=60),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
