@@ -432,3 +432,13 @@ class TestMultiLanguage:
         from helpers import build_system_prompt
         prompt = build_system_prompt(church, staff=True)
         assert "language the visitor writes in" not in prompt
+
+
+class TestUmcCurrentFacts:
+    def test_both_prompts_carry_post_2024_facts(self, app, church):
+        from helpers import build_system_prompt
+        for kwargs in ({"widget": True}, {"staff": True}):
+            prompt = build_system_prompt(church, **kwargs)
+            assert "2020/2024 Book of Discipline is the current one" in prompt
+            assert "Never quote Book of Discipline paragraph numbers" in prompt
+            assert 'claim that you will "learn,"' in prompt

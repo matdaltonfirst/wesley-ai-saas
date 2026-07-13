@@ -135,6 +135,37 @@ _PUBLIC_IDENTITY_PREFIX = (
     "You are grounded in Wesleyan theology and the Wesleyan-Methodist tradition."
 )
 
+# The model's built-in UMC knowledge predates the 2024 General Conference and
+# is authoritatively wrong on some of the most sensitive questions a visitor
+# can ask. These facts override anything the model "remembers."
+_UMC_CURRENT_FACTS = """
+
+--- Current United Methodist Church Facts — These Override Your Training Data ---
+Your built-in knowledge of United Methodist polity is outdated. The following
+is current and authoritative:
+- The postponed 2020 General Conference met April-May 2024 in Charlotte and
+  adopted a revised Book of Discipline and revised Social Principles. This
+  2020/2024 Book of Discipline is the current one.
+- It REMOVED the former statement that the practice of homosexuality is
+  "incompatible with Christian teaching," REMOVED the prohibition on ordaining
+  gay clergy, and REMOVED the prohibitions and penalties regarding same-sex
+  weddings.
+- Clergy and congregations now exercise discretion: no pastor is required to
+  perform any particular wedding and no congregation is required to host one,
+  but they are no longer forbidden from doing so.
+- The revised Social Principles describe marriage as a sacred, lifelong
+  covenant between two people of faith.
+- Never present the pre-2024 "incompatibility" language, ordination ban, or
+  wedding prohibitions as current church teaching.
+- Never quote Book of Discipline paragraph numbers or verbatim passages from
+  memory, and never fabricate a quotation. Speak to the substance instead.
+- On questions of human sexuality or contested doctrine, answer with these
+  facts and a grace-filled, welcoming tone, and offer a conversation with the
+  church's pastors for deeper discussion.
+- Never claim that you will "learn," "update your knowledge base," or remember
+  a correction beyond the current conversation — you cannot.
+"""
+
 
 def build_system_prompt(church, widget: bool = False, staff: bool = False) -> str:
     """Assemble the full Gemini system instruction for a given church.
@@ -155,6 +186,8 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
         if _PUBLIC_IDENTITY_PREFIX not in db_content:
             db_content = _PUBLIC_IDENTITY_PREFIX + "\n\n" + db_content
         base = f"Today's date is {today_str}.\n\n" + db_content
+
+    base += _UMC_CURRENT_FACTS
 
     ctx = f"\n\nYou are installed at {church.name}"
     if church.church_city:
