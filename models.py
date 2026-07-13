@@ -297,6 +297,36 @@ class QnAPair(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class KnowledgePackState(db.Model):
+    """A church's activation state for one built-in knowledge pack."""
+    __tablename__ = "knowledge_pack_states"
+    id         = db.Column(db.Integer, primary_key=True)
+    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    pack_key   = db.Column(db.String(80), nullable=False)
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("church_id", "pack_key", name="uq_church_knowledge_pack"),
+    )
+
+
+class KnowledgeChecklistState(db.Model):
+    """Church-specific progress and source link for a built-in checklist item."""
+    __tablename__ = "knowledge_checklist_states"
+    id          = db.Column(db.Integer, primary_key=True)
+    church_id   = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    item_key    = db.Column(db.String(100), nullable=False)
+    status      = db.Column(db.String(20), nullable=False, default="missing")
+    source_type = db.Column(db.String(30), nullable=True)
+    source_id   = db.Column(db.Integer, nullable=True)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("church_id", "item_key", name="uq_church_knowledge_item"),
+    )
+
+
 class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"

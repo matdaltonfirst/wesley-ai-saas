@@ -815,11 +815,106 @@ document.addEventListener("panelShow", function(e) {
   else if (id === "analytics-topics")    loadTopicsAnalytics();
   else if (id === "analytics-sentiment") loadSentimentAnalytics();
   else if (id === "feedback")            loadFeedback();
+  else if (id === "knowledge-guide")     loadKnowledgePacks();
   else if (id === "snippets")            loadSnippets();
   else if (id === "qna")                 loadQna();
   else if (id === "calendars")           loadCalendars();
   else if (id === "integrations")        loadIntegrations();
   else if (id === "sermons")             loadSermons();
+});
+
+// ── Knowledge Guide ────────────────────────────────────────────────────────
+let _knowledgeData = null;
+let _knowledgeAudience = "guest";
+
+async function loadKnowledgePacks() {
+  const body = document.getElementById("knowledgePacks");
+  if (!body) return;
+  body.innerHTML = '<div class="an-empty">Loading…</div>';
+  try {
+    const res = await fetch("/api/knowledge-packs");
+    if (!res.ok) throw new Error("Knowledge request failed");
+    _knowledgeData = await res.json();
+    renderKnowledgePacks();
+  } catch {
+    body.innerHTML = '<div class="an-empty">Could not load the knowledge guide.</div>';
+  }
+}
+
+function renderKnowledgePacks() {
+  if (!_knowledgeData) return;
+  const packs = _knowledgeData.packs.filter(p => p.audience === _knowledgeAudience);
+  const active = packs.filter(p => p.active);
+  const totalItems = active.reduce((n, p) => n + p.items.length, 0);
+  const readyItems = active.reduce((n, p) => n + p.items.filter(i => i.status === "linked" || i.status === "not_applicable").length, 0);
+  const readiness = totalItems ? Math.round(100 * readyItems / totalItems) : 0;
+  document.getElementById("knowledgeSummary").innerHTML = `
+    <div class="an-stat-card"><div class="an-stat-value">${readiness}%</div><div class="an-stat-label">Readiness</div></div>
+    <div class="an-stat-card"><div class="an-stat-value">${active.length}</div><div class="an-stat-label">Active Packs</div></div>
+    <div class="an-stat-card"><div class="an-stat-value">${Math.max(0, totalItems - readyItems)}</div><div class="an-stat-label">Items Remaining</div></div>`;
+
+  document.getElementById("knowledgePacks").innerHTML = packs.map(pack => {
+    const action = _knowledgeData.can_manage
+      ? `<button class="${pack.active ? "cancel-btn" : "teal-btn"} kg-pack-toggle" data-pack="${pack.key}" data-active="${!pack.active}">${pack.active ? "Deactivate" : "Activate Pack"}</button>`
+      : `<span class="kg-readonly">${pack.active ? "Active" : "Not active"}</span>`;
+    const checklist = pack.active ? `<div class="kg-checklist">${pack.items.map(renderKnowledgeItem).join("")}</div>` : "";
+    return `<section class="settings-card kg-pack">
+      <div class="kg-pack-head">
+        <div><h2 class="settings-card-title">${esc(pack.name)}</h2><p>${esc(pack.description)}</p></div>
+        <div class="kg-pack-actions"><span class="kg-score">${pack.readiness}% ready</span>${action}</div>
+      </div>${checklist}
+    </section>`;
+  }).join("");
+}
+
+function renderKnowledgeItem(item) {
+  const canManage = _knowledgeData.can_manage;
+  const audienceSources = _knowledgeData.sources.filter(s => _knowledgeAudience === "staff" || s.audience === "guest");
+  const selected = item.source ? `${item.source.type}:${item.source.id}` : "";
+  const options = audienceSources.map(s => `<option value="${s.type}:${s.id}" ${selected === `${s.type}:${s.id}` ? "selected" : ""}>${esc(s.label)} (${esc(s.type)})</option>`).join("");
+  const statusLabel = {missing: "Missing", linked: "Linked", needs_review: "Needs review", not_applicable: "Not applicable"}[item.status] || "Missing";
+  return `<div class="kg-item" data-item="${item.key}">
+    <div class="kg-item-main">
+      <div class="kg-item-title"><span class="kg-status kg-status-${item.status}">${statusLabel}</span>${esc(item.title)}</div>
+      <div class="kg-item-hint">Best source: ${esc(item.suggested_source)}</div>
+      <details class="kg-tests"><summary>Test questions</summary>${item.test_questions.map(q => `<div>${esc(q)}</div>`).join("")}</details>
+    </div>
+    ${canManage ? `<div class="kg-item-controls">
+      <select class="ds-field-input kg-source"><option value="">Select a source…</option>${options}</select>
+      <button class="teal-btn kg-link" type="button">Link</button>
+      <button class="cancel-btn kg-na" type="button">Not applicable</button>
+    </div>` : (item.source ? `<div class="kg-linked-source">${esc(item.source.label)}</div>` : "")}
+  </div>`;
+}
+
+document.querySelectorAll(".kg-audience-tab").forEach(button => button.addEventListener("click", () => {
+  _knowledgeAudience = button.dataset.audience;
+  document.querySelectorAll(".kg-audience-tab").forEach(b => b.classList.toggle("active", b === button));
+  renderKnowledgePacks();
+}));
+
+document.getElementById("knowledgePacks")?.addEventListener("click", async event => {
+  const toggle = event.target.closest(".kg-pack-toggle");
+  if (toggle) {
+    await fetch(`/api/knowledge-packs/${toggle.dataset.pack}/activate`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({active: toggle.dataset.active === "true"})});
+    return loadKnowledgePacks();
+  }
+  const itemEl = event.target.closest(".kg-item");
+  if (!itemEl) return;
+  let payload;
+  if (event.target.closest(".kg-na")) payload = {status: "not_applicable"};
+  else if (event.target.closest(".kg-link")) {
+    const value = itemEl.querySelector(".kg-source").value;
+    if (!value) return;
+    const [source_type, sourceId] = value.split(":");
+    payload = {status: "linked", source_type, source_id: Number(sourceId)};
+  } else return;
+  const res = await fetch(`/api/knowledge-checklist/${itemEl.dataset.item}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+  if (!res.ok) {
+    const data = await res.json();
+    alert(data.error || "Could not update this checklist item.");
+  }
+  loadKnowledgePacks();
 });
 
 // ── Sermons ─────────────────────────────────────────────────────────────────

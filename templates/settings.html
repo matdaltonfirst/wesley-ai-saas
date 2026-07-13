@@ -1313,6 +1313,38 @@
     .ser-error { font-size:0.75rem;color:#b91c1c;margin-top:8px; }
     .ser-paste { display:none;margin-top:10px; }
     .ser-paste.ser-visible { display:block; }
+    /* Knowledge Guide */
+    .kg-audience-tabs { display:flex; gap:4px; border-bottom:1px solid #e2e8f0; margin-bottom:16px; }
+    .kg-audience-tab { border:0; background:transparent; padding:10px 14px; color:#64748b; font-weight:600; cursor:pointer; }
+    .kg-audience-tab.active { color:#176d73; border-bottom:2px solid #176d73; }
+    .kg-pack { margin-bottom:14px; padding:0; overflow:hidden; }
+    .kg-pack-head { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; }
+    .kg-pack-head p { margin:5px 0 0; color:#64748b; font-size:.82rem; }
+    .kg-pack-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .kg-score { color:#176d73; font-size:.78rem; font-weight:700; }
+    .kg-readonly { color:#64748b; font-size:.78rem; }
+    .kg-checklist { border-top:1px solid #e2e8f0; }
+    .kg-item { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,420px); gap:18px; align-items:center; padding:15px 18px; border-bottom:1px solid #eef2f5; }
+    .kg-item:last-child { border-bottom:0; }
+    .kg-item-title { display:flex; align-items:center; gap:9px; font-size:.86rem; font-weight:650; color:#1e293b; }
+    .kg-item-hint, .kg-linked-source { margin-top:5px; color:#64748b; font-size:.75rem; }
+    .kg-status { display:inline-block; min-width:76px; padding:3px 6px; border-radius:4px; text-align:center; font-size:.65rem; font-weight:700; }
+    .kg-status-missing { color:#9f1239; background:#fff1f2; }
+    .kg-status-linked { color:#166534; background:#f0fdf4; }
+    .kg-status-needs_review { color:#92400e; background:#fffbeb; }
+    .kg-status-not_applicable { color:#475569; background:#f1f5f9; }
+    .kg-item-controls { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:7px; align-items:center; }
+    .kg-item-controls .teal-btn, .kg-item-controls .cancel-btn { white-space:nowrap; }
+    .kg-tests { margin-top:7px; color:#64748b; font-size:.72rem; }
+    .kg-tests summary { cursor:pointer; }
+    .kg-tests div { margin-top:4px; padding-left:10px; }
+    @media (max-width: 760px) {
+      .kg-pack-head, .kg-item { grid-template-columns:1fr; align-items:stretch; }
+      .kg-pack-head { flex-direction:column; align-items:flex-start; }
+      .kg-pack-actions { width:100%; justify-content:space-between; }
+      .kg-item-controls { grid-template-columns:1fr 1fr; }
+      .kg-item-controls .kg-source { grid-column:1/-1; }
+    }
   </style>
 </head>
 <body class="settings-page">
@@ -1434,6 +1466,12 @@
             </svg>
           </button>
           <div class="db-section-items">
+            <button class="db-nav-item" data-panel="knowledge-guide">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+              Knowledge Guide
+            </button>
             <button class="db-nav-item" data-panel="files">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -1716,6 +1754,20 @@
           <div id="sentimentTable"><div class="an-empty">Loading…</div></div>
         </section>
         <section class="settings-card" style="margin-top:16px;" id="sentimentSuggestions"></section>
+      </div>
+
+      <!-- ── Knowledge Guide ── -->
+      <div class="db-panel" id="panel-knowledge-guide">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Knowledge Guide</h1>
+          <p class="db-panel-subtitle">Build dependable guest and staff knowledge with church-ready checklists.</p>
+        </div>
+        <div id="knowledgeSummary" class="an-stat-grid" style="margin-bottom:18px;"></div>
+        <div class="kg-audience-tabs" role="tablist" aria-label="Knowledge audience">
+          <button class="kg-audience-tab active" type="button" data-audience="guest">Guest Knowledge</button>
+          <button class="kg-audience-tab" type="button" data-audience="staff">Staff Knowledge</button>
+        </div>
+        <div id="knowledgePacks"><div class="an-empty">Loading…</div></div>
       </div>
 
       <!-- ── Text Snippets ── -->
@@ -2252,7 +2304,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','sermons','embed','playground','team','integrations','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','team','integrations','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
