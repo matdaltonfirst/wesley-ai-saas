@@ -64,6 +64,9 @@ class Church(db.Model):
     # Weekly activity digest email
     digest_last_sent_at = db.Column(db.DateTime, nullable=True)
 
+    # IANA timezone for visitor-facing dates (defaults to US Eastern)
+    timezone = db.Column(db.String(50), nullable=True)
+
     # Billing — Stripe
     trial_ends_at          = db.Column(db.DateTime, nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)

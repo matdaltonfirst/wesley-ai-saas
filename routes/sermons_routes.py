@@ -49,6 +49,11 @@ def sermons_status():
         .limit(25)
         .all()
     )
+    # Self-heal: a deploy can kill the backfill/rebuild thread mid-run, leaving
+    # sermons stranded in "pending". Seeing them here restarts the work.
+    if any(s.status == "pending" for s in sermon_rows) and _try_claim_recovery(source.id):
+        _run_in_background(_backfill_source, source.id)
+
     return jsonify({
         "configured": True,
         "connected": True,
@@ -58,6 +63,25 @@ def sermons_status():
         "last_error": source.last_error,
         "sermons": [_sermon_dict(s) for s in sermon_rows],
     })
+
+
+# Sources with an ingestion run currently in flight (single-worker process),
+# so repeated status polls don't stack duplicate recovery threads.
+_active_recoveries = set()
+_recovery_lock = threading.Lock()
+
+
+def _try_claim_recovery(source_id) -> bool:
+    with _recovery_lock:
+        if source_id in _active_recoveries:
+            return False
+        _active_recoveries.add(source_id)
+        return True
+
+
+def _release_recovery(source_id):
+    with _recovery_lock:
+        _active_recoveries.discard(source_id)
 
 
 def _run_in_background(fn, *args):
@@ -73,9 +97,12 @@ def _run_in_background(fn, *args):
 
 
 def _backfill_source(source_id):
-    source = SermonSource.query.get(source_id)
-    if source:
-        sermon_lib.check_source(source)
+    try:
+        source = SermonSource.query.get(source_id)
+        if source:
+            sermon_lib.check_source(source)
+    finally:
+        _release_recovery(source_id)
 
 
 @sermons_bp.route("/api/sermons/source", methods=["POST"])
@@ -105,6 +132,7 @@ def connect_channel():
     db.session.commit()
 
     # Backfill runs in the background — video-fallback ingestion is slow
+    _try_claim_recovery(source.id)
     _run_in_background(_backfill_source, source.id)
 
     log.info("Sermon channel connected: church_id=%d channel=%r",
@@ -128,6 +156,8 @@ def check_now():
     source = SermonSource.query.filter_by(church_id=current_user.church_id).first()
     if not source:
         return jsonify({"error": "No channel connected."}), 400
+    if not _try_claim_recovery(source.id):
+        return jsonify({"ok": True, "message": "A check is already running."})
     _run_in_background(_backfill_source, source.id)
     return jsonify({"ok": True, "message": "Checking for new sermons in the background."})
 

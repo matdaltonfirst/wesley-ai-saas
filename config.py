@@ -21,6 +21,10 @@ PCO_API_BASE      = "https://api.planningcenteronline.com"
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
+# ── Default timezone for church-facing dates (per-church override in DB) ──────
+
+DEFAULT_TIMEZONE = os.getenv("DEFAULT_TIMEZONE", "America/New_York")
+
 # ── Branding defaults (single source of truth) ───────────────────────────────
 
 DEFAULT_BOT_NAME = "Wesley"

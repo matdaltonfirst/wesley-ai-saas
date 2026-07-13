@@ -292,3 +292,35 @@ class TestSermonRoutes:
         prompt = build_system_prompt(church, widget=True)
         assert "sources labeled 'Sermon:'" in prompt
         assert "Blog posts and web pages are not sermons" in prompt
+
+    def test_status_self_heals_stuck_pending(self, auth_client, church):
+        import routes.sermons_routes as sr
+        src = _source(church)
+        _sermon(church, src, video_id="stuck", status="pending", summary=None)
+        sr._active_recoveries.clear()
+        with patch("sermons.YOUTUBE_API_KEY", "key"), \
+             patch("routes.sermons_routes._run_in_background") as mock_bg:
+            auth_client.get("/api/sermons/status")
+            auth_client.get("/api/sermons/status")  # second poll must not stack
+        assert mock_bg.call_count == 1
+        sr._active_recoveries.clear()
+        _cleanup(church)
+
+
+class TestChurchLocalDates:
+    def test_prompt_uses_church_local_today(self, app, church):
+        from zoneinfo import ZoneInfo
+        from datetime import datetime as dt
+        from helpers import build_system_prompt
+        expected = dt.now(ZoneInfo("America/New_York")).strftime("%A, %B %-d, %Y")
+        prompt = build_system_prompt(church, widget=True)
+        assert f"Today's date is {expected}" in prompt
+
+    def test_sermon_chunk_date_is_church_local(self, app, church):
+        src = _source(church)
+        # 01:00 UTC on July 6 is the evening of July 5 in Georgia
+        _sermon(church, src, video_id="tz",
+                published_at=datetime(2026, 7, 6, 1, 0, 0))
+        chunks = load_sermon_chunks(church.id)
+        assert "July 5, 2026" in chunks[0]["content"]
+        _cleanup(church)

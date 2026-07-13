@@ -261,6 +261,7 @@ def _run_migrations() -> None:
             ("bot_subtitle",        "ALTER TABLE churches ADD COLUMN bot_subtitle VARCHAR(200)"),
             ("comms_enabled",       "ALTER TABLE churches ADD COLUMN comms_enabled BOOLEAN NOT NULL DEFAULT 1"),
             ("digest_last_sent_at", "ALTER TABLE churches ADD COLUMN digest_last_sent_at DATETIME"),
+            ("timezone",            "ALTER TABLE churches ADD COLUMN timezone VARCHAR(50)"),
         ]
         manual_billing_migrations = [
             ("manual_payment_active",   "ALTER TABLE churches ADD COLUMN manual_payment_active BOOLEAN NOT NULL DEFAULT 0"),

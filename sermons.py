@@ -276,6 +276,9 @@ _SERMON_INTENT_WORDS = (
 
 def load_sermon_chunks(church_id: int) -> list[dict]:
     """Recent sermons as citable chunks, newest first."""
+    from models import Church
+    from helpers import utc_to_church
+
     sermons = (
         Sermon.query
         .filter_by(church_id=church_id, status="ingested")
@@ -283,9 +286,13 @@ def load_sermon_chunks(church_id: int) -> list[dict]:
         .limit(CONTEXT_SERMON_COUNT)
         .all()
     )
+    church = Church.query.get(church_id) if sermons else None
     chunks = []
     for i, sermon in enumerate(sermons):
-        date_str = sermon.published_at.strftime("%B %-d, %Y")
+        # YouTube publish timestamps are UTC; a Sunday-morning upload can read
+        # as Monday without converting to the church's timezone.
+        local = utc_to_church(sermon.published_at, church)
+        date_str = local.strftime("%B %-d, %Y")
         lines = [f"Sermon: {sermon.title} (preached {date_str}"
                  + (", most recent sermon)" if i == 0 else ")")]
         if sermon.series:

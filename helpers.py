@@ -22,6 +22,34 @@ from models import SystemPrompt, TextSnippet, QnAPair
 log = logging.getLogger("wesley")
 
 
+def church_tz(church=None):
+    """The church's IANA timezone, falling back to the platform default."""
+    from zoneinfo import ZoneInfo
+    from config import DEFAULT_TIMEZONE
+    name = getattr(church, "timezone", None) or DEFAULT_TIMEZONE
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return ZoneInfo("America/New_York")
+
+
+def church_now(church=None):
+    """Current wall-clock datetime where the church is, not UTC.
+
+    Visitor-facing dates must be church-local: on a Saturday evening in
+    Georgia, UTC has already rolled into Sunday.
+    """
+    return datetime.now(church_tz(church))
+
+
+def utc_to_church(dt, church=None):
+    """Convert a naive-UTC datetime (as stored in the DB) to church-local."""
+    from zoneinfo import ZoneInfo
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(church_tz(church))
+
+
 def iso_utc(dt):
     """Serialize a DB datetime as ISO 8601 with an explicit UTC marker.
 
@@ -112,7 +140,7 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
     staff=True  → staff interface: full ministry-partner prompt, no visitor restrictions
     staff=False → public widget (widget=True) or fallback: conservative visitor prompt
     """
-    today_str = datetime.utcnow().strftime("%A, %B %-d, %Y")
+    today_str = church_now(church).strftime("%A, %B %-d, %Y")
 
     if staff:
         # Staff interface: use hardcoded staff prompt, never the DB prompt
