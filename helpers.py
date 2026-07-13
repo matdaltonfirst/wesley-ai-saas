@@ -411,10 +411,10 @@ def is_safe_url(url: str) -> bool:
     or reserved IP range (SSRF risk).
     """
     import socket
-    from flask import current_app
+    from flask import current_app, has_app_context
 
     # Skip SSRF check in test mode (mirrors CSRF handling pattern)
-    if current_app and current_app.config.get("TESTING"):
+    if has_app_context() and current_app.config.get("TESTING"):
         return True
 
     try:
