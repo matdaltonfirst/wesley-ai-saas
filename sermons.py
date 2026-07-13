@@ -243,6 +243,14 @@ def check_source(source: SermonSource, limit: int = BACKFILL_COUNT) -> int:
         db.session.add(sermon)
         db.session.commit()
         ingested += ingest_sermon(sermon)
+
+    # Recover sermons stranded in "pending" — a deploy or restart can kill the
+    # background backfill/rebuild thread mid-run.
+    stuck = [s for s in source.sermons if s.status == "pending"]
+    if stuck:
+        log.info("Recovering %d stuck sermon(s) for source %d.", len(stuck), source.id)
+    for sermon in stuck:
+        ingested += ingest_sermon(sermon)
     return ingested
 
 

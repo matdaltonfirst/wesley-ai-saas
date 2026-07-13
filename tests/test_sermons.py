@@ -275,3 +275,20 @@ class TestSermonRoutes:
         res = auth_client.post("/api/sermons/reingest-all")
         assert res.status_code == 400  # nothing left to rebuild
         _cleanup(church)
+
+    def test_check_source_recovers_stuck_pending(self, app, church):
+        src = _source(church)
+        _sermon(church, src, video_id="stuck", status="pending", summary=None)
+        with patch("sermons.list_recent_videos", return_value=[]), \
+             patch("sermons.fetch_captions", return_value="words " * 100), \
+             patch("sermons.distill_sermon", return_value=_DISTILLED):
+            count = check_source(src)
+        assert count == 1
+        assert Sermon.query.filter_by(video_id="stuck").one().status == "ingested"
+        _cleanup(church)
+
+    def test_widget_prompt_directs_sermon_answers(self, app, church):
+        from helpers import build_system_prompt
+        prompt = build_system_prompt(church, widget=True)
+        assert "sources labeled 'Sermon:'" in prompt
+        assert "Blog posts and web pages are not sermons" in prompt
