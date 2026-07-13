@@ -234,3 +234,16 @@ class TestSermonRoutes:
         _sermon(church, src)
         assert auth_client.delete("/api/sermons/source").status_code == 200
         assert Sermon.query.filter_by(church_id=church.id).count() == 0
+
+    def test_reingest_all_rebuilds_summaries(self, auth_client, church):
+        src = _source(church)
+        _sermon(church, src, video_id="a")
+        _sermon(church, src, video_id="b", status="failed")
+        with patch("routes.sermons_routes._run_in_background") as mock_bg:
+            res = auth_client.post("/api/sermons/reingest-all")
+        assert res.status_code == 200
+        assert res.get_json()["count"] == 2
+        assert mock_bg.called
+        statuses = {s.status for s in Sermon.query.filter_by(church_id=church.id)}
+        assert statuses == {"pending"}
+        _cleanup(church)

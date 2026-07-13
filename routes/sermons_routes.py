@@ -129,6 +129,30 @@ def check_now():
     return jsonify({"ok": True, "message": "Checking for new sermons in the background."})
 
 
+@sermons_bp.route("/api/sermons/reingest-all", methods=["POST"])
+@login_required
+def reingest_all():
+    """Regenerate every sermon's summary (e.g. after a distillation improvement)."""
+    sermon_rows = Sermon.query.filter_by(church_id=current_user.church_id).all()
+    if not sermon_rows:
+        return jsonify({"error": "No sermons to rebuild."}), 400
+    ids = []
+    for s in sermon_rows:
+        s.status = "pending"
+        s.error = None
+        ids.append(s.id)
+    db.session.commit()
+
+    def _reingest_batch(sermon_ids=tuple(ids)):
+        for sid in sermon_ids:
+            target = Sermon.query.get(sid)
+            if target:
+                sermon_lib.ingest_sermon(target)
+    _run_in_background(_reingest_batch)
+    return jsonify({"ok": True, "count": len(ids),
+                    "message": "Rebuilding summaries in the background."})
+
+
 @sermons_bp.route("/api/sermons/<int:sermon_id>/reingest", methods=["POST"])
 @login_required
 def reingest(sermon_id):

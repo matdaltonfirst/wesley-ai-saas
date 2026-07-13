@@ -136,6 +136,12 @@ and liturgy) and respond with ONLY a JSON object, no other text:
   "series": "The sermon series name if mentioned, else null"
 }}
 
+IMPORTANT: Never identify the preacher or any speaker by name unless the name
+is stated unmistakably (introduced on screen or clearly spoken). Audio names
+are easily misheard and a wrong name is worse than none — when in any doubt,
+write "the pastor" or "the speaker". The same goes for any person named in
+passing: omit names you are not certain of.
+
 If the video contains no sermon or message at all, respond with:
 {{"summary": null}}"""
 

@@ -885,6 +885,7 @@ async function loadSermons() {
         <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;"></span>
         <span style="font-size:0.86rem;font-weight:600;color:#0f172a;">${esc(st.channel_title || "Channel connected")}</span>
         <button class="refresh-btn-sm" id="sermonCheckBtn" style="margin-left:auto;">Check for new sermons</button>
+        <button class="refresh-btn-sm" id="sermonRebuildBtn">Rebuild summaries</button>
         <button class="cancel-btn" id="sermonDisconnectBtn">Disconnect</button>
       </div>
       ${st.last_error ? `<div class="ser-error" style="margin-bottom:12px;">${esc(st.last_error)}</div>` : ""}
@@ -899,6 +900,13 @@ async function loadSermons() {
       e.target.disabled = true;
       e.target.textContent = "Checking…";
       await fetch("/api/sermons/check", { method: "POST" });
+      setTimeout(loadSermons, 4000);
+    });
+    document.getElementById("sermonRebuildBtn").addEventListener("click", async (e) => {
+      if (!confirm("Rebuild every sermon summary? This takes a few minutes per video.")) return;
+      e.target.disabled = true;
+      e.target.textContent = "Rebuilding…";
+      await fetch("/api/sermons/reingest-all", { method: "POST" });
       setTimeout(loadSermons, 4000);
     });
     body.querySelectorAll(".ser-retry").forEach(btn => {
