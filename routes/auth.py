@@ -14,7 +14,7 @@ from emails import send_reset_email, send_welcome_email, send_invite_email
 from helpers import validate_csrf_json
 
 # Pre-computed dummy hash for constant-time comparison on failed lookups
-_DUMMY_HASH = generate_password_hash("dummy-constant-time-compare")
+_DUMMY_HASH = generate_password_hash("dummy-constant-time-compare", method="pbkdf2:sha256")
 
 auth_bp = Blueprint("auth", __name__)
 
