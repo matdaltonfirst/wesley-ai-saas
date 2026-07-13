@@ -151,6 +151,7 @@ def create_app(testing: bool = False) -> Flask:
     from routes.comms_routes import comms_bp
     from routes.calendars import calendars_bp
     from routes.pco_routes import pco_bp
+    from routes.sermons_routes import sermons_bp
 
     _app.register_blueprint(auth_bp)
     _app.register_blueprint(pages_bp)
@@ -163,6 +164,7 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(comms_bp)
     _app.register_blueprint(calendars_bp)
     _app.register_blueprint(pco_bp)
+    _app.register_blueprint(sermons_bp)
 
     # ── Flask CLI commands ───────────────────────────────────────────────────
 
@@ -507,6 +509,14 @@ def calendar_refresh_job():
         log.info("Calendar refresh job: %d feed(s) refreshed successfully.", ok)
 
 
+def sermon_check_job():
+    """Daily 4:30 AM job: ingest new sermons from connected YouTube channels."""
+    with app.app_context():
+        from sermons import check_all_sources
+        count = check_all_sources()
+        log.info("Sermon check job: ingested %d new sermon(s).", count)
+
+
 def weekly_digest_job():
     """Monday 13:00 UTC (early morning US) job: email each church a summary of
     last week's widget activity."""
@@ -536,6 +546,7 @@ if not app.testing:
     scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
     scheduler.add_job(weekly_digest_job, CronTrigger(day_of_week="mon", hour=13, minute=0))
     scheduler.add_job(calendar_refresh_job, CronTrigger(hour=1, minute=30))
+    scheduler.add_job(sermon_check_job, CronTrigger(hour=4, minute=30))
     scheduler.add_job(pco_reconciliation_job, "interval", minutes=5)
     if not scheduler.running:
         scheduler.start()

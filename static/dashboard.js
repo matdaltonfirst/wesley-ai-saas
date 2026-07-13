@@ -819,7 +819,148 @@ document.addEventListener("panelShow", function(e) {
   else if (id === "qna")                 loadQna();
   else if (id === "calendars")           loadCalendars();
   else if (id === "integrations")        loadIntegrations();
+  else if (id === "sermons")             loadSermons();
 });
+
+// ── Sermons ─────────────────────────────────────────────────────────────────
+async function loadSermons() {
+  const body = document.getElementById("sermonBody");
+  if (!body) return;
+  body.innerHTML = '<div class="an-empty">Loading…</div>';
+  try {
+    const res = await fetch("/api/sermons/status");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const st = await res.json();
+
+    if (!st.configured) {
+      body.innerHTML = '<div class="an-empty">Sermon ingestion is not enabled on this server yet. Contact Wesley AI support.</div>';
+      return;
+    }
+    if (!st.connected) {
+      body.innerHTML = `
+        <div class="website-field-label">YouTube channel link</div>
+        <div class="website-url-row">
+          <input type="url" id="sermonChannelUrl" class="website-url-input"
+                 placeholder="https://youtube.com/@yourchurch" autocomplete="off" spellcheck="false">
+          <button class="website-save-btn" id="sermonConnectBtn">Connect</button>
+        </div>
+        <div class="website-status">Wesley will ingest your ${"10"} most recent videos, then check daily for new ones. Long videos may take a few minutes each.</div>`;
+      document.getElementById("sermonConnectBtn").addEventListener("click", connectSermonChannel);
+      return;
+    }
+
+    const sermons = st.sermons || [];
+    const listHtml = sermons.length ? sermons.map(s => `
+      <div class="ser-item" data-id="${s.id}">
+        <div style="display:flex;align-items:center;">
+          <div>
+            <span class="ser-title">${esc(s.title)}</span>
+            <span class="ser-status ${esc(s.status)}">${esc(s.status)}</span>
+            <div class="ser-meta">
+              ${esc(formatWconvDate(s.published_at))}
+              ${s.series ? " · " + esc(s.series) : ""}
+              ${s.scriptures ? " · " + esc(s.scriptures) : ""}
+              · <a href="${esc(s.video_url)}" target="_blank" rel="noopener noreferrer" style="color:#176d73;">Watch ↗</a>
+            </div>
+          </div>
+        </div>
+        ${s.summary ? `<div class="ser-summary">${esc(s.summary.slice(0, 250))}${s.summary.length > 250 ? "…" : ""}</div>` : ""}
+        ${s.status === "failed" ? `
+          <div class="ser-error">${esc(s.error)}</div>
+          <div class="fb-actions">
+            <button class="teal-btn ser-retry" data-id="${s.id}">Retry</button>
+            <button class="cancel-btn ser-paste-toggle" data-id="${s.id}">Paste transcript</button>
+          </div>
+          <div class="ser-paste" id="ser-paste-${s.id}">
+            <textarea class="ds-field-input" id="ser-paste-text-${s.id}" rows="5"
+                      placeholder="Paste the sermon transcript here…"></textarea>
+            <div class="fb-actions">
+              <button class="teal-btn ser-paste-save" data-id="${s.id}">Ingest transcript</button>
+            </div>
+          </div>` : ""}
+      </div>`).join("") : '<div class="an-empty">No sermons ingested yet — the backfill may still be running. Refresh in a minute.</div>';
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;"></span>
+        <span style="font-size:0.86rem;font-weight:600;color:#0f172a;">${esc(st.channel_title || "Channel connected")}</span>
+        <button class="refresh-btn-sm" id="sermonCheckBtn" style="margin-left:auto;">Check for new sermons</button>
+        <button class="cancel-btn" id="sermonDisconnectBtn">Disconnect</button>
+      </div>
+      ${st.last_error ? `<div class="ser-error" style="margin-bottom:12px;">${esc(st.last_error)}</div>` : ""}
+      <div id="sermonList">${listHtml}</div>`;
+
+    document.getElementById("sermonDisconnectBtn").addEventListener("click", async () => {
+      if (!confirm("Disconnect this channel? Wesley will forget all ingested sermons.")) return;
+      await fetch("/api/sermons/source", { method: "DELETE" });
+      loadSermons();
+    });
+    document.getElementById("sermonCheckBtn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      e.target.textContent = "Checking…";
+      await fetch("/api/sermons/check", { method: "POST" });
+      setTimeout(loadSermons, 4000);
+    });
+    body.querySelectorAll(".ser-retry").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        await fetch(`/api/sermons/${btn.dataset.id}/reingest`, { method: "POST" });
+        setTimeout(loadSermons, 4000);
+      });
+    });
+    body.querySelectorAll(".ser-paste-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.getElementById(`ser-paste-${btn.dataset.id}`).classList.toggle("ser-visible");
+      });
+    });
+    body.querySelectorAll(".ser-paste-save").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const text = document.getElementById(`ser-paste-text-${btn.dataset.id}`).value;
+        btn.disabled = true;
+        btn.textContent = "Ingesting…";
+        const res = await fetch(`/api/sermons/${btn.dataset.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: text }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Could not ingest that transcript.");
+          btn.disabled = false;
+          btn.textContent = "Ingest transcript";
+          return;
+        }
+        loadSermons();
+      });
+    });
+  } catch {
+    body.innerHTML = '<div class="an-empty">Could not load sermon status.</div>';
+  }
+}
+
+async function connectSermonChannel() {
+  const input = document.getElementById("sermonChannelUrl");
+  const btn = document.getElementById("sermonConnectBtn");
+  const url = (input.value || "").trim();
+  if (!url) return;
+  btn.disabled = true;
+  btn.textContent = "Connecting…";
+  try {
+    const res = await fetch("/api/sermons/source", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Could not connect that channel."); return; }
+    loadSermons();
+  } catch {
+    alert("Could not connect that channel. Check your connection and try again.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Connect";
+  }
+}
 
 // ── Integrations: Planning Center ───────────────────────────────────────────
 async function loadIntegrations() {

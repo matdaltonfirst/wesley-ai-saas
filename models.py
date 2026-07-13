@@ -361,3 +361,49 @@ class PcoConnection(db.Model):
     workflow_name     = db.Column(db.String(200), nullable=True)
     connected_by_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SermonSource(db.Model):
+    """A church's YouTube channel used for sermon ingestion (one per church)."""
+    __tablename__ = "sermon_sources"
+    id              = db.Column(db.Integer, primary_key=True)
+    church_id       = db.Column(
+        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
+    )
+    channel_url     = db.Column(db.String(500), nullable=False)
+    channel_id      = db.Column(db.String(100), nullable=False)
+    channel_title   = db.Column(db.String(200), nullable=True)
+    last_checked_at = db.Column(db.DateTime, nullable=True)
+    last_error      = db.Column(db.String(500), nullable=True)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+    sermons = db.relationship(
+        "Sermon", backref="source", cascade="all, delete-orphan",
+    )
+
+
+class Sermon(db.Model):
+    """One ingested sermon video: transcript (when available) plus distilled notes."""
+    __tablename__ = "sermons"
+    id           = db.Column(db.Integer, primary_key=True)
+    source_id    = db.Column(
+        db.Integer, db.ForeignKey("sermon_sources.id"), nullable=False, index=True,
+    )
+    church_id    = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    video_id     = db.Column(db.String(20), nullable=False, index=True)
+    title        = db.Column(db.String(500), nullable=False)
+    published_at = db.Column(db.DateTime, nullable=False)
+    transcript   = db.Column(db.Text, nullable=True)      # from captions, when available
+    summary      = db.Column(db.Text, nullable=True)      # distilled recap for retrieval
+    main_points  = db.Column(db.Text, nullable=True)      # newline-separated
+    scriptures   = db.Column(db.String(500), nullable=True)
+    series       = db.Column(db.String(200), nullable=True)
+    status       = db.Column(db.String(20), nullable=False, default="pending")
+    # pending | ingested | failed
+    error        = db.Column(db.String(500), nullable=True)
+    ingested_at  = db.Column(db.DateTime, nullable=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def video_url(self):
+        return f"https://www.youtube.com/watch?v={self.video_id}"

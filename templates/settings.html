@@ -1300,6 +1300,19 @@
     .cal-event-when { color:#176d73;font-weight:600;white-space:nowrap; }
     .cal-event-title { color:#334155; }
     .cal-event-loc { color:#94a3b8; }
+
+    /* ── Sermons ── */
+    .ser-item { border:1px solid var(--border);border-radius:10px;background:#fff;padding:12px 14px;margin-bottom:10px; }
+    .ser-title { font-size:0.86rem;font-weight:600;color:#0f172a; }
+    .ser-meta { font-size:0.72rem;color:#94a3b8;margin-top:2px; }
+    .ser-status { font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-radius:5px;padding:3px 6px;margin-left:8px; }
+    .ser-status.ingested { color:#166534;background:#ecfdf5;border:1px solid #bbf7d0; }
+    .ser-status.pending { color:#92400e;background:#fff7ed;border:1px solid #fed7aa; }
+    .ser-status.failed { color:#b91c1c;background:#fef2f2;border:1px solid #fecaca; }
+    .ser-summary { font-size:0.8rem;color:#475569;line-height:1.5;margin-top:8px; }
+    .ser-error { font-size:0.75rem;color:#b91c1c;margin-top:8px; }
+    .ser-paste { display:none;margin-top:10px; }
+    .ser-paste.ser-visible { display:block; }
   </style>
 </head>
 <body class="settings-page">
@@ -1444,6 +1457,13 @@
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
               Calendars
+            </button>
+            <button class="db-nav-item" data-panel="sermons">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7"/>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              Sermons
             </button>
             <button class="db-nav-item" data-panel="snippets">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1912,6 +1932,20 @@
         </section>
       </div>
 
+      <!-- ── Sermons ── -->
+      <div class="db-panel" id="panel-sermons">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Sermons</h1>
+          <p class="db-panel-subtitle">Connect your YouTube channel so Wesley can answer questions about your messages.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">YouTube Channel</h2>
+          </div>
+          <div id="sermonBody"><div class="an-empty">Loading…</div></div>
+        </section>
+      </div>
+
       <!-- ── Embed Code ── -->
       <div class="db-panel" id="panel-embed">
         <div class="db-panel-header">
@@ -2218,7 +2252,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','embed','playground','team','integrations','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','snippets','qna','files','website','calendars','sermons','embed','playground','team','integrations','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');

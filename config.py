@@ -17,6 +17,10 @@ PCO_CLIENT_SECRET = os.getenv("PCO_CLIENT_SECRET", "")
 PCO_TOKEN_ENCRYPTION_KEY = os.getenv("PCO_TOKEN_ENCRYPTION_KEY", "")
 PCO_API_BASE      = "https://api.planningcenteronline.com"
 
+# ── YouTube Data API (sermon ingestion; one key serves all churches) ──────────
+
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+
 # ── Branding defaults (single source of truth) ───────────────────────────────
 
 DEFAULT_BOT_NAME = "Wesley"

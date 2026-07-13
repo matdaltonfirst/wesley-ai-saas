@@ -14,6 +14,7 @@ from documents import (
     build_cited_context, select_cited_sources,
 )
 from calendar_feed import load_calendar_chunks, score_calendar_chunks
+from sermons import load_sermon_chunks, score_sermon_chunks
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -65,8 +66,11 @@ def chat():
     scored_cal = score_calendar_chunks(
         question, load_calendar_chunks(current_user.church_id)
     )
-    if scored or scored_cal:
-        context, candidate_sources = build_cited_context([scored, scored_cal])
+    scored_ser = score_sermon_chunks(
+        question, load_sermon_chunks(current_user.church_id)
+    )
+    if scored or scored_cal or scored_ser:
+        context, candidate_sources = build_cited_context([scored, scored_cal, scored_ser])
 
     system_instruction = build_system_prompt(current_user.church, staff=True)
 
