@@ -169,6 +169,7 @@ class TestChat:
         ]
         with patch("routes.chat.load_church_documents", return_value=chunks), \
              patch("routes.chat.load_curated_content", return_value=[]), \
+             patch("routes.chat.score_denomination_chunks", return_value=[]), \
              patch("routes.chat.call_gemini", return_value="Services are at 9:30 and 11 [1].") as gemini:
             res = auth_client.post("/api/chat", json={"question": "When are services Sunday?"})
 

@@ -29,6 +29,9 @@ STOP_WORDS = {
     "his", "her", "its", "they", "them", "their", "what", "which", "who",
     "whom", "how", "when", "where", "why", "all", "each", "every", "any",
     "no", "more", "most", "other", "some", "such", "if", "as",
+    # Domain stop-words: on a church platform these appear in nearly every
+    # chunk and drown out the words that actually distinguish content.
+    "church", "churches",
 }
 
 # ── Church data directory ────────────────────────────────────────────────────
