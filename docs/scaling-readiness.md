@@ -17,3 +17,21 @@ Finally, the codebase has some maintainability risks that will affect team scali
 3. Adopt a real migration system.
 4. Improve retrieval, caching, and indexing strategy.
 5. Refactor the largest files into smaller, more modular components.
+
+## Scaling checklist
+
+- [ ] Migrate production database from SQLite to PostgreSQL.
+- [ ] Add a versioned migration system such as Alembic/Flask-Migrate.
+- [ ] Remove startup-time schema mutation logic from `app.py`.
+- [ ] Replace request-spawned background threads with a proper job queue.
+- [ ] Add retry, timeout, and failure monitoring for async jobs.
+- [ ] Separate web, worker, and scheduled job responsibilities.
+- [ ] Cache or precompute retrieval inputs for documents, sermons, and calendar data.
+- [ ] Add stronger indexing/search infrastructure for tenant knowledge retrieval.
+- [ ] Measure and monitor chat/widget latency under larger tenant datasets.
+- [ ] Break up large files such as `app.py`, `routes/widget.py`, and large frontend assets.
+- [ ] Move business logic out of route handlers into service modules.
+- [ ] Add CI to run tests automatically on pushes and pull requests.
+- [ ] Add linting/formatting checks such as `ruff` and `black`.
+- [ ] Add structured logging and basic observability for errors and performance.
+- [ ] Review multi-tenant isolation and performance characteristics before larger growth.
