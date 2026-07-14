@@ -323,13 +323,19 @@
       <div class="step-dot"        id="dot2"></div>
       <div class="step-line"       id="line2"></div>
       <div class="step-dot"        id="dot3"></div>
+      <div class="step-line"       id="line3"></div>
+      <div class="step-dot"        id="dot4"></div>
+      <div class="step-line"       id="line4"></div>
+      <div class="step-dot"        id="dot5"></div>
+      <div class="step-line"       id="line5"></div>
+      <div class="step-dot"        id="dot6"></div>
     </div>
 
     <div class="wizard-card">
 
       <!-- ── Step 1: Church details ── -->
       <div class="step-panel active" id="step1">
-        <div class="step-label">Step 1 of 3</div>
+        <div class="step-label">Step 1 of 6</div>
         <h1 class="step-title">Tell us about your church</h1>
         <p class="step-sub">This helps Wesley introduce itself properly to your congregation.</p>
 
@@ -367,7 +373,7 @@
 
       <!-- ── Step 2: Website chatbot ── -->
       <div class="step-panel" id="step2">
-        <div class="step-label">Step 2 of 3</div>
+        <div class="step-label">Step 2 of 6</div>
         <h1 class="step-title">Set up your website chatbot</h1>
         <p class="step-sub">Enter your church website URL and Wesley will crawl it so visitors can get answers straight from your site. You can always do this later.</p>
 
@@ -402,10 +408,70 @@
         </div>
       </div>
 
-      <!-- ── Step 3: All set ── -->
+      <!-- ── Step 3: Event calendar ── -->
       <div class="step-panel" id="step3">
+        <div class="step-label">Step 3 of 6</div>
+        <h1 class="step-title">Connect your events calendar</h1>
+        <p class="step-sub">Paste a public calendar feed (Google Calendar or Planning Center iCal link) and Wesley will always know what's coming up — refreshed nightly, never stale. Public events only: never connect staff or personal calendars.</p>
+
+        <div class="field-row" style="margin-bottom:6px;">
+          <label class="field-label" for="obCalUrl">Calendar feed URL (iCal / ICS)</label>
+          <input class="field-input" type="url" id="obCalUrl"
+                 placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+                 autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="step-status" id="obCalStatus"></div>
+        <div class="btn-row spread">
+          <button class="btn-ghost" id="obCalSkip">Skip for now</button>
+          <span>
+            <button class="btn-primary" id="obCalConnect">Connect calendar</button>
+            <button class="btn-primary" id="obCalContinue" style="display:none">Continue →</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- ── Step 4: YouTube sermons ── -->
+      <div class="step-panel" id="step4">
+        <div class="step-label">Step 4 of 6</div>
+        <h1 class="step-title">Connect your YouTube channel</h1>
+        <p class="step-sub">Wesley will ingest your recent sermons and check daily for new ones, so visitors can ask "What was Sunday's message about?" Long videos take a few minutes each — it runs in the background.</p>
+
+        <div class="field-row" style="margin-bottom:6px;">
+          <label class="field-label" for="obYtUrl">YouTube channel link</label>
+          <input class="field-input" type="url" id="obYtUrl"
+                 placeholder="https://youtube.com/@yourchurch"
+                 autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="step-status" id="obYtStatus"></div>
+        <div class="btn-row spread">
+          <button class="btn-ghost" id="obYtSkip">Skip for now</button>
+          <span>
+            <button class="btn-primary" id="obYtConnect">Connect channel</button>
+            <button class="btn-primary" id="obYtContinue" style="display:none">Continue →</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- ── Step 5: Planning Center ── -->
+      <div class="step-panel" id="step5">
+        <div class="step-label">Step 5 of 6</div>
+        <h1 class="step-title">Connect Planning Center</h1>
+        <p class="step-sub">When a website visitor shares their contact info with Wesley, they'll be added to Planning Center People automatically — with a note about what they asked — so your team can follow up. You'll sign in on Planning Center's site; Wesley never sees your password.</p>
+
+        <div class="step-status" id="obPcoStatus"></div>
+        <div class="btn-row spread">
+          <button class="btn-ghost" id="obPcoSkip">Skip for now</button>
+          <span>
+            <button class="btn-primary" id="obPcoConnect">Connect Planning Center</button>
+            <button class="btn-primary" id="obPcoContinue" style="display:none">Continue →</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- ── Step 6: All set ── -->
+      <div class="step-panel" id="step6">
         <div class="success-icon">🎉</div>
-        <div class="step-label">Step 3 of 3</div>
+        <div class="step-label">Step 6 of 6</div>
         <h1 class="step-title">You're all set!</h1>
         <p class="step-sub">Add this snippet to your church website to embed the chatbot widget anywhere on your site. You can always grab it later from your Dashboard.</p>
 
@@ -429,17 +495,38 @@
 
     // ── Progress helpers ────────────────────────────────────────────────────
     function goToStep(n) {
-      [1, 2, 3].forEach(i => {
+      [1, 2, 3, 4, 5, 6].forEach(i => {
         document.getElementById(`step${i}`).classList.toggle("active", i === n);
         const dot = document.getElementById(`dot${i}`);
         dot.classList.remove("active", "done");
         if (i < n)      dot.classList.add("done");
         else if (i === n) dot.classList.add("active");
       });
-      if (n >= 2) document.getElementById("line1").classList.add("done");
-      else        document.getElementById("line1").classList.remove("done");
-      if (n >= 3) document.getElementById("line2").classList.add("done");
-      else        document.getElementById("line2").classList.remove("done");
+      [1, 2, 3, 4, 5].forEach(i => {
+        document.getElementById(`line${i}`).classList.toggle("done", n >= i + 1);
+      });
+      if (n === 6) renderEmbed();
+    }
+
+    // Steps whose server-side integration isn't configured are skipped.
+    const AVAILABLE = { sermons: true, pco: true };
+
+    function nextStep(from) {
+      let n = from + 1;
+      if (n === 4 && !AVAILABLE.sermons) n = 5;
+      if (n === 5 && !AVAILABLE.pco) n = 6;
+      goToStep(n);
+    }
+
+    async function loadAvailability() {
+      try {
+        const [ser, pco] = await Promise.all([
+          fetch("/api/sermons/status").then(r => r.json()),
+          fetch("/api/pco/status").then(r => r.json()),
+        ]);
+        AVAILABLE.sermons = !!ser.configured;
+        AVAILABLE.pco = !!(pco.configured && pco.can_manage !== false);
+      } catch { /* leave defaults */ }
     }
 
     function setStatus(elId, msg, type) {
@@ -546,17 +633,93 @@
       }
     });
 
-    function advanceToStep3() {
-      goToStep(3);
-      // Render embed snippet
+    function renderEmbed() {
       const snippet = `<script src="https://app.wesleyai.co/widget.js" data-church-id="${CHURCH_ID}"><\/script>`;
       document.getElementById("embedCodeBlock").textContent = snippet;
     }
 
-    document.getElementById("step2Skip").addEventListener("click", advanceToStep3);
-    document.getElementById("step2Continue").addEventListener("click", advanceToStep3);
+    document.getElementById("step2Skip").addEventListener("click", () => nextStep(2));
+    document.getElementById("step2Continue").addEventListener("click", () => nextStep(2));
 
-    // ── Step 3: Copy embed code ─────────────────────────────────────────────
+    // ── Step 3: Event calendar ──────────────────────────────────────────────
+    document.getElementById("obCalSkip").addEventListener("click", () => nextStep(3));
+    document.getElementById("obCalContinue").addEventListener("click", () => nextStep(3));
+    document.getElementById("obCalConnect").addEventListener("click", async () => {
+      const url = document.getElementById("obCalUrl").value.trim();
+      if (!url) { setStatus("obCalStatus", "Paste your calendar feed link first.", "err"); return; }
+      const btn = document.getElementById("obCalConnect");
+      btn.disabled = true;
+      btn.textContent = "Connecting…";
+      try {
+        const res = await fetch("/api/calendars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setStatus("obCalStatus", data.error || "Could not connect that calendar.", "err"); return; }
+        const count = data.calendar ? data.calendar.event_count : 0;
+        setStatus("obCalStatus", `✓ Connected — Wesley found ${count} upcoming event${count === 1 ? "" : "s"}.`, "ok");
+        btn.style.display = "none";
+        document.getElementById("obCalContinue").style.display = "";
+      } catch {
+        setStatus("obCalStatus", "Network error. Please try again.", "err");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Connect calendar";
+      }
+    });
+
+    // ── Step 4: YouTube sermons ─────────────────────────────────────────────
+    document.getElementById("obYtSkip").addEventListener("click", () => nextStep(4));
+    document.getElementById("obYtContinue").addEventListener("click", () => nextStep(4));
+    document.getElementById("obYtConnect").addEventListener("click", async () => {
+      const url = document.getElementById("obYtUrl").value.trim();
+      if (!url) { setStatus("obYtStatus", "Paste your YouTube channel link first.", "err"); return; }
+      const btn = document.getElementById("obYtConnect");
+      btn.disabled = true;
+      btn.textContent = "Connecting…";
+      try {
+        const res = await fetch("/api/sermons/source", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setStatus("obYtStatus", data.error || "Could not connect that channel.", "err"); return; }
+        setStatus("obYtStatus", `✓ Connected to ${data.channel_title || "your channel"} — sermons are ingesting in the background.`, "ok");
+        btn.style.display = "none";
+        document.getElementById("obYtContinue").style.display = "";
+      } catch {
+        setStatus("obYtStatus", "Network error. Please try again.", "err");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Connect channel";
+      }
+    });
+
+    // ── Step 5: Planning Center (OAuth round-trip returns to ?step=5) ──────
+    document.getElementById("obPcoSkip").addEventListener("click", () => nextStep(5));
+    document.getElementById("obPcoContinue").addEventListener("click", () => nextStep(5));
+    document.getElementById("obPcoConnect").addEventListener("click", () => {
+      window.location.href = "/pco/connect?return=onboarding";
+    });
+
+    // ── Resume support (used by the Planning Center round-trip) ────────────
+    const RESUME_STEP = {{ resume_step }};
+    const PCO_RESULT = "{{ pco_result }}";
+    loadAvailability().then(() => {
+      if (RESUME_STEP > 1) goToStep(RESUME_STEP);
+      if (RESUME_STEP === 5 && PCO_RESULT === "connected") {
+        setStatus("obPcoStatus", "✓ Planning Center connected! New guests will sync automatically.", "ok");
+        document.getElementById("obPcoConnect").style.display = "none";
+        document.getElementById("obPcoContinue").style.display = "";
+      } else if (RESUME_STEP === 5 && PCO_RESULT === "denied") {
+        setStatus("obPcoStatus", "Connection was cancelled — you can try again or skip.", "err");
+      }
+    });
+
+    // ── Final step: Copy embed code ─────────────────────────────────────────
     document.getElementById("copyEmbedBtn").addEventListener("click", async () => {
       const snippet = document.getElementById("embedCodeBlock").textContent;
       const btn     = document.getElementById("copyEmbedBtn");

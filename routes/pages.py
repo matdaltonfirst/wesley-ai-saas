@@ -35,13 +35,19 @@ def chat_page():
 @pages_bp.route("/onboarding")
 @login_required
 def onboarding_page():
-    if current_user.church.onboarding_complete:
+    # ?step=N lets integrations (e.g. the Planning Center OAuth round-trip)
+    # send the user back into the wizard after onboarding is already marked
+    # complete at step 1.
+    resume_step = request.args.get("step", type=int)
+    if current_user.church.onboarding_complete and not resume_step:
         return redirect(url_for("pages.chat_page"))
     church = current_user.church
     return render_template(
         "onboarding.html",
         church_name=church.name,
         church_id=church.id,
+        resume_step=min(max(resume_step or 1, 1), 6),
+        pco_result=request.args.get("pco", ""),
     )
 
 

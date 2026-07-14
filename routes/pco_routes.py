@@ -50,6 +50,10 @@ def pco_connect():
         return "Only church admins can connect Planning Center.", 403
     state = secrets.token_urlsafe(24)
     session["pco_oauth_state"] = state
+    # Remember where to land after the OAuth round-trip (dashboard or wizard)
+    session["pco_return"] = (
+        "onboarding" if request.args.get("return") == "onboarding" else "dashboard"
+    )
     return redirect(pco.authorize_url(state))
 
 
@@ -60,9 +64,16 @@ def pco_callback():
     saved = session.pop("pco_oauth_state", None)
     if not saved or not secrets.compare_digest(state, saved):
         return "Sign-in session expired — please try connecting again.", 400
+    return_to = session.pop("pco_return", "dashboard")
+
+    def _destination(result):
+        if return_to == "onboarding":
+            return f"/onboarding?step=5&pco={result}"
+        return "/dashboard#integrations"
+
     if request.args.get("error"):
         # User clicked "Deny" on the PCO consent screen
-        return redirect("/dashboard#integrations")
+        return redirect(_destination("denied"))
 
     code = request.args.get("code", "")
     try:
@@ -88,7 +99,7 @@ def pco_callback():
 
     log.info("PCO connected: church_id=%d org=%r",
              conn.church_id, conn.organization_name)
-    return redirect("/dashboard#integrations")
+    return redirect(_destination("connected"))
 
 
 @pco_bp.route("/api/pco/disconnect", methods=["POST"])
