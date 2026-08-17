@@ -73,7 +73,9 @@ def admin_list_churches():
     active_subs = 0
     trialing = 0
     for c in churches:
-        if c.stripe_subscription_id:
+        # Manual (cash/check) payers are paying customers too — count them as
+        # active, not as trialing or missing.
+        if get_billing_status(c)["billing_type"] in ("manual", "stripe"):
             active_subs += 1
         elif c.trial_ends_at and c.trial_ends_at > now:
             trialing += 1
@@ -109,9 +111,11 @@ def admin_list_churches():
             {"cid": c.id}
         ).scalar() or 0
 
+        # Mirror the billing panel: get_billing_status() is the single source of
+        # truth for paid access, and is the only path that sees manual billing.
         if c.billing_exempt:
             status = "exempt"
-        elif c.stripe_subscription_id:
+        elif get_billing_status(c)["billing_type"] in ("manual", "stripe"):
             status = "active"
         elif c.trial_ends_at and c.trial_ends_at > now:
             status = "trialing"
