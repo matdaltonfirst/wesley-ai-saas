@@ -20,20 +20,33 @@ def load_denomination_chunks(denomination) -> list[dict]:
 
 
 def score_denomination_chunks(
-    question: str, denomination, top_n: int = 3
+    question: str, denomination, top_n: int = 3, usage: dict = None
 ) -> list[tuple[int, dict]]:
     """Score one denomination's sections against a question.
 
-    Uses a gentler threshold than find_relevant_chunks: a doctrine question
-    often shares exactly one decisive keyword with its section ("homosexuality",
-    "baptize"), and missing it means the model falls back to stale training
-    data — the failure this layer exists to prevent.
+    Uses a gentler threshold than general retrieval, on both the semantic and
+    keyword paths: a doctrine question often turns on exactly one decisive
+    concept ("homosexuality", "baptize"), and missing it means the model falls
+    back to stale training data — the failure this layer exists to prevent.
     """
     from documents import extract_keywords, score_chunk
+    from embeddings import (
+        RELATIVE_BAND_DENOMINATION, SIMILARITY_FLOOR_DENOMINATION, rank_chunks,
+    )
 
     chunks = load_denomination_chunks(denomination)
     if not chunks:
         return []
+
+    semantic = rank_chunks(
+        question, chunks, top_n=top_n,
+        floor=SIMILARITY_FLOOR_DENOMINATION,
+        band=RELATIVE_BAND_DENOMINATION,
+        usage=usage,
+    )
+    if semantic:
+        return semantic
+
     keywords = extract_keywords(question)
     if not keywords:
         return []

@@ -433,6 +433,61 @@ def nightly_crawl_job():
                 log.error("Nightly crawl error church_id=%d: %s", church.id, exc)
 
 
+def embedding_warm_job():
+    """Embed every church's retrievable content. Runs at 2:45am, after the crawl.
+
+    Retrieval stays on keyword scoring until a church's corpus is fully
+    embedded, so this job is what actually switches semantic search on — and
+    doing it here means no visitor ever waits on a cold corpus.
+    """
+    with app.app_context():
+        from embeddings import chunk_hashes, is_enabled, prune_cache, warm_chunks
+        if not is_enabled():
+            log.info("Embedding warm: disabled, skipping.")
+            return
+
+        from documents import (
+            load_church_documents, load_church_web_content, load_curated_content,
+        )
+        from calendar_feed import load_calendar_chunks
+        from sermons import load_sermon_chunks
+        from denominations import load_denomination_chunks
+
+        total = 0
+        live_hashes = set()
+        failed = False
+        for church in Church.query.all():
+            try:
+                chunks = (
+                    load_church_documents(church.id, UPLOADS_DIR)
+                    + load_church_web_content(church.id)
+                    + load_curated_content(church.id)
+                    + load_calendar_chunks(church.id)
+                    + load_sermon_chunks(church.id)
+                    + load_denomination_chunks(church.denomination)
+                )
+                live_hashes |= chunk_hashes(chunks)
+                embedded = warm_chunks(chunks)
+                total += embedded
+                if embedded:
+                    log.info("Embedding warm church_id=%d (%s): %d new vector(s)",
+                             church.id, church.name, embedded)
+            except Exception:
+                # A church whose chunks could not be loaded contributes no
+                # hashes, so its live vectors would look orphaned. Skip the
+                # prune rather than delete work that is still in use.
+                failed = True
+                log.exception("Embedding warm failed for church_id=%d", church.id)
+
+        log.info("Embedding warm: %d new vector(s) across all churches.", total)
+        if failed:
+            log.warning("Embedding prune skipped — at least one church failed to load.")
+        else:
+            pruned = prune_cache(live_hashes)
+            if pruned:
+                log.info("Embedding prune: removed %d unreachable vector(s).", pruned)
+
+
 def nightly_cleanup_job():
     """Delete conversations (and their messages) last updated more than 14 days ago."""
     with app.app_context():
@@ -596,6 +651,7 @@ def pco_reconciliation_job():
 if not app.testing:
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
+    scheduler.add_job(embedding_warm_job, CronTrigger(hour=2, minute=45))
     scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
     scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
     scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))

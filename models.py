@@ -345,6 +345,31 @@ class KnowledgeChecklistState(db.Model):
     )
 
 
+class EmbeddingCache(db.Model):
+    """A content-addressed cache of text embeddings.
+
+    Deliberately holds no tenant data: it is a pure function cache keyed by the
+    hash of the text, the model, and the task type, so identical text is only
+    ever embedded once no matter which church supplied it. Nothing here can be
+    queried "for church X" — retrieval scores the chunks a caller already
+    loaded, and only uses this to avoid paying for the same vector twice.
+    """
+    __tablename__ = "embedding_cache"
+    id         = db.Column(db.Integer, primary_key=True)
+    text_hash  = db.Column(db.String(64), nullable=False, index=True)
+    model      = db.Column(db.String(60), nullable=False)
+    task       = db.Column(db.String(30), nullable=False)
+    dim        = db.Column(db.Integer, nullable=False)
+    # float32 values, L2-normalised at write time so similarity is a plain
+    # dot product rather than a cosine computed on every comparison.
+    vector     = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("text_hash", "model", "task", name="uq_embedding_cache_key"),
+    )
+
+
 class UsageDaily(db.Model):
     """One church's AI consumption for a single day, surface, and model.
 

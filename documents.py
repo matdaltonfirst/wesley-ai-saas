@@ -253,7 +253,10 @@ def score_chunk(chunk: dict, keywords: list[str]) -> int:
     return score
 
 
-def find_relevant_chunks(query: str, chunks: list[dict], top_n: int = 8) -> list[tuple[int, dict]]:
+def find_relevant_chunks_by_keyword(
+    query: str, chunks: list[dict], top_n: int = 8
+) -> list[tuple[int, dict]]:
+    """Literal keyword scoring — the original ranking, and the fallback path."""
     keywords = extract_keywords(query)
     if not keywords:
         return []
@@ -266,6 +269,29 @@ def find_relevant_chunks(query: str, chunks: list[dict], top_n: int = 8) -> list
     # where query words appear incidentally in shared or long-form content.
     cutoff = max(2, positive[0][0] * 0.6)
     return [(score, c) for score, c in positive if score >= cutoff][:top_n]
+
+
+def find_relevant_chunks(
+    query: str, chunks: list[dict], top_n: int = 8, usage: dict = None
+) -> list[tuple[int, dict]]:
+    """Rank chunks against a question, semantically when that is possible.
+
+    Semantic ranking matches a question to an answer that uses different words
+    — "childcare" against "nursery" — which literal scoring cannot do. It is
+    skipped silently whenever it is unavailable (no API key, kill switch off,
+    an API error, or a corpus not yet warmed), and keyword scoring answers
+    instead. A retrieval failure must never cost a visitor their answer.
+    """
+    from embeddings import rank_chunks
+
+    semantic = rank_chunks(query, chunks, top_n=top_n, usage=usage)
+    if semantic:
+        return semantic
+    # An empty semantic result falls through to keywords rather than being
+    # treated as "nothing is relevant". The similarity threshold is a tuned
+    # constant, and if it is ever set too high, this keeps the effect a loss of
+    # the paraphrase win rather than a bot that has gone mute.
+    return find_relevant_chunks_by_keyword(query, chunks, top_n=top_n)
 
 
 def build_context_block(scored_chunks: list[tuple[int, dict]]) -> str:
