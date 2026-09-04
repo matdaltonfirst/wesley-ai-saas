@@ -1,10 +1,11 @@
 # Wesley AI SaaS
 
-A multi-tenant AI assistant platform built for United Methodist churches. Wesley AI helps church staff answer congregant questions, manage communications, and surface knowledge from sermons, documents, and websites — all grounded in Wesleyan theology.
+A multi-tenant AI assistant platform for local churches. Wesley AI helps church staff answer congregant questions, manage communications, and surface knowledge from sermons, documents, and websites — grounded in each church's own denominational tradition and its pastor-approved local material.
 
 ## Features
 
 - **AI Chat (Staff Dashboard)** — Conversational assistant powered by Google Gemini, with citation-backed answers drawn from each church's own knowledge base.
+- **Multi-Denominational Theology** — Each church selects its denominational affiliation; the assistant loads exactly one denominational profile, layered over pastor-approved local practice. See [docs/denominational-architecture.md](docs/denominational-architecture.md).
 - **Embeddable Widget** — A branded chat widget that churches embed on their public website so visitors can ask questions 24/7.
 - **Document Knowledge Base** — Upload PDFs and DOCX files; content is extracted and indexed for retrieval-augmented generation.
 - **Website Crawler** — Automatically crawls and indexes a church's website so the bot can answer questions about ministries, events, and policies.
@@ -46,6 +47,8 @@ A multi-tenant AI assistant platform built for United Methodist churches. Wesley
 ├── documents.py           # PDF/DOCX extraction
 ├── emails.py              # Transactional email templates
 ├── knowledge_packs.py     # Pre-built knowledge bundles
+├── denominations/         # Denominational profiles, registry, retrieval, local practice
+├── umc_facts.py           # Back-compat shim over denominations/umc.py
 ├── pco.py                 # Planning Center API helpers
 ├── routes/                # Flask Blueprints
 │   ├── auth.py            #   Login, signup, password reset

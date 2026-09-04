@@ -58,6 +58,21 @@ class Church(db.Model):
     # Onboarding
     onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Theology & affiliation — stable internal profile key from the
+    # `denominations` registry. Existing churches predate this field and are all
+    # United Methodist, so the default must stay "umc".
+    denomination = db.Column(db.String(40), nullable=False, default="umc")
+    # Version of the profile in force when the church last selected it, so a
+    # later profile revision is traceable rather than silently applied.
+    denomination_profile_version = db.Column(db.String(40), nullable=True)
+    denomination_updated_at = db.Column(db.DateTime, nullable=True)
+    # Validated JSON object of structured local-practice settings; schema and
+    # server-side validation live in denominations/local_practice.py.
+    local_practices = db.Column(db.Text, nullable=True)
+    # A church's own approved statement of faith (local content, never a
+    # denominational claim).
+    statement_of_faith = db.Column(db.Text, nullable=True)
+
     # Features
     comms_enabled = db.Column(db.Boolean, nullable=False, default=True)
 

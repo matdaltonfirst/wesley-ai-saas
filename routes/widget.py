@@ -26,7 +26,7 @@ from documents import (
 )
 from calendar_feed import load_calendar_chunks, score_calendar_chunks
 from sermons import load_sermon_chunks, score_sermon_chunks
-from umc_facts import score_denomination_chunks
+from denominations import score_denomination_chunks
 from pco import person_url as pco_person_url
 
 log = logging.getLogger("wesley")
@@ -216,10 +216,11 @@ def widget_chat():
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
     scored_cal = score_calendar_chunks(question, load_calendar_chunks(church_id))
     scored_ser = score_sermon_chunks(question, load_sermon_chunks(church_id))
-    scored_umc = score_denomination_chunks(question)
+    # Only this church's own denomination is ever a retrieval candidate.
+    scored_denom = score_denomination_chunks(question, church.denomination)
 
     context, candidate_sources = build_cited_context(
-        [scored_docs, scored_web, scored_cal, scored_ser, scored_umc]
+        [scored_docs, scored_web, scored_cal, scored_ser, scored_denom]
     )
 
     system_instruction = build_system_prompt(church, widget=True)

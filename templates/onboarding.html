@@ -143,6 +143,13 @@
       box-shadow: 0 0 0 3px rgba(41,171,181,0.22);
     }
     .field-input::placeholder { color: #94a3b8; }
+    select.field-input { appearance: none; background-image: none; cursor: pointer; }
+    .field-help {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 2px 0 0;
+    }
 
     /* ── Status line ── */
     .step-status {
@@ -363,6 +370,22 @@
               autocomplete="address-level2"
             />
           </div>
+          <div class="field-row">
+            <label class="field-label" for="churchDenomination">Denominational affiliation</label>
+            <select id="churchDenomination" class="field-input">
+              <option value="" selected>Select your affiliation…</option>
+              {% for option in denominations %}
+              <option value="{{ option.key }}">{{ option.display_name }}</option>
+              {% endfor %}
+            </select>
+            <p class="field-help">
+              This controls how Wesley answers theological and denominational
+              questions — what your church teaches about baptism, Communion,
+              membership, clergy, marriage, and governance. Wesley only ever uses
+              the affiliation you choose here. You can change it later in
+              Dashboard → Theology &amp; Affiliation.
+            </p>
+          </div>
         </div>
 
         <div class="step-status" id="step1Status"></div>
@@ -539,10 +562,16 @@
     document.getElementById("step1Next").addEventListener("click", async () => {
       const name = document.getElementById("churchName").value.trim();
       const city = document.getElementById("churchCity").value.trim();
+      const denomination = document.getElementById("churchDenomination").value;
 
       if (!name) {
         setStatus("step1Status", "Church name is required.", "err");
         document.getElementById("churchName").focus();
+        return;
+      }
+      if (!denomination) {
+        setStatus("step1Status", "Please select your denominational affiliation.", "err");
+        document.getElementById("churchDenomination").focus();
         return;
       }
 
@@ -555,7 +584,11 @@
         const res  = await fetch("/api/onboarding/step1", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ church_name: name, church_city: city }),
+          body:    JSON.stringify({
+            church_name: name,
+            church_city: city,
+            denomination: denomination,
+          }),
         });
         const data = await res.json();
         if (!res.ok) {

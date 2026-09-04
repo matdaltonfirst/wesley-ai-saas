@@ -1562,6 +1562,12 @@
               Playground
             </button>
             {% if user_role == 'admin' %}
+            <button class="db-nav-item" data-panel="theology">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v18"/><path d="M5 8h14"/><path d="M7 21h10"/>
+              </svg>
+              Theology &amp; Affiliation
+            </button>
             <button class="db-nav-item" data-panel="team">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -2086,6 +2092,59 @@
         </div><!-- /.pg-layout -->
       </div><!-- /#panel-playground -->
 
+      <!-- ── Theology & Affiliation (admin only) ── -->
+      {% if user_role == 'admin' %}
+      <div class="db-panel" id="panel-theology">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Theology &amp; Affiliation</h1>
+          <p class="db-panel-subtitle">
+            Your denominational affiliation controls how Wesley answers questions
+            about beliefs, sacraments, membership, clergy, marriage, and church
+            governance. Wesley only ever uses the one profile selected here.
+          </p>
+        </div>
+
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Denominational Profile</h2>
+          </div>
+          <div id="thProfileBody"><div class="an-empty">Loading…</div></div>
+        </section>
+
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Local Practices</h2>
+          </div>
+          <p style="font-size:0.84rem;color:#64748b;line-height:1.55;margin:0 0 16px;">
+            What <em>this</em> congregation does. Wesley treats these as your
+            church's own practice — it will never restate them as your
+            denomination's official teaching. Leave a field blank and Wesley will
+            say it doesn't know rather than guessing.
+          </p>
+          <div id="thPracticeFields" style="display:grid;gap:14px;"></div>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="teal-btn" id="thPracticeSave">Save local practices</button>
+          </div>
+          <div id="thPracticeMsg" class="website-status"></div>
+        </section>
+
+        <section class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <h2 class="settings-card-title">Approved Theological Q&amp;A</h2>
+          </div>
+          <p style="font-size:0.84rem;color:#64748b;line-height:1.55;margin:0 0 4px;">
+            Pastor-approved answers outrank the denominational profile. Use them
+            for anything you want worded exactly your way — baptism, Communion,
+            membership, weddings.
+          </p>
+          <div id="thQnaSummary" class="website-status"></div>
+          <div style="margin-top:12px;">
+            <button class="cancel-btn" id="thQnaLink">Manage Q&amp;A →</button>
+          </div>
+        </section>
+      </div>
+      {% endif %}
+
       <!-- ── Integrations ── -->
       <div class="db-panel" id="panel-integrations">
         <div class="db-panel-header">
@@ -2304,7 +2363,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','team','integrations','subscription'];
+    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -2524,6 +2583,219 @@
     // Lazy load on panel activation
     document.addEventListener('panelShow', function (e) {
       if (e.detail === 'guest-connections') load();
+    });
+  })();
+  </script>
+
+  <!-- ── Theology & Affiliation panel ── -->
+  <script>
+  (function () {
+    var profileBody   = document.getElementById('thProfileBody');
+    var practiceWrap  = document.getElementById('thPracticeFields');
+    if (!profileBody || !practiceWrap) return;   // staff role: panel not rendered
+
+    var practiceMsg   = document.getElementById('thPracticeMsg');
+    var practiceSave  = document.getElementById('thPracticeSave');
+    var qnaSummary    = document.getElementById('thQnaSummary');
+    var state = null;
+    var loaded = false;
+
+    function escape(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function statusLabel(profile) {
+      return profile.awaiting_content
+        ? 'Awaiting approved content'
+        : 'Reviewed';
+    }
+
+    function renderProfile() {
+      var p = state.profile;
+      var options = state.options.map(function (o) {
+        return '<option value="' + escape(o.key) + '"' +
+          (o.key === state.denomination ? ' selected' : '') + '>' +
+          escape(o.display_name) + '</option>';
+      }).join('');
+
+      var statusColor = p.awaiting_content ? '#b45309' : '#059669';
+      var html =
+        '<div style="display:grid;gap:6px;margin-bottom:16px;">' +
+          '<div style="font-size:0.95rem;font-weight:600;color:#0f172a;">' + escape(p.display_name) + '</div>' +
+          '<div style="font-size:0.84rem;color:#64748b;line-height:1.55;">' + escape(p.short_description) + '</div>' +
+          '<div style="font-size:0.8rem;color:#475569;">Profile version: <strong>' + escape(p.version) + '</strong>' +
+            (state.selected_profile_version && !state.profile_version_current
+              ? ' <span style="color:#b45309;">(selected at version ' + escape(state.selected_profile_version) + ' — content has been updated since)</span>'
+              : '') +
+          '</div>' +
+          '<div style="font-size:0.8rem;color:' + statusColor + ';font-weight:600;">Status: ' + escape(statusLabel(p)) + '</div>' +
+        '</div>';
+
+      if (p.awaiting_content) {
+        html +=
+          '<p style="font-size:0.83rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;' +
+          'border-radius:8px;padding:10px 12px;line-height:1.55;margin:0 0 16px;">' +
+          'This profile has no reviewed denominational content yet. Wesley will not ' +
+          'make claims about what your denomination officially teaches — it answers ' +
+          'doctrinal questions from your approved local practices and Q&amp;A, and ' +
+          'otherwise refers people to church leadership.</p>';
+      }
+
+      html +=
+        '<div class="website-field-label">Denominational affiliation</div>' +
+        '<div class="website-url-row">' +
+          '<select id="thDenomSelect" class="website-url-input">' + options + '</select>' +
+          '<button class="website-save-btn" id="thDenomSave">Save</button>' +
+        '</div>' +
+        '<p style="font-size:0.8rem;color:#64748b;line-height:1.55;margin:10px 0 0;">' +
+          'Changing this changes every theological answer Wesley gives — in the ' +
+          'staff assistant and in your public website widget alike. Your Q&amp;A, ' +
+          'snippets, documents, local practices, and statement of faith are all ' +
+          'kept, but they may need review under the new profile.' +
+        '</p>' +
+        '<div id="thDenomMsg" class="website-status"></div>';
+
+      profileBody.innerHTML = html;
+      document.getElementById('thDenomSave').addEventListener('click', saveDenomination);
+    }
+
+    function renderPractices() {
+      practiceWrap.innerHTML = state.local_practice_schema.map(function (field) {
+        var value = state.local_practices[field.key];
+        var control;
+        if (field.kind === 'list') {
+          control = '<textarea class="ds-field-input" rows="3" data-th-key="' + escape(field.key) +
+            '" data-th-kind="list" placeholder="One topic per line">' +
+            escape(Array.isArray(value) ? value.join('\n') : '') + '</textarea>';
+        } else if (field.max_length > 200) {
+          control = '<textarea class="ds-field-input" rows="3" maxlength="' + field.max_length +
+            '" data-th-key="' + escape(field.key) + '" data-th-kind="text">' +
+            escape(value || '') + '</textarea>';
+        } else {
+          control = '<input type="text" class="ds-field-input" maxlength="' + field.max_length +
+            '" data-th-key="' + escape(field.key) + '" data-th-kind="text" value="' +
+            escape(value || '') + '">';
+        }
+        return '<div><label class="ds-field-label">' + escape(field.label) + '</label>' + control + '</div>';
+      }).join('') +
+        '<div><label class="ds-field-label">Statement of faith (optional)</label>' +
+        '<textarea class="ds-field-input" rows="6" id="thStatement" placeholder="Paste your church\'s approved statement of faith. Wesley treats it as your church\'s own teaching.">' +
+        escape(state.statement_of_faith || '') + '</textarea></div>';
+    }
+
+    function setMsg(el, text, ok) {
+      el.textContent = text;
+      el.className = 'website-status' + (text ? (ok ? ' ok' : ' err') : '');
+    }
+
+    function apply(data) {
+      state = data;
+      renderProfile();
+      renderPractices();
+    }
+
+    function load() {
+      if (loaded) return;
+      loaded = true;
+      fetch('/api/church/theology')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { profileBody.innerHTML = '<div class="an-empty">' + escape(d.error) + '</div>'; return; }
+          apply(d);
+        })
+        .catch(function () {
+          loaded = false;
+          profileBody.innerHTML = '<div class="an-empty">Could not load theology settings.</div>';
+        });
+      fetch('/api/qna')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var active = (d.pairs || []).filter(function (p) { return p.is_active; }).length;
+          setMsg(qnaSummary, active + ' active approved answer' + (active === 1 ? '' : 's') + '.', true);
+        })
+        .catch(function () { setMsg(qnaSummary, '', true); });
+    }
+
+    function saveDenomination() {
+      var select = document.getElementById('thDenomSelect');
+      var msg = document.getElementById('thDenomMsg');
+      var chosen = select.value;
+      if (chosen !== state.denomination) {
+        var name = select.options[select.selectedIndex].text;
+        var ok = window.confirm(
+          'Change this church\'s denominational affiliation to "' + name + '"?\n\n' +
+          'Every theological answer Wesley gives — staff assistant and public ' +
+          'widget — will use the new profile immediately. Your Q&A, snippets, ' +
+          'documents, local practices, and statement of faith are preserved, but ' +
+          'you should review them under the new profile.'
+        );
+        if (!ok) { select.value = state.denomination; return; }
+      }
+      var btn = document.getElementById('thDenomSave');
+      btn.disabled = true;
+      setMsg(msg, '', true);
+      fetch('/api/church/theology/denomination', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ denomination: chosen, confirm: true }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { setMsg(document.getElementById('thDenomMsg'), d.error, false); return; }
+          apply(d);
+          setMsg(document.getElementById('thDenomMsg'), 'Saved.', true);
+        })
+        .catch(function () { setMsg(document.getElementById('thDenomMsg'), 'Network error. Please try again.', false); })
+        .finally(function () {
+          var b = document.getElementById('thDenomSave');
+          if (b) b.disabled = false;
+        });
+    }
+
+    practiceSave.addEventListener('click', function () {
+      var payload = {};
+      practiceWrap.querySelectorAll('[data-th-key]').forEach(function (el) {
+        var key = el.dataset.thKey;
+        if (el.dataset.thKind === 'list') {
+          payload[key] = el.value.split('\n').map(function (s) { return s.trim(); })
+            .filter(function (s) { return s; });
+        } else {
+          payload[key] = el.value.trim();
+        }
+      });
+      var statement = document.getElementById('thStatement');
+      practiceSave.disabled = true;
+      setMsg(practiceMsg, '', true);
+      fetch('/api/church/theology/local-practices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          local_practices: payload,
+          statement_of_faith: statement ? statement.value : '',
+        }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { setMsg(practiceMsg, d.error, false); return; }
+          apply(d);
+          setMsg(practiceMsg, 'Local practices saved.', true);
+        })
+        .catch(function () { setMsg(practiceMsg, 'Network error. Please try again.', false); })
+        .finally(function () { practiceSave.disabled = false; });
+    });
+
+    var qnaLink = document.getElementById('thQnaLink');
+    if (qnaLink) {
+      qnaLink.addEventListener('click', function () {
+        var nav = document.querySelector('.db-nav-item[data-panel="qna"]');
+        if (nav) nav.click();
+      });
+    }
+
+    document.addEventListener('panelShow', function (e) {
+      if (e.detail === 'theology') load();
     });
   })();
   </script>

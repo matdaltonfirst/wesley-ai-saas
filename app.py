@@ -275,6 +275,16 @@ def _run_migrations() -> None:
             ("digest_last_sent_at", "ALTER TABLE churches ADD COLUMN digest_last_sent_at DATETIME"),
             ("timezone",            "ALTER TABLE churches ADD COLUMN timezone VARCHAR(50)"),
         ]
+        # Theology & affiliation. Existing churches are all United Methodist,
+        # so the column default backfills them to 'umc' — no church silently
+        # changes denomination, and no local content is touched.
+        denomination_migrations = [
+            ("denomination",                 "ALTER TABLE churches ADD COLUMN denomination VARCHAR(40) NOT NULL DEFAULT 'umc'"),
+            ("denomination_profile_version", "ALTER TABLE churches ADD COLUMN denomination_profile_version VARCHAR(40)"),
+            ("denomination_updated_at",      "ALTER TABLE churches ADD COLUMN denomination_updated_at DATETIME"),
+            ("local_practices",              "ALTER TABLE churches ADD COLUMN local_practices TEXT"),
+            ("statement_of_faith",           "ALTER TABLE churches ADD COLUMN statement_of_faith TEXT"),
+        ]
         manual_billing_migrations = [
             ("manual_payment_active",   "ALTER TABLE churches ADD COLUMN manual_payment_active BOOLEAN NOT NULL DEFAULT 0"),
             ("manual_payment_note",     "ALTER TABLE churches ADD COLUMN manual_payment_note VARCHAR(500)"),
@@ -289,7 +299,7 @@ def _run_migrations() -> None:
             ("warning_7_sent",          "ALTER TABLE churches ADD COLUMN warning_7_sent BOOLEAN NOT NULL DEFAULT 0"),
             ("expired_sent",            "ALTER TABLE churches ADD COLUMN expired_sent BOOLEAN NOT NULL DEFAULT 0"),
         ]
-        migrations = migrations + manual_billing_migrations
+        migrations = migrations + denomination_migrations + manual_billing_migrations
         for col_name, sql in migrations:
             if col_name not in existing_cols2:
                 conn2.execute(text(sql))
@@ -306,6 +316,17 @@ def _run_migrations() -> None:
         conn3.commit()
         if result.rowcount:
             log.info("Migration: set trial_ends_at for %d existing church(es)", result.rowcount)
+
+    # Backfill denomination for any row that predates the column default.
+    with db.engine.connect() as conn_denom:
+        result = conn_denom.execute(text(
+            "UPDATE churches SET denomination = 'umc' "
+            "WHERE denomination IS NULL OR denomination = ''"
+        ))
+        conn_denom.commit()
+        if result.rowcount:
+            log.info("Migration: defaulted denomination to 'umc' for %d church(es)",
+                     result.rowcount)
 
     # ── documents table ──────────────────────────────────────────────────────
     insp_docs = sa_inspect(db.engine)

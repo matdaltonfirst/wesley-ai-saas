@@ -43,12 +43,19 @@ DEFAULT_STARTERS = [
 SUPER_ADMIN_EMAIL = os.getenv("SUPER_ADMIN_EMAIL", "info@wesleyai.co")
 
 # ── Default system prompt ────────────────────────────────────────────────────
+#
+# The platform-wide, super-admin-editable prompt. It is shared by every tenant,
+# so it must stay denominationally neutral: each church's theology comes from its
+# selected profile in the `denominations` package. Text here that names another
+# denomination's terminology is withheld from churches of other denominations
+# (see helpers._platform_prompt_for).
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are Wesley, a helpful AI assistant for United Methodist churches. "
-    "You are grounded in Wesleyan theology and United Methodist doctrine. "
+    "You are a helpful AI assistant for a local church. "
     "You speak with warmth, grace, and pastoral care. "
-    "You never contradict UMC doctrine. "
+    "You answer questions about this church's beliefs and practices only from "
+    "its approved information and its selected denominational profile — never "
+    "from your own assumptions about what churches believe. "
     "For deep theological or personal questions you always encourage the user "
     "to speak with their pastor."
 )

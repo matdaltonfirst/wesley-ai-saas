@@ -3,6 +3,9 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import pytest
+
+from denominations import PROFILES
 from models import db, PcoConnection
 
 
@@ -33,6 +36,59 @@ class TestOnboardingPage:
             assert marker in html, marker
         church.onboarding_complete = True
         db.session.commit()
+
+
+class TestOnboardingDenomination:
+    def test_wizard_shows_friendly_names_and_preselects_nothing(self, auth_client, church):
+        church.onboarding_complete = False
+        db.session.commit()
+        res = auth_client.get("/onboarding")
+        html = res.get_data(as_text=True)
+        try:
+            assert "Denominational affiliation" in html
+            assert '<option value="" selected>Select your affiliation…</option>' in html
+            for profile in PROFILES.values():
+                assert f'<option value="{profile.key}">' in html
+                assert profile.display_name in html
+            # UMC must not be preselected for a brand-new church.
+            assert '<option value="umc" selected>' not in html
+            # The choice's consequence is explained, not just labelled.
+            assert "theological and denominational" in html
+        finally:
+            church.onboarding_complete = True
+            db.session.commit()
+
+    def test_step1_saves_selected_denomination(self, auth_client, church):
+        res = auth_client.post("/api/onboarding/step1", json={
+            "church_name": "Cornerstone Fellowship",
+            "church_city": "Dalton, GA",
+            "denomination": "non_denominational",
+        })
+        assert res.status_code == 200
+        db.session.refresh(church)
+        assert church.denomination == "non_denominational"
+        assert church.denomination_profile_version == PROFILES["non_denominational"].version
+        assert church.denomination_updated_at is not None
+        assert church.onboarding_complete is True
+        church.denomination = "umc"
+        db.session.commit()
+
+    def test_step1_requires_a_denomination(self, auth_client, church):
+        res = auth_client.post("/api/onboarding/step1", json={
+            "church_name": "Cornerstone Fellowship",
+        })
+        assert res.status_code == 400
+        assert "affiliation" in res.get_json()["error"].lower()
+
+    @pytest.mark.parametrize("bad", ["episcopal", "UMC", 5, ["umc"], {"k": "v"}])
+    def test_step1_rejects_client_supplied_keys(self, auth_client, church, bad):
+        res = auth_client.post("/api/onboarding/step1", json={
+            "church_name": "Cornerstone Fellowship",
+            "denomination": bad,
+        })
+        assert res.status_code == 400
+        db.session.refresh(church)
+        assert church.denomination == "umc"
 
 
 class TestPcoOnboardingRoundTrip:

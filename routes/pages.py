@@ -1,11 +1,13 @@
 """HTML page routes: dashboard, onboarding, settings."""
 
 import json
+from datetime import datetime
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
 from flask_login import login_required, current_user
 
 from models import db
+from denominations import denomination_options, get_denomination_profile, is_valid_denomination
 from helpers import build_branding_dict, require_active
 
 pages_bp = Blueprint("pages", __name__)
@@ -48,23 +50,40 @@ def onboarding_page():
         church_id=church.id,
         resume_step=min(max(resume_step or 1, 1), 6),
         pco_result=request.args.get("pco", ""),
+        # Friendly names only — internal keys stay in the value attribute, and
+        # nothing is preselected so the choice is visible to every new church.
+        denominations=denomination_options(),
     )
 
 
 @pages_bp.route("/api/onboarding/step1", methods=["POST"])
 @login_required
 def onboarding_step1():
-    """Save church name + city and mark onboarding complete."""
+    """Save church name, city, and denominational affiliation; complete onboarding.
+
+    The denomination is required here so a brand-new church never silently
+    inherits the United Methodist default that exists for backward compatibility.
+    Only keys from the profile registry are accepted — a client cannot invent one.
+    """
     data = request.get_json(silent=True) or {}
     church_name = (data.get("church_name") or "").strip()
     church_city = (data.get("church_city") or "").strip()
+    denomination = data.get("denomination")
 
     if not church_name:
         return jsonify({"error": "Church name cannot be empty."}), 400
+    if denomination in (None, ""):
+        return jsonify({"error": "Please select your denominational affiliation."}), 400
+    if not is_valid_denomination(denomination):
+        return jsonify({"error": "Unknown denomination."}), 400
 
+    profile = get_denomination_profile(denomination)
     church = current_user.church
     church.name = church_name[:200]
     church.church_city = church_city[:200] if church_city else None
+    church.denomination = profile.key
+    church.denomination_profile_version = profile.version
+    church.denomination_updated_at = datetime.utcnow()
     church.onboarding_complete = True
     db.session.commit()
     return jsonify({"ok": True})

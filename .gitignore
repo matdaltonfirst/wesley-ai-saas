@@ -8,3 +8,15 @@ data/
 venv/
 .venv/
 ghost-noise-dashboard.html
+
+# Claude Code worktrees (accidentally committed as gitlinks)
+.claude/worktrees/
+
+# Local scratch: design mockups, marketing assets, source images
+tmp/
+assets/
+signage-mockups/
+static/social/
+intern-timesheet/
+IMG_*.png
+lofi-coffee-bar-claude-code-prompt.md

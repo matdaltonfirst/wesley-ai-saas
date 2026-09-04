@@ -5,12 +5,18 @@ import json
 import secrets
 import threading
 import logging
+from datetime import datetime
 
 from flask import Blueprint, request, jsonify, url_for, current_app
 from flask_login import login_required, current_user
 
 from models import db, User, Church, CrawledPage, Invite
 from config import DEFAULT_COLOR, FROM_EMAIL, SUPPORT_EMAIL
+from denominations import (
+    LocalPracticeError, church_profile, denomination_options,
+    get_denomination_profile, is_valid_denomination, load_local_practices,
+    local_practice_schema, validate_local_practices, validate_statement_of_faith,
+)
 from helpers import build_branding_dict, iso_utc, is_safe_url
 from emails import send_invite_email
 
@@ -89,6 +95,96 @@ def save_church_settings():
     current_user.church.website_url = url or None
     db.session.commit()
     return jsonify({"ok": True})
+
+
+# ── Theology & Affiliation API ───────────────────────────────────────────────
+#
+# Read is open to any signed-in staff member of the church; every write requires
+# the church-admin role. Every query is scoped by current_user.church_id, so one
+# tenant can never read or write another's theological settings.
+
+def _theology_payload(church) -> dict:
+    profile = church_profile(church)
+    return {
+        "denomination": profile.key,
+        "profile": profile.to_dict(),
+        "selected_profile_version": church.denomination_profile_version or "",
+        "profile_version_current": (
+            not church.denomination_profile_version
+            or church.denomination_profile_version == profile.version
+        ),
+        "denomination_updated_at": iso_utc(church.denomination_updated_at),
+        "options": denomination_options(),
+        "local_practices": load_local_practices(church),
+        "local_practice_schema": local_practice_schema(),
+        "statement_of_faith": church.statement_of_faith or "",
+        "can_manage": current_user.role == "admin",
+    }
+
+
+@settings_bp.route("/api/church/theology", methods=["GET"])
+@login_required
+def get_church_theology():
+    return jsonify(_theology_payload(current_user.church))
+
+
+@settings_bp.route("/api/church/theology/denomination", methods=["POST"])
+@login_required
+def save_church_denomination():
+    """Change the church's denominational affiliation (admin only).
+
+    Local content — approved Q&A, snippets, documents, local practices, and the
+    statement of faith — is deliberately preserved. It may need review under the
+    new profile, which the UI warns about, but destroying it would be worse.
+    """
+    if current_user.role != "admin":
+        return jsonify({"error": "Only church admins can change denominational settings."}), 403
+
+    data = request.get_json(silent=True) or {}
+    key = data.get("denomination")
+    if not is_valid_denomination(key):
+        return jsonify({"error": "Unknown denomination."}), 400
+
+    church = current_user.church
+    changed = church.denomination != key
+    if changed and not data.get("confirm"):
+        return jsonify({
+            "error": "Changing denomination requires explicit confirmation.",
+            "confirmation_required": True,
+        }), 400
+
+    profile = get_denomination_profile(key)
+    church.denomination = profile.key
+    church.denomination_profile_version = profile.version
+    church.denomination_updated_at = datetime.utcnow()
+    db.session.commit()
+    log.info("[DENOM] church_id=%d denomination set to %s (changed=%s) by user_id=%d",
+             church.id, profile.key, changed, current_user.id)
+    return jsonify({"ok": True, "changed": changed, **_theology_payload(church)})
+
+
+@settings_bp.route("/api/church/theology/local-practices", methods=["POST"])
+@login_required
+def save_church_local_practices():
+    """Save validated structured local practices and statement of faith (admin only)."""
+    if current_user.role != "admin":
+        return jsonify({"error": "Only church admins can change denominational settings."}), 403
+
+    data = request.get_json(silent=True) or {}
+    church = current_user.church
+    try:
+        if "local_practices" in data:
+            cleaned = validate_local_practices(data.get("local_practices"))
+            church.local_practices = json.dumps(cleaned) if cleaned else None
+        if "statement_of_faith" in data:
+            statement = validate_statement_of_faith(data.get("statement_of_faith"))
+            church.statement_of_faith = statement or None
+    except LocalPracticeError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+
+    db.session.commit()
+    return jsonify({"ok": True, **_theology_payload(church)})
 
 
 # ── Manual re-crawl ──────────────────────────────────────────────────────────
