@@ -14,6 +14,7 @@ import resend
 import stripe
 from flask import Flask, request, jsonify, redirect, url_for
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from sqlalchemy import text, inspect as sa_inspect
@@ -22,7 +23,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from models import db, User, Church, SystemPrompt, Conversation, WidgetConversation, Invite
-from config import DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB
+from config import (
+    DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB, database_url, engine_options,
+    is_postgres,
+)
 from helpers import csrf_token
 
 load_dotenv()
@@ -123,9 +127,12 @@ def create_app(testing: bool = False) -> Flask:
         if not _secret:
             _secret = secrets.token_hex(32)
             print("WARNING: SECRET_KEY is not set. Generated a random key — sessions will not persist across restarts.")
+        _db_url = database_url(DATA_DIR)
+        log.info("Database: %s", "PostgreSQL" if is_postgres(_db_url) else "SQLite")
         _app.config.update({
             "SECRET_KEY": _secret,
-            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{DATA_DIR / 'wesley.db'}",
+            "SQLALCHEMY_DATABASE_URI": _db_url,
+            "SQLALCHEMY_ENGINE_OPTIONS": engine_options(_db_url),
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
             "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
             "UPLOADS_DIR": UPLOADS_DIR,
@@ -145,6 +152,9 @@ def create_app(testing: bool = False) -> Flask:
         })
 
     db.init_app(_app)
+    # Alembic owns schema changes from here on. The SQLite retrofit block
+    # below stays only for existing SQLite databases.
+    Migrate(_app, db)
 
     # Make csrf_token() available in all Jinja2 templates
     _app.jinja_env.globals["csrf_token"] = csrf_token
@@ -215,17 +225,46 @@ def create_app(testing: bool = False) -> Flask:
     # ── Database init + migrations ───────────────────────────────────────────
 
     with _app.app_context():
-        db.create_all()
-        log.info("db.create_all() completed — all tables present.")
+        _url = _app.config["SQLALCHEMY_DATABASE_URI"]
+        _skip_create = os.getenv("WESLEY_SKIP_CREATE_ALL", "").lower() in ("1", "true", "yes")
 
-        if not testing:
+        if is_postgres(_url):
+            # Alembic owns the Postgres schema. Creating tables here would build
+            # them behind Alembic's back, leaving its version table absent and
+            # every future `flask db upgrade` trying to create what already
+            # exists. The deploy runs `flask db upgrade` instead.
+            log.info("Postgres detected — schema is managed by Alembic.")
+            _schema_ready = False
+        elif _skip_create:
+            # Set when generating an Alembic revision, which has to compare the
+            # models against an empty database.
+            log.info("WESLEY_SKIP_CREATE_ALL set — not creating tables.")
+            _schema_ready = False
+        else:
+            db.create_all()
+            log.info("db.create_all() completed — all tables present.")
+            _schema_ready = True
+
+        # Hand-written ALTER TABLEs that retrofit columns onto SQLite databases
+        # created before those columns existed. SQLite-shaped (BOOLEAN DEFAULT 0
+        # is not valid Postgres) and pointless anywhere the tables were not just
+        # created by create_all.
+        if _schema_ready and not testing:
             _run_migrations()
 
-        # Seed the master system prompt on first run
-        if not SystemPrompt.query.get(1):
-            db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
-            db.session.commit()
-            log.info("System prompt seeded with default.")
+        # Seed the master system prompt on first run. On Postgres the tables
+        # exist only once `flask db upgrade` has run, which happens in the
+        # deploy command before this process starts — but a first boot in the
+        # wrong order must degrade rather than crash the app.
+        if not _skip_create:
+            try:
+                if not SystemPrompt.query.get(1):
+                    db.session.add(SystemPrompt(id=1, content=DEFAULT_SYSTEM_PROMPT))
+                    db.session.commit()
+                    log.info("System prompt seeded with default.")
+            except Exception:
+                db.session.rollback()
+                log.warning("System prompt seed deferred — schema not ready yet.")
 
     return _app
 
@@ -648,19 +687,34 @@ def pco_reconciliation_job():
 
 
 # Only start the scheduler in production (not during tests or CLI commands)
+# Every gunicorn worker starts its own scheduler, so each job is wrapped in a
+# cross-process lock: all workers wake, exactly one runs it. Without this,
+# raising the worker count would send each church duplicate digests, crawl each
+# website repeatedly, and repeat every billing warning.
+_SCHEDULED_JOBS = [
+    ("nightly_crawl",         nightly_crawl_job,         CronTrigger(hour=2, minute=0)),
+    ("embedding_warm",        embedding_warm_job,        CronTrigger(hour=2, minute=45)),
+    ("nightly_cleanup",       nightly_cleanup_job,       CronTrigger(hour=3, minute=0)),
+    ("nightly_widget_cleanup", nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30)),
+    ("invite_cleanup",        invite_cleanup_job,        CronTrigger(hour=4, minute=0)),
+    ("trial_reminder",        trial_reminder_job,        CronTrigger(hour=9, minute=0)),
+    ("manual_billing_check",  manual_billing_check_job,  CronTrigger(hour=8, minute=0)),
+    ("weekly_digest",         weekly_digest_job,         CronTrigger(day_of_week="mon", hour=13, minute=0)),
+    ("calendar_refresh",      calendar_refresh_job,      CronTrigger(hour=1, minute=30)),
+    ("sermon_check",          sermon_check_job,          CronTrigger(hour=4, minute=30)),
+    ("pco_reconciliation",    pco_reconciliation_job,    "interval"),
+]
+
 if not app.testing:
+    from scheduling import single_flight
+
     scheduler = BackgroundScheduler(daemon=True)
-    scheduler.add_job(nightly_crawl_job, CronTrigger(hour=2, minute=0))
-    scheduler.add_job(embedding_warm_job, CronTrigger(hour=2, minute=45))
-    scheduler.add_job(nightly_cleanup_job, CronTrigger(hour=3, minute=0))
-    scheduler.add_job(nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30))
-    scheduler.add_job(invite_cleanup_job, CronTrigger(hour=4, minute=0))
-    scheduler.add_job(trial_reminder_job, CronTrigger(hour=9, minute=0))
-    scheduler.add_job(manual_billing_check_job, CronTrigger(hour=8, minute=0))
-    scheduler.add_job(weekly_digest_job, CronTrigger(day_of_week="mon", hour=13, minute=0))
-    scheduler.add_job(calendar_refresh_job, CronTrigger(hour=1, minute=30))
-    scheduler.add_job(sermon_check_job, CronTrigger(hour=4, minute=30))
-    scheduler.add_job(pco_reconciliation_job, "interval", minutes=5)
+    for _name, _fn, _trigger in _SCHEDULED_JOBS:
+        _locked = single_flight(app, _name)(_fn)
+        if _trigger == "interval":
+            scheduler.add_job(_locked, "interval", minutes=5, id=_name)
+        else:
+            scheduler.add_job(_locked, _trigger, id=_name)
     if not scheduler.running:
         scheduler.start()
 

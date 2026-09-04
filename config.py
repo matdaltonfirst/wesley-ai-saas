@@ -1,6 +1,46 @@
 """Shared constants and configuration — imported by app.py and route modules."""
 
 import os
+from pathlib import Path
+
+
+# ── Database ─────────────────────────────────────────────────────────────────
+
+def database_url(data_dir: Path) -> str:
+    """The SQLAlchemy URL: Postgres when DATABASE_URL is set, else local SQLite.
+
+    Railway injects DATABASE_URL when a Postgres service is attached, so
+    deploying against Postgres is a matter of attaching the service — there is
+    no second source of truth to keep in step.
+    """
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        return f"sqlite:///{data_dir / 'wesley.db'}"
+    # Railway and Heroku both still hand out the "postgres://" scheme, which
+    # SQLAlchemy 2.x refuses to load a dialect for.
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def is_postgres(url: str) -> bool:
+    return url.startswith("postgresql")
+
+
+def engine_options(url: str) -> dict:
+    """Connection-pool settings appropriate to the backing database."""
+    if not is_postgres(url):
+        return {}
+    return {
+        # Railway closes idle connections; without pre-ping the first query
+        # after a quiet period fails instead of transparently reconnecting.
+        "pool_pre_ping": True,
+        "pool_recycle": 900,
+        # Kept modest deliberately: gunicorn worker count multiplies this, and
+        # a small Postgres plan has a low connection ceiling.
+        "pool_size": 5,
+        "max_overflow": 5,
+    }
 
 # ── Platform constants (override via environment variables) ───────────────────
 

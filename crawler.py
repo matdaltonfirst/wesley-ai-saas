@@ -101,12 +101,21 @@ def _extract_text(html: str) -> tuple[str, str]:
 
 
 def _upsert_page(church_id: int, url: str, title: str, text: str) -> None:
-    """Insert or update a CrawledPage row."""
+    """Insert or update a CrawledPage row.
+
+    ON CONFLICT DO UPDATE exists on both SQLite and PostgreSQL but only through
+    each dialect's own insert() construct, so the right one is chosen from the
+    live connection rather than hard-coded.
+    """
     from models import db, CrawledPage
-    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    if db.session.bind.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as dialect_insert
+    else:
+        from sqlalchemy.dialects.sqlite import insert as dialect_insert
 
     stmt = (
-        sqlite_insert(CrawledPage)
+        dialect_insert(CrawledPage)
         .values(
             church_id=church_id,
             url=url,
