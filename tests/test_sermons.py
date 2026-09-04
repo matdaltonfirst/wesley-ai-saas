@@ -96,7 +96,7 @@ class TestIngestSermon:
         src = _source(church)
         sermon = _sermon(church, src, status="pending",
                          summary=None, main_points=None, scriptures=None, series=None)
-        with patch("sermons.fetch_captions", return_value="Grace grace grace " * 50), \
+        with patch("sermons.fetch_captions", return_value=("Grace grace grace " * 50, None)), \
              patch("sermons.distill_sermon", return_value=_DISTILLED):
             assert ingest_sermon(sermon) is True
         assert sermon.status == "ingested"
@@ -108,7 +108,7 @@ class TestIngestSermon:
     def test_non_sermon_video_marked_failed(self, app, church):
         src = _source(church)
         sermon = _sermon(church, src, status="pending", summary=None)
-        with patch("sermons.fetch_captions", return_value=None), \
+        with patch("sermons.fetch_captions", return_value=(None, None)), \
              patch("sermons.distill_sermon", return_value={"summary": None}):
             assert ingest_sermon(sermon) is False
         assert sermon.status == "failed"
@@ -118,7 +118,7 @@ class TestIngestSermon:
     def test_distill_error_recorded(self, app, church):
         src = _source(church)
         sermon = _sermon(church, src, status="pending", summary=None)
-        with patch("sermons.fetch_captions", return_value=None), \
+        with patch("sermons.fetch_captions", return_value=(None, None)), \
              patch("sermons.distill_sermon", side_effect=RuntimeError("model exploded")):
             assert ingest_sermon(sermon) is False
         assert sermon.status == "failed"
@@ -135,7 +135,7 @@ class TestCheckSource:
             {"video_id": "new1", "title": "New", "published_at": datetime.utcnow()},
         ]
         with patch("sermons.list_recent_videos", return_value=videos), \
-             patch("sermons.fetch_captions", return_value="words " * 100), \
+             patch("sermons.fetch_captions", return_value=("words " * 100, None)), \
              patch("sermons.distill_sermon", return_value=_DISTILLED):
             count = check_source(src)
         assert count == 1
@@ -280,7 +280,7 @@ class TestSermonRoutes:
         src = _source(church)
         _sermon(church, src, video_id="stuck", status="pending", summary=None)
         with patch("sermons.list_recent_videos", return_value=[]), \
-             patch("sermons.fetch_captions", return_value="words " * 100), \
+             patch("sermons.fetch_captions", return_value=("words " * 100, None)), \
              patch("sermons.distill_sermon", return_value=_DISTILLED):
             count = check_source(src)
         assert count == 1

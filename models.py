@@ -345,6 +345,56 @@ class KnowledgeChecklistState(db.Model):
     )
 
 
+class ContentProfile(db.Model):
+    """One church's house style for generated content (one row per church).
+
+    The separation this enforces matters: how a sermon is turned into a title,
+    a chapter list or a post is universal, but *which* title strategy, which
+    platforms and which voice are that church's own. Hard-coding one church's
+    answers — ALL-CAPS question titles, say — would impose its channel strategy
+    on every other congregation as surely as imposing its doctrine would.
+
+    Every column is nullable. An unset profile resolves to a neutral default,
+    so a church that has configured nothing still gets usable output.
+    """
+    __tablename__ = "content_profiles"
+    id             = db.Column(db.Integer, primary_key=True)
+    church_id      = db.Column(
+        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
+    )
+    # Free text in the church's own words — seeded from their website copy at
+    # onboarding, refined by staff.
+    voice_notes    = db.Column(db.Text, nullable=True)
+    title_strategy = db.Column(db.String(40), nullable=True)   # see content/strategies
+    platforms      = db.Column(db.String(200), nullable=True)  # comma-separated
+    hashtags       = db.Column(db.String(300), nullable=True)
+    call_to_action = db.Column(db.String(300), nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SermonPacket(db.Model):
+    """The content harvested from one sermon: the Monday packet.
+
+    Stored rather than regenerated so staff edits survive, and so the Monday
+    email and the dashboard show the same thing.
+    """
+    __tablename__ = "sermon_packets"
+    id           = db.Column(db.Integer, primary_key=True)
+    church_id    = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    sermon_id    = db.Column(
+        db.Integer, db.ForeignKey("sermons.id"), nullable=False, unique=True, index=True,
+    )
+    # JSON: {"youtube": {...}, "quotes": [...], "social": [...]}
+    content      = db.Column(db.Text, nullable=True)
+    status       = db.Column(db.String(20), nullable=False, default="pending")
+    # pending | ready | failed
+    error        = db.Column(db.String(500), nullable=True)
+    emailed_at   = db.Column(db.DateTime, nullable=True)
+    generated_at = db.Column(db.DateTime, nullable=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class EmbeddingCache(db.Model):
     """A content-addressed cache of text embeddings.
 
@@ -492,6 +542,12 @@ class Sermon(db.Model):
     title        = db.Column(db.String(500), nullable=False)
     published_at = db.Column(db.DateTime, nullable=False)
     transcript   = db.Column(db.Text, nullable=True)      # from captions, when available
+    # Caption pieces with their start times, as JSON [{"start": 12.4, "text": …}].
+    # The flat transcript above stays the retrieval surface; this exists because
+    # chapters and clip-worthy pull quotes are worthless without timing, and the
+    # caption API's timings are discarded when the text is joined.
+    # Null for sermons transcribed by the video fallback, which has no timings.
+    transcript_segments = db.Column(db.Text, nullable=True)
     summary      = db.Column(db.Text, nullable=True)      # distilled recap for retrieval
     main_points  = db.Column(db.Text, nullable=True)      # newline-separated
     scriptures   = db.Column(db.String(500), nullable=True)

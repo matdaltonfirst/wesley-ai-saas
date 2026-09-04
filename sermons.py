@@ -109,19 +109,31 @@ def list_recent_videos(channel_id: str, limit: int = BACKFILL_COUNT) -> list[dic
 # ── Transcript + distillation ────────────────────────────────────────────────
 
 def fetch_captions(video_id: str):
-    """Try YouTube captions; returns transcript text or None (never raises)."""
+    """Try YouTube captions. Returns (text, segments) or (None, None).
+
+    Segments keep each caption piece's start time. Joining the pieces into one
+    string — which is all the retrieval path needs — discards the timings, and
+    without them a chapter list or a clip-worthy quote cannot say *where* in the
+    message it came from. Never raises.
+    """
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         pieces = YouTubeTranscriptApi.get_transcript(
             video_id, languages=["en", "en-US", "es"]
         )
-        text = " ".join(p["text"].strip() for p in pieces if p.get("text"))
+        segments = [
+            {"start": float(p.get("start") or 0.0), "text": p["text"].strip()}
+            for p in pieces if p.get("text") and p["text"].strip()
+        ]
+        text = " ".join(s["text"] for s in segments)
         text = re.sub(r"\s+", " ", text).strip()
-        return text[:MAX_TRANSCRIPT_CHARS] or None
+        if not text:
+            return None, None
+        return text[:MAX_TRANSCRIPT_CHARS], segments
     except Exception as exc:
         log.info("Captions unavailable for %s (%s) — will use video fallback",
                  video_id, type(exc).__name__)
-        return None
+        return None, None
 
 
 _DISTILL_PROMPT = """\
@@ -186,7 +198,9 @@ def ingest_sermon(sermon: Sermon) -> bool:
     """Fetch transcript (captions → video fallback), distill, and save."""
     try:
         if not sermon.transcript:
-            sermon.transcript = fetch_captions(sermon.video_id)
+            text, segments = fetch_captions(sermon.video_id)
+            sermon.transcript = text
+            sermon.transcript_segments = json.dumps(segments) if segments else None
         distilled = distill_sermon(sermon)
 
         if not distilled.get("summary"):
