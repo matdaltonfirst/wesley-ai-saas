@@ -11,7 +11,8 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from models import (
     db as _db, AnswerFeedback, Church, Conversation, CrawledPage, Document,
-    Message, SystemPrompt, UsageDaily, User, WidgetConversation, WidgetMessage,
+    ContentProfile, Message, Sermon, SermonPacket, SermonSource, SystemPrompt,
+    UsageDaily, User, WidgetConversation, WidgetMessage,
 )
 
 
@@ -89,9 +90,15 @@ def _delete_church_rows(church_id: int) -> None:
             WidgetMessage.widget_conversation_id.in_(wconv_ids)
         ).delete()
 
-    for model in (AnswerFeedback, Conversation, WidgetConversation,
-                  Document, CrawledPage, UsageDaily, User):
-        model.query.filter_by(church_id=church_id).delete()
+    # Every table carrying a church_id, children first. Derived from the
+    # metadata rather than hand-listed: a hand-list goes stale the moment a
+    # model is added, and the rows it misses do not fail loudly — they leak
+    # into the next test, where a stray calendar event outranks a sermon or a
+    # leftover source trips a unique constraint three modules later.
+    for table in reversed(_db.metadata.sorted_tables):
+        if "church_id" in table.c:
+            _db.session.execute(
+                table.delete().where(table.c.church_id == church_id))
 
     Church.query.filter_by(id=church_id).delete()
     _db.session.commit()
