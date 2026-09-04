@@ -8,7 +8,10 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 
 from models import db, Conversation, Message
-from helpers import build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
+from helpers import (
+    build_system_prompt, call_gemini, friendly_gemini_error, has_active_access,
+    iso_utc,
+)
 from documents import (
     load_church_documents, load_curated_content, find_relevant_chunks,
     build_cited_context, select_cited_sources,
@@ -26,6 +29,13 @@ def chat():
     limiter = current_app.config.get("CHAT_LIMITER")
     if limiter and limiter.is_limited(str(current_user.church_id)):
         return jsonify({"error": "Too many requests. Please slow down and try again."}), 429
+
+    # The dashboard page redirects lapsed churches to /subscribe, but this
+    # endpoint is what actually spends money — gate it too.
+    if not has_active_access(current_user.church, current_user.email):
+        return jsonify({
+            "error": "Your subscription has ended. Reactivate under Settings → Billing to keep using Wesley.",
+        }), 402
 
     data = request.get_json(silent=True)
     if not data or not data.get("question", "").strip():

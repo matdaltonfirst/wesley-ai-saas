@@ -84,8 +84,27 @@ def accept_invite_page(token: str):
 
 # ── API endpoints ────────────────────────────────────────────────────────────
 
+def _auth_rate_limited():
+    """A 429 response when this IP has spent its auth budget, else None.
+
+    Guards the three unauthenticated endpoints that are cheap to call and
+    expensive to leave open: password guessing on login, free-trial farming on
+    signup, and reset-email flooding on forgot-password.
+    """
+    limiter = current_app.config.get("AUTH_LIMITER")
+    if limiter and limiter.is_limited(request.remote_addr or "unknown"):
+        return jsonify({
+            "error": "Too many attempts. Please wait a few minutes and try again.",
+        }), 429
+    return None
+
+
 @auth_bp.route("/api/auth/signup", methods=["POST"])
 def api_signup():
+    limited = _auth_rate_limited()
+    if limited:
+        return limited
+
     err, status = validate_csrf_json()
     if err:
         return err, status
@@ -144,6 +163,10 @@ def api_signup():
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
 def api_login():
+    limited = _auth_rate_limited()
+    if limited:
+        return limited
+
     err, status = validate_csrf_json()
     if err:
         return err, status
@@ -163,6 +186,10 @@ def api_login():
 
 @auth_bp.route("/api/auth/forgot-password", methods=["POST"])
 def api_forgot_password():
+    limited = _auth_rate_limited()
+    if limited:
+        return limited
+
     err, status = validate_csrf_json()
     if err:
         return err, status

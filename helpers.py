@@ -390,17 +390,38 @@ def get_billing_status(church) -> dict:
     }
 
 
+def has_active_access(church, email: str = "") -> bool:
+    """True when *church* may consume paid features (AI chat, widget answers).
+
+    The boolean core behind require_active(), so JSON APIs and the public
+    widget can gate access without issuing an HTML redirect. Without it,
+    billing lapses only block the dashboard pages while the endpoints that
+    actually cost money keep serving.
+    """
+    if email and is_billing_exempt(email):
+        return True
+    if getattr(church, "billing_exempt", False):
+        return True
+    if church.is_active:
+        return True
+    # A church can be exempt solely through its staff's email domain, and the
+    # public widget has no signed-in user to check — so fall back to the
+    # church's own accounts. Only reached once billing has genuinely lapsed,
+    # so the extra query never touches the common path.
+    from models import User
+    return any(
+        is_billing_exempt(user.email)
+        for user in User.query.filter_by(church_id=church.id).all()
+    )
+
+
 def require_active():
     """Return a redirect to /subscribe if the current church's billing has lapsed.
     Returns None if the user may continue.
     """
-    if is_billing_exempt(current_user.email):
+    if has_active_access(current_user.church, current_user.email):
         return None
-    if current_user.church.billing_exempt:
-        return None
-    if not current_user.church.is_active:
-        return redirect(url_for("stripe.subscribe_page"))
-    return None
+    return redirect(url_for("stripe.subscribe_page"))
 
 
 # ── CSRF ─────────────────────────────────────────────────────────────────────

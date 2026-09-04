@@ -42,6 +42,11 @@ logging.basicConfig(
 class _RateLimiter:
     """Simple sliding-window rate limiter keyed by IP address."""
 
+    # Keys are only pruned for the caller's own key, so a long window plus many
+    # distinct IPs would grow the dict without bound. Sweep expired keys once
+    # the dict gets large rather than on every call.
+    _SWEEP_THRESHOLD = 10_000
+
     def __init__(self, max_requests: int = 30, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window = window_seconds
@@ -51,6 +56,13 @@ class _RateLimiter:
     def is_limited(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
+            if len(self._hits) > self._SWEEP_THRESHOLD:
+                stale = [
+                    k for k, ts in self._hits.items()
+                    if not ts or now - ts[-1] >= self.window
+                ]
+                for k in stale:
+                    del self._hits[k]
             timestamps = self._hits[key]
             self._hits[key] = [t for t in timestamps if now - t < self.window]
             if len(self._hits[key]) >= self.max_requests:
@@ -103,6 +115,8 @@ def create_app(testing: bool = False) -> Flask:
             "CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
+            "GUEST_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
+            "AUTH_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
         })
     else:
         _secret = os.getenv("SECRET_KEY", "")
@@ -121,6 +135,13 @@ def create_app(testing: bool = False) -> Flask:
             "CHAT_LIMITER": _RateLimiter(max_requests=120, window_seconds=60),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
+            # Guest submissions write into the church's system of record (and
+            # into Planning Center), so they are held to a much tighter budget
+            # than chat: a real visitor submits once, not five times an hour.
+            "GUEST_LIMITER": _RateLimiter(max_requests=5, window_seconds=3600),
+            # Credential stuffing and password-reset email bombing. Generous
+            # enough that a shared church-office IP will not trip it.
+            "AUTH_LIMITER": _RateLimiter(max_requests=10, window_seconds=900),
         })
 
     db.init_app(_app)

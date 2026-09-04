@@ -16,7 +16,10 @@ from models import (
     db, Church, User, WidgetConversation, WidgetMessage, GuestConnection,
     TextSnippet, QnAPair, AnswerFeedback, PcoConnection,
 )
-from helpers import build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error, iso_utc
+from helpers import (
+    build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error,
+    has_active_access, iso_utc,
+)
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
@@ -184,6 +187,14 @@ def widget_chat():
     church = Church.query.get(church_id)
     if not church:
         return cors_err("Church not found.", 404)
+    # A lapsed church's widget would otherwise keep answering visitors — and
+    # keep billing us for the tokens — indefinitely. Worded for the visitor,
+    # who is not the party who let the subscription lapse.
+    if not has_active_access(church):
+        return cors_err(
+            "Online chat isn't available right now. Please contact the church directly.",
+            402,
+        )
 
     wconv = None
     if session_id:
@@ -639,6 +650,13 @@ def create_guest_connection():
         r = jsonify({"error": msg})
         r.headers["Access-Control-Allow-Origin"] = "*"
         return r, status
+
+    # Unauthenticated, and it writes to the church's records, emails every
+    # admin, and pushes a person into Planning Center — so it needs a tighter
+    # budget than chat, not none at all.
+    guest_limiter = current_app.config.get("GUEST_LIMITER")
+    if guest_limiter and guest_limiter.is_limited(request.remote_addr or "unknown"):
+        return cors_err("Too many submissions. Please try again later.", 429)
 
     data = request.get_json(silent=True) or {}
     church_id_raw = data.get("church_id")
