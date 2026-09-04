@@ -9,7 +9,10 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 
 from app import create_app
-from models import db as _db, Church, User, SystemPrompt
+from models import (
+    db as _db, AnswerFeedback, Church, Conversation, CrawledPage, Document,
+    Message, SystemPrompt, User, WidgetConversation, WidgetMessage,
+)
 
 
 @pytest.fixture(scope="session")
@@ -64,9 +67,33 @@ def church(app):
     _db.session.commit()
     _db.session.refresh(c)
     yield c
-    # Teardown — delete dependent records first to avoid FK errors
-    User.query.filter_by(church_id=c.id).delete()
-    Church.query.filter_by(id=c.id).delete()
+    _delete_church_rows(c.id)
+
+
+def _delete_church_rows(church_id: int) -> None:
+    """Remove a church and every row belonging to it.
+
+    Bulk deletes are used rather than an ORM delete, because Church.documents
+    and Church.users have no delete cascade and the ORM would try to NULL their
+    non-nullable church_id. But that also means no cascade fires, so children
+    are cleared by hand — otherwise conversations committed by a test that
+    exercised a real chat endpoint survive into later modules that count them.
+    """
+    conv_ids = [row.id for row in Conversation.query.filter_by(church_id=church_id)]
+    wconv_ids = [row.id for row in WidgetConversation.query.filter_by(church_id=church_id)]
+
+    if conv_ids:
+        Message.query.filter(Message.conversation_id.in_(conv_ids)).delete()
+    if wconv_ids:
+        WidgetMessage.query.filter(
+            WidgetMessage.widget_conversation_id.in_(wconv_ids)
+        ).delete()
+
+    for model in (AnswerFeedback, Conversation, WidgetConversation,
+                  Document, CrawledPage, User):
+        model.query.filter_by(church_id=church_id).delete()
+
+    Church.query.filter_by(id=church_id).delete()
     _db.session.commit()
 
 

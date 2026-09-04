@@ -11,27 +11,7 @@ from unittest.mock import patch
 import pytest
 from werkzeug.security import generate_password_hash
 
-from models import (
-    db, Church, Conversation, GuestConnection, Message, User,
-    WidgetConversation, WidgetMessage,
-)
-
-
-@pytest.fixture(autouse=True)
-def _clean_conversations():
-    """Remove conversations these tests commit for real.
-
-    The church fixture tears down with a bulk delete, which bypasses the ORM
-    cascade, so rows would otherwise survive into later modules that assert on
-    conversation counts. Autouse fixtures are module-scoped in effect, so this
-    only touches rows this file created.
-    """
-    yield
-    Message.query.delete()
-    WidgetMessage.query.delete()
-    Conversation.query.delete()
-    WidgetConversation.query.delete()
-    db.session.commit()
+from models import db, Church, GuestConnection, User
 
 
 def _lapse(church):

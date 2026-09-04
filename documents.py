@@ -277,10 +277,75 @@ def build_context_block(scored_chunks: list[tuple[int, dict]]) -> str:
     return "\n".join(lines)
 
 
+def _chunk_source(chunk: dict):
+    """Return (title, location, is_web, source_type, dedup_key) for a chunk.
+
+    is_web is carried separately rather than derived from source_type: a chunk
+    with an explicit type (an approved answer, a denominational section) can
+    still carry a URL location, and its citation should link to it.
+    """
+    title = str(chunk.get("source") or "Church information").strip()
+    location = str(chunk.get("location") or "").strip()
+    is_web = location.startswith(("http://", "https://"))
+    source_type = chunk.get("type") or ("website" if is_web else "document")
+    # Multiple pages from one uploaded file are one source. Website pages
+    # and curated entries remain distinct because their locations matter.
+    key = (source_type, title) if source_type == "document" else (source_type, title, location)
+    return title, location, is_web, source_type, key
+
+
+def _admitted_keys(scored_groups, limit: int, floor: int) -> list:
+    """Which source keys may hold a citation slot, in group-priority order.
+
+    Slots used to be filled greedily in group order, so a group late in the
+    list could be shut out completely: on a doctrine question, four hits from
+    documents and the website would consume every slot and the denominational
+    section — the reviewed material the whole profile layer exists to supply —
+    never reached the model at all, silently.
+
+    Every group with a relevant hit therefore gets *floor* slots before any
+    group takes a second, and the cap grows if the floors need more room than
+    *limit* allows.
+    """
+    per_group = []
+    for scored_chunks in scored_groups:
+        keys = []
+        for score, chunk in scored_chunks:
+            if score <= 0:
+                continue
+            key = _chunk_source(chunk)[4]
+            if key not in keys:
+                keys.append(key)
+        if keys:
+            per_group.append(keys)
+
+    effective_limit = max(limit, floor * len(per_group))
+    admitted: list = []
+
+    def admit(key):
+        if key not in admitted and len(admitted) < effective_limit:
+            admitted.append(key)
+
+    # Pass 1 — each group's guaranteed floor.
+    for keys in per_group:
+        for key in keys[:floor]:
+            admit(key)
+    # Pass 2 — whatever is left, in group-priority order.
+    for keys in per_group:
+        for key in keys:
+            admit(key)
+    return admitted
+
+
 def build_cited_context(
-    scored_groups: list[list[tuple[int, dict]]], limit: int = 4
+    scored_groups: list[list[tuple[int, dict]]], limit: int = 4, floor: int = 1
 ) -> tuple[str, list[dict]]:
-    """Build numbered model context and its matching, deduplicated citations."""
+    """Build numbered model context and its matching, deduplicated citations.
+
+    *floor* is the number of citation slots each group with a relevant hit is
+    guaranteed, so no source type can be crowded out by an earlier group.
+    """
+    admitted = _admitted_keys(scored_groups, limit, floor)
     citations = []
     citation_numbers = {}
     citation_locations = {}
@@ -289,16 +354,10 @@ def build_cited_context(
         for score, chunk in scored_chunks:
             if score <= 0:
                 continue
-            title = str(chunk.get("source") or "Church information").strip()
-            location = str(chunk.get("location") or "").strip()
-            is_web = location.startswith(("http://", "https://"))
-            source_type = chunk.get("type") or ("website" if is_web else "document")
-            # Multiple pages from one uploaded file are one source. Website pages
-            # and curated entries remain distinct because their locations matter.
-            key = (source_type, title) if source_type == "document" else (source_type, title, location)
+            title, location, is_web, source_type, key = _chunk_source(chunk)
+            if key not in admitted:
+                continue
             if key not in citation_numbers:
-                if len(citations) >= limit:
-                    continue
                 citation_numbers[key] = len(citations) + 1
                 citation_locations[key] = [location] if location else []
                 citations.append({
