@@ -5,12 +5,18 @@ nothing before step 6 touches the live app: the current SQLite deployment keeps
 serving throughout, and every step before the cutover is reversible by doing
 nothing.
 
-**Not yet verified against a real PostgreSQL server.** The code was developed
-and tested on a machine with no Postgres, Docker, or Homebrew available. The
-dialect-independent parts — table ordering, type coercion, completeness — are
-covered by `tests/test_migration.py`. The Postgres-specific parts (sequence
-reset, type acceptance, advisory locks) are verified by step 4, which is why
-step 4 exists and must not be skipped.
+**Executed against production on 4 September 2026.** 699 rows across 21 tables,
+verified matching on both sides; sequences advanced; three workers running with
+the advisory lock confirmed to exclude a second holder. Kept as the record of
+how it was done and how to repeat it in another environment.
+
+Two things this document originally got wrong, corrected below in place:
+
+* `railway run` executes **locally** with Railway's variables injected — it does
+  not run inside the container. Reaching the volume needs `railway ssh`.
+* The Postgres service exposes no `DATABASE_PUBLIC_URL`, so the copy cannot be
+  driven from a laptop without opening a public proxy. Running it inside the
+  web container is both simpler and keeps members' data on Railway.
 
 ---
 
@@ -38,10 +44,20 @@ healthy before continuing.
 
 ## 2. Take a backup you have actually restored
 
+Requires an SSH key registered (`railway ssh keys add`), and the host key
+trusted (`ssh-keyscan ssh.railway.com >> ~/.ssh/known_hosts`) if this is the
+first connection from this machine.
+
 ```bash
-railway run cat /app/data/wesley.db > wesley-backup-$(date +%F).db
-sqlite3 wesley-backup-$(date +%F).db "select count(*) from churches;"
+railway ssh --service web "sha256sum /app/data/wesley.db"
+railway ssh --service web "base64 -w0 /app/data/wesley.db" | base64 -d > wesley-backup-$(date +%F).db
+shasum -a 256 wesley-backup-$(date +%F).db     # must match the first command
+sqlite3 wesley-backup-$(date +%F).db "PRAGMA integrity_check; select count(*) from churches;"
 ```
+
+The checksum comparison is the point: it proves the transfer was clean. The
+integrity check and row count prove the file is a usable database rather than a
+1.4 MB blob that happens to have arrived.
 
 The second command matters more than the first. A backup you have not opened is
 a hope, not a backup.
@@ -54,13 +70,23 @@ Copy its connection string for local use in the next two steps.
 
 ## 4. Create the schema and dry-run the copy
 
-From your machine, against the new database:
+Run these **inside the web container**, which can reach
+`postgres.railway.internal` and already has the dependencies installed. Read the
+internal URL into a shell variable without printing it, then pass it through:
 
 ```bash
-pip install -r requirements.txt
-DATABASE_URL='<connection string>' FLASK_APP=app.py flask db upgrade
-DATABASE_URL='<connection string>' python3 migrate_to_postgres.py --check --sqlite wesley-backup-$(date +%F).db
+DB=$(railway run --service Postgres bash -c 'printf "X:%s\n" "$DATABASE_URL"' \
+       | grep -oE '^X:.*' | sed 's/^X://')
+
+railway ssh --service web "cd /app && DATABASE_URL='$DB' FLASK_APP=app.py \
+  /opt/venv/bin/python -m flask db upgrade"
+
+railway ssh --service web "cd /app && DATABASE_URL='$DB' \
+  /opt/venv/bin/python migrate_to_postgres.py --check --sqlite /app/data/wesley.db"
 ```
+
+Note `/opt/venv/bin/python`, not `python3`: the container's default interpreter
+is the Nix one and has none of the app's dependencies.
 
 `--check` writes nothing. It verifies the target is reachable, that every table
 the models declare exists there, and that the target is empty, then prints the
@@ -74,7 +100,8 @@ with production still untouched.
 ## 5. Copy the data
 
 ```bash
-DATABASE_URL='<connection string>' python3 migrate_to_postgres.py --run --sqlite wesley-backup-$(date +%F).db
+railway ssh --service web "cd /app && DATABASE_URL='$DB' \
+  /opt/venv/bin/python migrate_to_postgres.py --run --sqlite /app/data/wesley.db"
 ```
 
 It copies parents-first, advances every identity sequence past the highest id it
@@ -98,8 +125,20 @@ Verify before going further:
 - Log in to the dashboard.
 - Ask the widget a question on a real church site, and check the answer streams.
 - Open `/admin` and confirm church list and token counts look right.
-- **Create something** — a text snippet is cheap and safe. This is what proves
-  the sequences are right; reads alone will not.
+- **Create something.** This is what proves the sequences are right; reads
+  alone will not. To test without leaving rows behind, insert inside a
+  transaction and roll back — the id is still drawn from the sequence:
+
+  ```python
+  before = db.session.query(func.max(Model.id)).scalar() or 0
+  obj = Model(...); db.session.add(obj); db.session.flush()
+  assert obj.id > before      # would be 1 if the sequence was not reset
+  db.session.rollback()
+  ```
+
+  Run against churches, conversations, widget_conversations and text_snippets.
+  On this migration `widget_conversations` returned 89 against a maximum of 88 —
+  and would have returned 1 had the reset been skipped.
 
 ## 7. Raise the worker count
 
@@ -110,7 +149,16 @@ WEB_CONCURRENCY=3
 ```
 
 Redeploy. Each worker runs its own scheduler; the advisory lock means one wins
-each job. Confirm the next morning that the nightly logs show each job once, not
+each job. Do not wait until morning to find out whether the lock works — prove
+it directly:
+
+```python
+with job_lock("weekly_digest") as first:      # True
+    with job_lock("weekly_digest") as second: # must be False
+        ...
+```
+
+Then confirm the next morning that the nightly logs show each job once, not
 three times:
 
 ```bash
@@ -145,3 +193,20 @@ Decide at step 6 whether you are committed.
   are in there.
 - **Schema changes from now on** are `flask db migrate -m "what changed"`,
   review the generated file, commit it. `release.sh` applies it on deploy.
+
+
+## What this migration surfaced
+
+`embedding_cache` was **empty** in the SQLite source, meaning the nightly warm
+job had never successfully populated it and every church was still answering
+from keyword scoring. Nothing looked wrong from outside, because the semantic
+path falls back silently by design — which is exactly why it needs an explicit
+check rather than an impression that things seem fine.
+
+Running `embedding_warm_job()` by hand produced 562 vectors across four churches
+in about fifteen seconds. After that, asking Dalton First's widget "do you have
+childcare during the service?" returned the nursery details with a citation,
+where before it would have found nothing.
+
+**Check `embedding_cache` has rows after any deploy that restarts the process
+near 02:45**, or add a startup log line reporting the row count.
