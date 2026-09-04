@@ -19,6 +19,7 @@ from documents import (
 from calendar_feed import load_calendar_chunks, score_calendar_chunks
 from sermons import load_sermon_chunks, score_sermon_chunks
 from denominations import score_denomination_chunks
+from usage import STAFF, record_usage
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -91,8 +92,11 @@ def chat():
 
     system_instruction = build_system_prompt(current_user.church, staff=True)
 
+    call_usage: dict = {}
     try:
-        answer = call_gemini(question, context, history, system_instruction)
+        answer = call_gemini(
+            question, context, history, system_instruction, usage=call_usage,
+        )
     except ValueError as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -110,6 +114,8 @@ def chat():
     ))
     conv.updated_at = datetime.utcnow()
     db.session.commit()
+
+    record_usage(current_user.church_id, STAFF, call_usage)
 
     return jsonify({"answer": answer, "sources": sources, "conversation_id": conv.id})
 

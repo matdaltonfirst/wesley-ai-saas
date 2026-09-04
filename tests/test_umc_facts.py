@@ -29,7 +29,7 @@ class TestDenominationChunks:
     def test_widget_chat_cites_denomination_source(self, client, church):
         captured = {}
 
-        def fake_gemini(question, context, history, system_instruction):
+        def fake_gemini(question, context, history, system_instruction, **kwargs):
             captured["context"] = context
             return "United Methodists practice an open table [1]."
 

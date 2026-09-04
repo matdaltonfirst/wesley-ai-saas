@@ -345,6 +345,31 @@ class KnowledgeChecklistState(db.Model):
     )
 
 
+class UsageDaily(db.Model):
+    """One church's AI consumption for a single day, surface, and model.
+
+    Aggregated at write time rather than stored per call: a busy church
+    produces a handful of rows a day instead of thousands, which keeps the
+    table small enough to query directly on SQLite.
+    """
+    __tablename__ = "usage_daily"
+    id              = db.Column(db.Integer, primary_key=True)
+    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
+    day             = db.Column(db.Date, nullable=False, index=True)
+    surface         = db.Column(db.String(20), nullable=False)   # staff | widget
+    model           = db.Column(db.String(60), nullable=False)
+    calls           = db.Column(db.Integer, nullable=False, default=0)
+    prompt_tokens   = db.Column(db.Integer, nullable=False, default=0)
+    response_tokens = db.Column(db.Integer, nullable=False, default=0)
+    total_tokens    = db.Column(db.Integer, nullable=False, default=0)
+    updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("church_id", "day", "surface", "model",
+                            name="uq_usage_daily_bucket"),
+    )
+
+
 class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"

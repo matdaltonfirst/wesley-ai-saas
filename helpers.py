@@ -6,6 +6,7 @@ import os
 import secrets
 import logging
 import time
+from typing import Optional
 from urllib.parse import urlparse
 
 from datetime import datetime
@@ -473,7 +474,37 @@ def friendly_gemini_error(exc: Exception) -> tuple[str, int]:
     return (f"AI error: {exc}", 502)
 
 
-def call_gemini(question: str, context: str, history: list[dict], system_instruction: str) -> str:
+def _record_gemini_usage(usage: dict, response, model: str) -> None:
+    """Copy the token counts Gemini already returned into *usage*.
+
+    Defensive throughout: a missing or renamed usage field must never turn a
+    successful answer into an error, so every count falls back to zero.
+    """
+    meta = getattr(response, "usage_metadata", None)
+
+    def count(name):
+        return int(getattr(meta, name, 0) or 0) if meta else 0
+
+    prompt = count("prompt_token_count")
+    response_tokens = count("candidates_token_count")
+    usage.update({
+        "model": model,
+        "prompt_tokens": prompt,
+        "response_tokens": response_tokens,
+        "total_tokens": count("total_token_count") or (prompt + response_tokens),
+    })
+
+
+def call_gemini(
+    question: str, context: str, history: list[dict], system_instruction: str,
+    usage: Optional[dict] = None,
+) -> str:
+    """Ask Gemini and return the answer text.
+
+    Pass *usage* to receive the call's token counts — it is populated in place
+    rather than returned, so the return type stays a plain string for every
+    existing caller and test double.
+    """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not set. Add it to your .env file.")
@@ -517,6 +548,8 @@ def call_gemini(question: str, context: str, history: list[dict], system_instruc
                     contents=contents,
                     config=config,
                 )
+                if usage is not None:
+                    _record_gemini_usage(usage, response, model)
                 return response.text
             except Exception as e:
                 last_exc = e

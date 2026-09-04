@@ -31,6 +31,7 @@ from calendar_feed import load_calendar_chunks, score_calendar_chunks
 from sermons import load_sermon_chunks, score_sermon_chunks
 from denominations import score_denomination_chunks
 from pco import person_url as pco_person_url
+from usage import WIDGET, record_usage
 
 log = logging.getLogger("wesley")
 
@@ -236,8 +237,11 @@ def widget_chat():
 
     system_instruction = build_system_prompt(church, widget=True)
 
+    call_usage: dict = {}
     try:
-        answer = call_gemini(question, context, history, system_instruction)
+        answer = call_gemini(
+            question, context, history, system_instruction, usage=call_usage,
+        )
     except ValueError as e:
         db.session.rollback()
         return cors_err(str(e), 500)
@@ -271,6 +275,8 @@ def widget_chat():
         db.session.rollback()
         log.error("[WIDGET] DB commit failed: %s", e)
         return cors_err("Failed to save conversation. Please try again.", 500)
+
+    record_usage(church_id, WIDGET, call_usage)
 
     resp = jsonify({
         "answer": answer,

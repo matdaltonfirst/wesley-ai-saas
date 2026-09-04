@@ -636,6 +636,7 @@
         <div class="stat-tile"><div class="stat-value" id="statMessages">—</div><div class="stat-label">Total Messages</div></div>
         <div class="stat-tile"><div class="stat-value" id="statActive">—</div><div class="stat-label">Active Subs</div></div>
         <div class="stat-tile"><div class="stat-value" id="statTrialing">—</div><div class="stat-label">Trialing</div></div>
+        <div class="stat-tile"><div class="stat-value" id="statTokens">—</div><div class="stat-label">Tokens (30d)</div></div>
       </div>
     </div>
 
@@ -814,6 +815,8 @@
               <th>Status</th>
               <th style="text-align:right">Msgs</th>
               <th style="text-align:right">Docs</th>
+              <th style="text-align:right" title="Gemini calls in the last 30 days">AI 30d</th>
+              <th style="text-align:right" title="Total tokens in the last 30 days — what this church costs to serve">Tokens 30d</th>
               <th></th>
             </tr>
           </thead>
@@ -829,6 +832,8 @@
                 <td><span class="status-badge ${esc(c.status)}">${esc(c.status)}</span></td>
                 <td style="text-align:right">${fmtNum(c.message_count + c.widget_message_count)}</td>
                 <td style="text-align:right">${fmtNum(c.doc_count)}</td>
+                <td style="text-align:right">${fmtNum(c.ai_calls_30d)}</td>
+                <td style="text-align:right">${fmtNum(c.ai_tokens_30d)}</td>
                 <td><button class="edit-btn" data-id="${c.id}">Edit</button></td>
               </tr>
             `).join("")}
@@ -855,6 +860,7 @@
         document.getElementById("statMessages").textContent = fmtNum(data.stats.total_messages);
         document.getElementById("statActive").textContent   = fmtNum(data.stats.active_subscriptions);
         document.getElementById("statTrialing").textContent = fmtNum(data.stats.trialing);
+        document.getElementById("statTokens").textContent = fmtNum(data.stats.ai_tokens_30d || 0);
 
         allChurches = data.churches || [];
         applySearch();

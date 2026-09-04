@@ -16,6 +16,7 @@ from models import db, User, Church, SystemPrompt
 from config import DEFAULT_SYSTEM_PROMPT, FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from helpers import is_super_admin, get_billing_status, iso_utc
 from emails import send_stripe_invite_email
+from usage import usage_totals
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -87,10 +88,15 @@ def admin_list_churches():
         "trialing":             trialing,
     }
 
+    # One grouped query for every church, rather than a per-church lookup
+    # inside the loop below.
+    usage_by_church = usage_totals([c.id for c in churches], days=30)
+
     church_list = []
     for c in churches:
         first_user = User.query.filter_by(church_id=c.id).order_by(User.created_at).first()
         admin_email = first_user.email if first_user else ""
+        church_usage = usage_by_church.get(c.id, {})
 
         msg_count = db.session.execute(
             text("SELECT COUNT(*) FROM messages m "
@@ -136,7 +142,14 @@ def admin_list_churches():
             "message_count":         msg_count,
             "widget_message_count":  widget_msg_count,
             "doc_count":             doc_count,
+            # Trailing 30 days — what this church actually costs to serve.
+            "ai_calls_30d":          church_usage.get("calls", 0),
+            "ai_tokens_30d":         church_usage.get("total_tokens", 0),
+            "ai_widget_calls_30d":   church_usage.get("widget_calls", 0),
         })
+
+    stats["ai_calls_30d"] = sum(u.get("calls", 0) for u in usage_by_church.values())
+    stats["ai_tokens_30d"] = sum(u.get("total_tokens", 0) for u in usage_by_church.values())
 
     return jsonify({"stats": stats, "churches": church_list})
 

@@ -166,7 +166,7 @@ class TestSermonChunks:
         _sermon(church, src, video_id="xyz", title="Grace Like Rain")
         captured = {}
 
-        def fake_gemini(question, context, history, system_instruction):
+        def fake_gemini(question, context, history, system_instruction, **kwargs):
             captured["context"] = context
             return "Sunday's message was about God's grace [1]."
 

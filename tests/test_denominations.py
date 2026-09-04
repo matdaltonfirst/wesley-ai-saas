@@ -59,7 +59,7 @@ def _staff_prompt(auth_client, question="What does the church teach?"):
     """Run staff chat and return the system instruction it assembled."""
     captured = {}
 
-    def fake(q, context, history, system_instruction):
+    def fake(q, context, history, system_instruction, **kwargs):
         captured["context"] = context
         captured["prompt"] = system_instruction
         return "Answer [1]."
@@ -82,7 +82,7 @@ def _widget_prompt(client, church, question="What does the church teach?",
     """Run public widget chat and return the system instruction it assembled."""
     captured = {}
 
-    def fake(q, context, history, system_instruction):
+    def fake(q, context, history, system_instruction, **kwargs):
         captured["context"] = context
         captured["prompt"] = system_instruction
         return answer

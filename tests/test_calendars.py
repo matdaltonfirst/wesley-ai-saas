@@ -197,7 +197,7 @@ class TestCalendarChat:
         self._seed_events(church)
         captured = {}
 
-        def fake_gemini(question, context, history, system_instruction):
+        def fake_gemini(question, context, history, system_instruction, **kwargs):
             captured["context"] = context
             return "The Community Picnic is this week on the Front Lawn [1]."
 

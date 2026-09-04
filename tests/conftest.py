@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from models import (
     db as _db, AnswerFeedback, Church, Conversation, CrawledPage, Document,
-    Message, SystemPrompt, User, WidgetConversation, WidgetMessage,
+    Message, SystemPrompt, UsageDaily, User, WidgetConversation, WidgetMessage,
 )
 
 
@@ -90,7 +90,7 @@ def _delete_church_rows(church_id: int) -> None:
         ).delete()
 
     for model in (AnswerFeedback, Conversation, WidgetConversation,
-                  Document, CrawledPage, User):
+                  Document, CrawledPage, UsageDaily, User):
         model.query.filter_by(church_id=church_id).delete()
 
     Church.query.filter_by(id=church_id).delete()
