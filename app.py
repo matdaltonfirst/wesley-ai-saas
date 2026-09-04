@@ -668,6 +668,21 @@ def sermon_check_job():
         log.info("Sermon check job: ingested %d new sermon(s).", count)
 
 
+def transcript_backfill_job():
+    """Fill in transcripts for sermons ingested while captions were broken.
+
+    Bounded and idempotent, so it drains the backlog over a few nights and then
+    costs nothing. Runs before the embedding warm so a newly filled transcript
+    is embedded the same night.
+    """
+    with app.app_context():
+        from sermons import backfill_transcripts
+        result = backfill_transcripts()
+        if result["filled"] or result["failed"]:
+            log.info("Transcript backfill: %d filled, %d without captions.",
+                     result["filled"], result["failed"])
+
+
 def weekly_digest_job():
     """Monday 13:00 UTC (early morning US) job: email each church a summary of
     last week's widget activity."""
@@ -693,6 +708,7 @@ def pco_reconciliation_job():
 # website repeatedly, and repeat every billing warning.
 _SCHEDULED_JOBS = [
     ("nightly_crawl",         nightly_crawl_job,         CronTrigger(hour=2, minute=0)),
+    ("transcript_backfill",   transcript_backfill_job,   CronTrigger(hour=2, minute=30)),
     ("embedding_warm",        embedding_warm_job,        CronTrigger(hour=2, minute=45)),
     ("nightly_cleanup",       nightly_cleanup_job,       CronTrigger(hour=3, minute=0)),
     ("nightly_widget_cleanup", nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30)),

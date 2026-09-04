@@ -324,3 +324,82 @@ class TestChurchLocalDates:
         chunks = load_sermon_chunks(church.id)
         assert "July 5, 2026" in chunks[0]["content"]
         _cleanup(church)
+
+
+class TestTranscriptBackfill:
+    """Sermons ingested while the caption library was broken have no transcript
+    at all — distilled by Gemini watching the video, which answers questions but
+    leaves nothing to quote."""
+
+    def _sermon(self, church, src, video_id, days_ago, transcript=None):
+        from datetime import datetime, timedelta
+        s = Sermon(source_id=src.id, church_id=church.id, video_id=video_id,
+                   title=f"Message {video_id}", status="ingested",
+                   transcript=transcript,
+                   published_at=datetime.utcnow() - timedelta(days=days_ago))
+        db.session.add(s)
+        db.session.commit()
+        return s
+
+    def test_a_missing_transcript_is_filled(self, app, church):
+        src = _source(church)
+        s = self._sermon(church, src, "vid1", 7)
+        with patch("sermons.fetch_captions",
+                   return_value=("Grace upon grace.", [{"start": 1.0, "text": "Grace upon grace."}])):
+            result = sermon_lib.backfill_transcripts()
+        db.session.refresh(s)
+        assert result["filled"] == 1
+        assert s.transcript == "Grace upon grace."
+        assert json.loads(s.transcript_segments)[0]["start"] == 1.0
+        _cleanup(church)
+
+    def test_an_existing_transcript_is_never_overwritten(self, app, church):
+        src = _source(church)
+        s = self._sermon(church, src, "vid2", 7, transcript="Already here.")
+        with patch("sermons.fetch_captions", return_value=("REPLACED", None)) as fetch:
+            sermon_lib.backfill_transcripts()
+        db.session.refresh(s)
+        assert s.transcript == "Already here."
+        fetch.assert_not_called()
+        _cleanup(church)
+
+    def test_a_sermon_without_captions_is_counted_not_crashed(self, app, church):
+        src = _source(church)
+        s = self._sermon(church, src, "vid3", 7)
+        with patch("sermons.fetch_captions", return_value=(None, None)):
+            result = sermon_lib.backfill_transcripts()
+        db.session.refresh(s)
+        assert result == {"filled": 0, "failed": 1}
+        assert s.transcript is None
+        _cleanup(church)
+
+    def test_old_sermons_are_left_alone(self, app, church):
+        """Retrying a sermon that will never have captions would consume the
+        batch nightly while newer ones waited behind it."""
+        src = _source(church)
+        self._sermon(church, src, "vid4", sermon_lib.MAX_BACKFILL_AGE_DAYS + 30)
+        with patch("sermons.fetch_captions", return_value=("x", None)) as fetch:
+            result = sermon_lib.backfill_transcripts()
+        assert result["filled"] == 0
+        fetch.assert_not_called()
+        _cleanup(church)
+
+    def test_the_batch_is_bounded(self, app, church):
+        src = _source(church)
+        for n in range(5):
+            self._sermon(church, src, f"batch{n}", n + 1)
+        with patch("sermons.fetch_captions", return_value=("text", None)) as fetch:
+            result = sermon_lib.backfill_transcripts(limit=2)
+        assert result["filled"] == 2
+        assert fetch.call_count == 2
+        _cleanup(church)
+
+    def test_running_twice_is_a_no_op_the_second_time(self, app, church):
+        src = _source(church)
+        self._sermon(church, src, "vid5", 3)
+        with patch("sermons.fetch_captions", return_value=("filled in", None)):
+            first = sermon_lib.backfill_transcripts()
+            second = sermon_lib.backfill_transcripts()
+        assert first["filled"] == 1
+        assert second["filled"] == 0
+        _cleanup(church)

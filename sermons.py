@@ -300,6 +300,62 @@ def check_all_sources() -> int:
     return total
 
 
+# ── Transcript backfill ──────────────────────────────────────────────────────
+
+# Sermons ingested while the caption library was broken have no transcript at
+# all — they were distilled by Gemini watching the video, which answers
+# questions but leaves nothing to quote. Captions are free, so refetching is
+# cheap; the only real cost is time.
+BACKFILL_BATCH = 25
+# Past this age a sermon that still has no captions almost certainly never will
+# (they were never generated, or the video is gone), and retrying it nightly
+# would consume the batch forever while newer sermons waited behind it.
+MAX_BACKFILL_AGE_DAYS = 120
+
+
+def backfill_transcripts(limit: int = BACKFILL_BATCH, church_id: int = None) -> dict:
+    """Fetch captions for already-ingested sermons that have none.
+
+    Idempotent and bounded: a sermon that gains a transcript drops out of the
+    queue, and one that cannot get captions is retried only while it is recent.
+    Distillation is deliberately not re-run — the existing summaries are fine,
+    and re-distilling every sermon would spend a model call each to change
+    little.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=MAX_BACKFILL_AGE_DAYS)
+    query = (
+        Sermon.query
+        .filter(
+            Sermon.status == "ingested",
+            Sermon.transcript.is_(None),
+            Sermon.published_at >= cutoff,
+        )
+        .order_by(Sermon.published_at.desc())
+    )
+    if church_id:
+        query = query.filter(Sermon.church_id == church_id)
+
+    filled = failed = 0
+    for sermon in query.limit(limit).all():
+        try:
+            text, segments = fetch_captions(sermon.video_id)
+        except Exception as exc:                      # fetch_captions is safe,
+            log.error("Backfill error for %s: %s", sermon.video_id, exc)
+            text, segments = None, None
+        if not text:
+            failed += 1
+            continue
+        sermon.transcript = text
+        sermon.transcript_segments = json.dumps(segments) if segments else None
+        filled += 1
+
+    if filled:
+        db.session.commit()
+        log.info("Transcript backfill: filled %d sermon(s), %d still without captions.",
+                 filled, failed)
+    return {"filled": filled, "failed": failed}
+
+
 # ── Chat context ─────────────────────────────────────────────────────────────
 
 _SERMON_INTENT_WORDS = (
