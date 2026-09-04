@@ -495,15 +495,22 @@ def _record_gemini_usage(usage: dict, response, model: str) -> None:
     })
 
 
-def call_gemini(
-    question: str, context: str, history: list[dict], system_instruction: str,
-    usage: Optional[dict] = None,
-) -> str:
-    """Ask Gemini and return the answer text.
+def sse_event(payload: dict) -> str:
+    """Encode one server-sent event.
 
-    Pass *usage* to receive the call's token counts — it is populated in place
-    rather than returned, so the return type stays a plain string for every
-    existing caller and test double.
+    Newlines inside the JSON would terminate the event early, so the payload is
+    serialised without them — json.dumps escapes newlines inside strings, and
+    the separators keep the encoding compact.
+    """
+    return "data: " + json.dumps(payload, separators=(",", ":")) + "\n\n"
+
+
+def _build_request(question, context, history, system_instruction):
+    """Assemble the client, contents, config, and model order for one ask.
+
+    Shared by the blocking and streaming paths so they can never drift — the
+    prompt, the citation instructions, and the fallback order are identical
+    whichever one a caller uses.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -539,36 +546,106 @@ def call_gemini(
     if GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
         models.append(GEMINI_FALLBACK_MODEL)
 
+    return client, contents, config, models
+
+
+def _is_rate_limit(err: str) -> bool:
+    return "429" in err or "quota" in err or "rate" in err or "exhausted" in err
+
+
+def _model_is_broken(err: str) -> bool:
+    """Whether to try the fallback model: the model itself is retired or down
+    (404/500/503), as opposed to an auth failure or a bad request."""
+    return ("404" in err or "not found" in err or "503" in err
+            or "unavailable" in err or "500" in err or "internal" in err)
+
+
+def _attempt_models(models, run):
+    """Run *run(model)* against each model with retry and fallback.
+
+    *run* is called with a model name and may either return a value or, for the
+    streaming path, a generator that is consumed by the caller. Retries only
+    happen before any output has been produced.
+    """
     last_exc: Exception = Exception("Unknown error")
     for model_idx, model in enumerate(models):
         for attempt in range(3):
             try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=contents,
-                    config=config,
-                )
-                if usage is not None:
-                    _record_gemini_usage(usage, response, model)
-                return response.text
+                return run(model)
             except Exception as e:
                 last_exc = e
-                err = str(e).lower()
-                if ("429" in err or "quota" in err or "rate" in err or "exhausted" in err) and attempt < 2:
+                if _is_rate_limit(str(e).lower()) and attempt < 2:
                     time.sleep(2 ** attempt + 1)  # 2s, then 3s
                     continue
-                break  # non-retryable, or retries exhausted: consider fallback model
-        # Fall back only when the model itself is broken or overloaded
-        # (retired/renamed → 404, outage → 500/503), not for auth or bad requests.
-        err = str(last_exc).lower()
-        retryable = ("404" in err or "not found" in err or "503" in err
-                     or "unavailable" in err or "500" in err or "internal" in err)
-        if retryable and model_idx < len(models) - 1:
+                break  # non-retryable, or retries exhausted: consider fallback
+        if _model_is_broken(str(last_exc).lower()) and model_idx < len(models) - 1:
             log.warning("[GEMINI] model %s failed (%s); falling back to %s",
                         model, last_exc, models[model_idx + 1])
             continue
         raise last_exc
     raise last_exc
+
+
+def call_gemini(
+    question: str, context: str, history: list[dict], system_instruction: str,
+    usage: Optional[dict] = None,
+) -> str:
+    """Ask Gemini and return the answer text.
+
+    Pass *usage* to receive the call's token counts — it is populated in place
+    rather than returned, so the return type stays a plain string for every
+    existing caller and test double.
+    """
+    client, contents, config, models = _build_request(
+        question, context, history, system_instruction)
+
+    def run(model):
+        response = client.models.generate_content(
+            model=model, contents=contents, config=config)
+        if usage is not None:
+            _record_gemini_usage(usage, response, model)
+        return response.text
+
+    return _attempt_models(models, run)
+
+
+def stream_gemini(
+    question: str, context: str, history: list[dict], system_instruction: str,
+    usage: Optional[dict] = None,
+):
+    """Yield the answer in pieces as Gemini produces them.
+
+    Retry and model fallback only apply before the first piece is yielded: once
+    text has reached the visitor, restarting on another model would replay the
+    answer from the beginning. After that point an error propagates, and the
+    caller decides what to show alongside what was already streamed.
+    """
+    client, contents, config, models = _build_request(
+        question, context, history, system_instruction)
+
+    def run(model):
+        # Consume the first chunk inside the retry wrapper so a model that is
+        # down fails here, where falling back is still safe.
+        stream = client.models.generate_content_stream(
+            model=model, contents=contents, config=config)
+        iterator = iter(stream)
+        first = next(iterator, None)
+        return model, first, iterator
+
+    model, first, iterator = _attempt_models(models, run)
+
+    last_chunk = first
+    for chunk in ([first] if first is not None else []):
+        if getattr(chunk, "text", None):
+            yield chunk.text
+    for chunk in iterator:
+        last_chunk = chunk
+        if getattr(chunk, "text", None):
+            yield chunk.text
+
+    # Token counts arrive on the final chunk of the stream.
+    if usage is not None and last_chunk is not None:
+        _record_gemini_usage(usage, last_chunk, model)
 
 
 # ── SSRF Protection ───────────────────────────────────────────────────────────

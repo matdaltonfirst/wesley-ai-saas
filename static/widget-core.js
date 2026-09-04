@@ -669,10 +669,13 @@
     this._refs.btn.setAttribute("aria-expanded", "false");
   };
 
-  WesleyWidget.prototype._appendBot = function (html, sources, messageId) {
+  WesleyWidget.prototype._appendBot = function (html, sources, messageId, targetRow) {
     var self = this;
     var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
-    var row = document.createElement("div");
+    // When streaming, the row already exists and holds the text the visitor has
+    // been reading; fill it in place rather than swapping in a new node, which
+    // would flicker and jump the scroll position.
+    var row = targetRow || document.createElement("div");
     row.className = "wai-msg wai-msg-bot";
     var sourceHtml = "";
     if (sources && sources.length) {
@@ -719,6 +722,19 @@
         });
       });
     }
+    if (!targetRow) this._refs.msgs.appendChild(row);
+    this._refs.msgs.scrollTop = this._refs.msgs.scrollHeight;
+    return row;
+  };
+
+  // Start an empty bot row that streamed text is written into as it arrives.
+  WesleyWidget.prototype._beginBotStream = function () {
+    var ini = initial(this._config.bot_name || DEFAULT_BOT_NAME);
+    var row = document.createElement("div");
+    row.className = "wai-msg wai-msg-bot";
+    row.innerHTML =
+      '<div class="wai-bot-av">' + esc(ini) + "</div>" +
+      '<div class="wai-bot-content"><div class="wai-bubble wai-bubble-bot"></div></div>';
     this._refs.msgs.appendChild(row);
     this._refs.msgs.scrollTop = this._refs.msgs.scrollHeight;
     return row;
@@ -877,7 +893,69 @@
     this._appendUser(text);
     this._showTyping();
 
-    fetch(this._apiBase + "/api/widget/chat", {
+    var streamRow = null;
+    var bubble = null;
+    var accumulated = "";
+    var finished = false;
+
+    var done = function () {
+      self._isBusy = false;
+      self._refs.send.disabled = !inp.value.trim();
+      inp.focus();
+    };
+
+    var fail = function (message) {
+      self._removeTyping();
+      if (streamRow && streamRow.parentNode) streamRow.parentNode.removeChild(streamRow);
+      self._appendBot("\u26a0 " + esc(message || t("errGeneric", "Something went wrong. Please try again.")));
+      done();
+    };
+
+    var handleEvent = function (payload) {
+      if (payload.type === "delta") {
+        if (!streamRow) {
+          self._removeTyping();
+          streamRow = self._beginBotStream();
+          bubble = streamRow.querySelector(".wai-bubble-bot");
+        }
+        accumulated += payload.text || "";
+        // Citations are stripped as we go, so a half-written "[1" never
+        // flashes on screen before its closing bracket arrives.
+        bubble.innerHTML = renderMd(stripCitations(accumulated));
+        self._refs.msgs.scrollTop = self._refs.msgs.scrollHeight;
+      } else if (payload.type === "done") {
+        finished = true;
+        self._removeTyping();
+        if (!streamRow) {
+          streamRow = self._beginBotStream();
+        }
+        self._appendBot(
+          renderMd(stripCitations(accumulated)),
+          payload.sources || [],
+          payload.message_id,
+          streamRow
+        );
+        if (payload.session_id) {
+          self._sessionId = payload.session_id;
+          if (self._SESSION_KEY) {
+            try { sessionStorage.setItem(self._SESSION_KEY, self._sessionId); } catch (e) {}
+          }
+        }
+        if (!self._connCardShown) {
+          var interest = self._detectInterest(text);
+          if (interest) {
+            self._connCardShown = true;
+            setTimeout(function () { self._showConnectionCard(interest, text); }, 700);
+          }
+        }
+        done();
+      } else if (payload.type === "error") {
+        finished = true;
+        fail(payload.error);
+      }
+    };
+
+    fetch(this._apiBase + "/api/widget/chat/stream", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -887,43 +965,41 @@
       }),
     })
       .then(function (res) {
-        return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-      })
-      .then(function (result) {
-        self._removeTyping();
-        if (!result.ok || result.data.error) {
-          self._appendBot("⚠ " + esc(result.data.error || t("errGeneric", "Something went wrong. Please try again.")));
-        } else {
-          self._appendBot(
-            renderMd(stripCitations(result.data.answer || "")),
-            result.data.sources || [],
-            result.data.message_id
-          );
-          if (!self._connCardShown) {
-            var interest = self._detectInterest(text);
-            if (interest) {
-              self._connCardShown = true;
-              setTimeout(function () { self._showConnectionCard(interest, text); }, 700);
-            }
-          }
-          if (result.data.session_id) {
-            self._sessionId = result.data.session_id;
-            if (self._SESSION_KEY) {
-              sessionStorage.setItem(self._SESSION_KEY, self._sessionId);
-            }
-          }
+        // A rejection (rate limit, lapsed billing, bad input) comes back as
+        // JSON, not as a stream.
+        if (!res.ok || !res.body) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            fail(data.error);
+          });
         }
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+
+        var pump = function () {
+          return reader.read().then(function (chunk) {
+            if (chunk.done) {
+              if (!finished) fail(t("errNetwork", "Network error \u2014 please try again."));
+              return;
+            }
+            buffer += decoder.decode(chunk.value, { stream: true });
+            var parts = buffer.split("\n\n");
+            buffer = parts.pop();
+            parts.forEach(function (part) {
+              var line = part.replace(/^data: /, "").trim();
+              if (!line) return;
+              try { handleEvent(JSON.parse(line)); } catch (e) {}
+            });
+            return pump();
+          });
+        };
+        return pump();
       })
       .catch(function () {
-        self._removeTyping();
-        self._appendBot("⚠ " + esc(t("errNetwork", "Network error — please try again.")));
-      })
-      .finally(function () {
-        self._isBusy = false;
-        self._refs.send.disabled = !inp.value.trim();
-        inp.focus();
+        if (!finished) fail(t("errNetwork", "Network error \u2014 please try again."));
       });
   };
+
 
   // ── Export ───────────────────────────────────────────────────────────────────
   global.WesleyWidget = WesleyWidget;

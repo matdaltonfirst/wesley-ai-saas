@@ -8,7 +8,10 @@ import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify, make_response, send_from_directory, current_app
+from flask import (
+    Blueprint, request, jsonify, make_response, send_from_directory,
+    current_app,
+)
 from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
@@ -18,7 +21,7 @@ from models import (
 )
 from helpers import (
     build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error,
-    has_active_access, iso_utc,
+    has_active_access, iso_utc, sse_event as _sse, stream_gemini,
 )
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
@@ -148,51 +151,60 @@ def get_widget_conversation_messages(wconv_id):
 
 # ── Widget Chat API (public, CORS) ───────────────────────────────────────────
 
-@widget_bp.route("/api/widget/chat", methods=["POST", "OPTIONS"])
-def widget_chat():
-    if request.method == "OPTIONS":
-        resp = make_response("", 204)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        return resp
+def _cors(resp):
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
-    chat_limiter = current_app.config["WIDGET_CHAT_LIMITER"]
-    if chat_limiter.is_limited(request.remote_addr or "unknown"):
-        resp = jsonify({"error": "Rate limit exceeded. Please try again later."})
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp, 429
 
-    data = request.get_json(silent=True) or {}
+def _widget_preflight():
+    resp = make_response("", 204)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
+
+
+class _WidgetTurnError(Exception):
+    """A validated rejection, carrying the message and status to return."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def _prepare_widget_turn(data):
+    """Validate a widget request and build everything the model call needs.
+
+    Shared by the blocking and streaming endpoints so the two can never diverge
+    on validation, billing, retrieval, or the assembled prompt. Raises
+    _WidgetTurnError for anything the caller should reject.
+    """
     church_id_raw = data.get("church_id")
     question = (data.get("question") or "").strip()
     session_id = (data.get("session_id") or "").strip() or None
 
-    def cors_err(msg, status=400):
-        resp = jsonify({"error": msg})
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp, status
-
     if not church_id_raw or not question:
-        return cors_err("church_id and question are required.")
+        raise _WidgetTurnError("church_id and question are required.")
     if len(question) > 2000:
-        return cors_err("Message is too long. Please keep questions under 2,000 characters.")
+        raise _WidgetTurnError(
+            "Message is too long. Please keep questions under 2,000 characters.")
     if session_id and len(session_id) > 64:
-        return cors_err("Invalid session_id.")
+        raise _WidgetTurnError("Invalid session_id.")
 
     try:
         church_id = int(church_id_raw)
     except (ValueError, TypeError):
-        return cors_err("Invalid church_id.")
+        raise _WidgetTurnError("Invalid church_id.")
 
     church = Church.query.get(church_id)
     if not church:
-        return cors_err("Church not found.", 404)
+        raise _WidgetTurnError("Church not found.", 404)
     # A lapsed church's widget would otherwise keep answering visitors — and
     # keep billing us for the tokens — indefinitely. Worded for the visitor,
     # who is not the party who let the subscription lapse.
     if not has_active_access(church):
-        return cors_err(
+        raise _WidgetTurnError(
             "Online chat isn't available right now. Please contact the church directly.",
             402,
         )
@@ -208,14 +220,15 @@ def widget_chat():
         db.session.add(wconv)
         db.session.flush()
 
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in wconv.messages
-    ]
+    history = [{"role": m.role, "content": m.content} for m in wconv.messages]
 
     db.session.add(WidgetMessage(
         widget_conversation_id=wconv.id, role="user", content=question
     ))
+    # Committed here rather than alongside the answer: the streaming response
+    # generator runs after this request context is gone, so nothing may be left
+    # pending in a session it will not be able to reach.
+    db.session.commit()
 
     MAX_DOC_CHUNKS = 5
     MAX_WEB_CHUNKS = 5
@@ -235,57 +248,178 @@ def widget_chat():
         [scored_docs, scored_web, scored_cal, scored_ser, scored_denom]
     )
 
-    system_instruction = build_system_prompt(church, widget=True)
+    # Ids, never ORM instances: the streaming generator runs outside this
+    # request's session, where a live object would be detached.
+    return {
+        "church_id": church_id,
+        "question": question,
+        "session_id": session_id,
+        "wconv_id": wconv.id,
+        "history": history,
+        "context": context,
+        "candidate_sources": candidate_sources,
+        "system_instruction": build_system_prompt(church, widget=True),
+    }
 
-    call_usage: dict = {}
-    try:
-        answer = call_gemini(
-            question, context, history, system_instruction, usage=call_usage,
-        )
-    except ValueError as e:
-        db.session.rollback()
-        return cors_err(str(e), 500)
-    except Exception as e:
-        db.session.rollback()
-        user_msg, status = friendly_gemini_error(e)
-        return cors_err(user_msg, status)
 
-    sources = select_cited_sources(answer, candidate_sources)
+def _save_widget_answer(turn, answer):
+    """Persist the assistant turn and return its citation list and message id.
+
+    Re-queries the conversation by id so this works from inside the streaming
+    response generator, which no longer shares the request's session.
+    """
+    wconv = WidgetConversation.query.get(turn["wconv_id"])
+    sources = select_cited_sources(answer, turn["candidate_sources"])
     assistant_message = WidgetMessage(
-        widget_conversation_id=wconv.id,
+        widget_conversation_id=turn["wconv_id"],
         role="assistant",
         content=answer,
         sources=json.dumps(sources) if sources else None,
     )
     db.session.add(assistant_message)
-    wconv.updated_at = datetime.utcnow()
+    if wconv:
+        wconv.updated_at = datetime.utcnow()
     if _is_low_confidence(answer):
         # Surface unanswerable questions in the Feedback & Corrections inbox
         # even when the visitor never rates the answer.
         db.session.flush()
         db.session.add(AnswerFeedback(
-            church_id=church_id,
+            church_id=turn["church_id"],
             widget_message_id=assistant_message.id,
             rating="auto_flagged",
             status="open",
         ))
+    db.session.commit()
+    return sources, assistant_message.id
+
+
+@widget_bp.route("/api/widget/chat/stream", methods=["POST", "OPTIONS"])
+def widget_chat_stream():
+    """Server-sent events version of the widget chat.
+
+    The visitor sees words appear instead of a typing dot for several seconds,
+    which is the single largest perceived-quality difference in the product.
+    The blocking endpoint above is kept: widget.js is served no-cache, but a
+    church's page may still hold an older copy for a while.
+    """
+    if request.method == "OPTIONS":
+        return _widget_preflight()
+
+    chat_limiter = current_app.config["WIDGET_CHAT_LIMITER"]
+    if chat_limiter.is_limited(request.remote_addr or "unknown"):
+        return _cors(jsonify({"error": "Rate limit exceeded. Please try again later."})), 429
+
     try:
-        db.session.commit()
+        turn = _prepare_widget_turn(request.get_json(silent=True) or {})
+    except _WidgetTurnError as e:
+        db.session.rollback()
+        return _cors(jsonify({"error": e.message})), e.status
+
+    call_usage: dict = {}
+    # Captured now: the generator below runs after this request context has
+    # been torn down, so it opens its own.
+    app_obj = current_app._get_current_object()
+
+    def events():
+        with app_obj.app_context():
+            pieces = []
+            try:
+                for piece in stream_gemini(
+                    turn["question"], turn["context"], turn["history"],
+                    turn["system_instruction"], usage=call_usage,
+                ):
+                    pieces.append(piece)
+                    yield _sse({"type": "delta", "text": piece})
+            except Exception as e:
+                db.session.rollback()
+                message, _ = friendly_gemini_error(e)
+                log.error("[WIDGET] stream failed: %s", e)
+                yield _sse({"type": "error", "error": message})
+                return
+
+            answer = "".join(pieces)
+            if not answer.strip():
+                db.session.rollback()
+                yield _sse({"type": "error",
+                            "error": "No answer was returned. Please try again."})
+                return
+
+            try:
+                sources, message_id = _save_widget_answer(turn, answer)
+            except Exception as e:
+                db.session.rollback()
+                log.error("[WIDGET] stream DB commit failed: %s", e)
+                # The visitor already has the answer on screen; only the record
+                # of it failed. Say so rather than blanking what they just read.
+                yield _sse({"type": "done", "sources": [],
+                            "session_id": turn["session_id"],
+                            "message_id": None, "saved": False})
+                return
+
+            record_usage(turn["church_id"], WIDGET, call_usage)
+            yield _sse({
+                "type": "done",
+                "sources": sources,
+                "session_id": turn["session_id"],
+                "message_id": message_id,
+                "saved": True,
+            })
+
+    resp = current_app.response_class(events(), mimetype="text/event-stream")
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache"
+    # Without this a buffering reverse proxy holds the whole response and the
+    # visitor sees nothing until the end — which is the thing being fixed.
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
+
+
+@widget_bp.route("/api/widget/chat", methods=["POST", "OPTIONS"])
+def widget_chat():
+    """Blocking widget chat. Superseded by /api/widget/chat/stream, and kept
+    because a church page may still be running an older cached widget.js."""
+    if request.method == "OPTIONS":
+        return _widget_preflight()
+
+    chat_limiter = current_app.config["WIDGET_CHAT_LIMITER"]
+    if chat_limiter.is_limited(request.remote_addr or "unknown"):
+        return _cors(jsonify({"error": "Rate limit exceeded. Please try again later."})), 429
+
+    try:
+        turn = _prepare_widget_turn(request.get_json(silent=True) or {})
+    except _WidgetTurnError as e:
+        db.session.rollback()
+        return _cors(jsonify({"error": e.message})), e.status
+
+    call_usage: dict = {}
+    try:
+        answer = call_gemini(
+            turn["question"], turn["context"], turn["history"],
+            turn["system_instruction"], usage=call_usage,
+        )
+    except ValueError as e:
+        db.session.rollback()
+        return _cors(jsonify({"error": str(e)})), 500
+    except Exception as e:
+        db.session.rollback()
+        user_msg, status = friendly_gemini_error(e)
+        return _cors(jsonify({"error": user_msg})), status
+
+    try:
+        sources, message_id = _save_widget_answer(turn, answer)
     except Exception as e:
         db.session.rollback()
         log.error("[WIDGET] DB commit failed: %s", e)
-        return cors_err("Failed to save conversation. Please try again.", 500)
+        return _cors(jsonify({"error": "Failed to save conversation. Please try again."})), 500
 
-    record_usage(church_id, WIDGET, call_usage)
+    record_usage(turn["church_id"], WIDGET, call_usage)
 
-    resp = jsonify({
+    return _cors(jsonify({
         "answer": answer,
         "sources": sources,
-        "session_id": session_id,
-        "message_id": assistant_message.id,
-    })
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    return resp
+        "session_id": turn["session_id"],
+        "message_id": message_id,
+    }))
 
 
 # ── Answer Feedback API ──────────────────────────────────────────────────────

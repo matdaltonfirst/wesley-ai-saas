@@ -9,8 +9,9 @@ venv/
 .venv/
 ghost-noise-dashboard.html
 
-# Claude Code worktrees (accidentally committed as gitlinks)
+# Claude Code local state (launch.json is shared; the rest is per-machine)
 .claude/worktrees/
+.claude/settings.local.json
 
 # Local scratch: design mockups, marketing assets, source images
 tmp/

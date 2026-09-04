@@ -49,8 +49,10 @@ function appendUserMsg(text) {
   scrollBottom();
 }
 
-function appendAssistantMsg(text, sources) {
-  const row = document.createElement("div");
+function appendAssistantMsg(text, sources, targetRow) {
+  // When streaming, the row already holds the text being read — fill it in
+  // place rather than swapping in a new node.
+  const row = targetRow || document.createElement("div");
   row.className = "msg-row assistant";
 
   const sourcesHtml = sources && sources.length
@@ -73,8 +75,24 @@ function appendAssistantMsg(text, sources) {
       </div>
       ${sourcesHtml}
     </div>`;
+  if (!targetRow) messagesEl.appendChild(row);
+  scrollBottom();
+}
+
+// Start an empty assistant row that streamed text is written into.
+function beginAssistantStream() {
+  const row = document.createElement("div");
+  row.className = "msg-row assistant";
+  row.innerHTML = `
+    <div class="msg-avatar assistant">AI</div>
+    <div class="msg-body">
+      <div class="msg-bubble assistant">
+        <div class="assistant-text"></div>
+      </div>
+    </div>`;
   messagesEl.appendChild(row);
   scrollBottom();
+  return row;
 }
 
 function showTyping() {
@@ -117,34 +135,75 @@ async function sendMessage() {
   showTyping();
   closeSidebar();
 
+  let streamRow = null;
+  let textEl = null;
+  let accumulated = "";
+  let finished = false;
+
+  const fail = (msg) => {
+    removeTyping();
+    if (streamRow && streamRow.parentNode) streamRow.parentNode.removeChild(streamRow);
+    appendError(msg || "Something went wrong. Please try again.");
+  };
+
+  const handleEvent = (payload) => {
+    if (payload.type === "delta") {
+      if (!streamRow) {
+        removeTyping();
+        streamRow = beginAssistantStream();
+        textEl = streamRow.querySelector(".assistant-text");
+      }
+      accumulated += payload.text || "";
+      textEl.innerHTML = renderMd(accumulated);
+      scrollBottom();
+    } else if (payload.type === "done") {
+      finished = true;
+      removeTyping();
+      if (!streamRow) streamRow = beginAssistantStream();
+      appendAssistantMsg(accumulated, payload.sources, streamRow);
+      currentConversationId = payload.conversation_id;
+      loadConversations();
+    } else if (payload.type === "error") {
+      finished = true;
+      fail(payload.error);
+    }
+  };
+
   try {
-    const res = await fetch("/api/chat", {
+    const res = await fetch("/api/chat/stream", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ question: text, conversation_id: currentConversationId }),
     });
 
-    removeTyping();
+    if (res.status === 401) { removeTyping(); window.location.href = "/login"; return; }
 
-    if (res.status === 401) { window.location.href = "/login"; return; }
-
-    if (!res.ok) {
+    // Rejections (rate limit, lapsed billing, bad input) come back as JSON.
+    if (!res.ok || !res.body) {
       const err = await res.json().catch(() => ({}));
-      appendError(err.error || "Something went wrong. Please try again.");
+      fail(err.error);
       return;
     }
 
-    const data = await res.json();
-    if (data.error) {
-      appendError(data.error);
-    } else {
-      appendAssistantMsg(data.answer, data.sources);
-      currentConversationId = data.conversation_id;
-      loadConversations();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data: /, "").trim();
+        if (!line) continue;
+        try { handleEvent(JSON.parse(line)); } catch {}
+      }
     }
+    if (!finished) fail("The connection ended before the answer finished.");
   } catch {
-    removeTyping();
-    appendError("Network error — please try again.");
+    if (!finished) fail("Network error — please try again.");
   } finally {
     sendBtn.disabled = !inputField.value.trim();
     inputField.focus();
