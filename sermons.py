@@ -108,6 +108,29 @@ def list_recent_videos(channel_id: str, limit: int = BACKFILL_COUNT) -> list[dic
 
 # ── Transcript + distillation ────────────────────────────────────────────────
 
+CAPTION_LANGUAGES = ["en", "en-US", "es"]
+
+
+def _caption_pieces(video_id: str) -> list[dict]:
+    """Caption pieces as {"start", "text"}, across library versions.
+
+    youtube-transcript-api 1.1 replaced the ``get_transcript`` classmethod with
+    an instance ``fetch`` returning objects rather than dicts. Both are handled
+    because the older releases stopped working against YouTube — which is how
+    every sermon came to be transcribed by the video fallback instead, with no
+    transcript stored and nothing to quote from.
+    """
+    from youtube_transcript_api import YouTubeTranscriptApi
+
+    if hasattr(YouTubeTranscriptApi, "fetch"):
+        fetched = YouTubeTranscriptApi().fetch(video_id, languages=CAPTION_LANGUAGES)
+        return [
+            {"start": getattr(s, "start", 0.0), "text": getattr(s, "text", "")}
+            for s in fetched
+        ]
+    return YouTubeTranscriptApi.get_transcript(video_id, languages=CAPTION_LANGUAGES)
+
+
 def fetch_captions(video_id: str):
     """Try YouTube captions. Returns (text, segments) or (None, None).
 
@@ -117,10 +140,7 @@ def fetch_captions(video_id: str):
     message it came from. Never raises.
     """
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        pieces = YouTubeTranscriptApi.get_transcript(
-            video_id, languages=["en", "en-US", "es"]
-        )
+        pieces = _caption_pieces(video_id)
         segments = [
             {"start": float(p.get("start") or 0.0), "text": p["text"].strip()}
             for p in pieces if p.get("text") and p["text"].strip()

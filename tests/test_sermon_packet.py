@@ -268,3 +268,189 @@ class TestFailureModes:
         with patch("sermon_packet.call_gemini", return_value=reply):
             result = packet.build_packet(sermon, church)
         assert [s["body"] for s in result["social"]] == ["Good one."]
+
+
+# ── Style examples and events ────────────────────────────────────────────────
+
+class TestTitleExamples:
+    def test_a_churchs_own_titles_become_the_style_sample(self, sermon, church):
+        """A back catalogue describes a church's titling better than any
+        setting it could be asked to fill in."""
+        for n, title in enumerate(["What Happens When We Fail God?",
+                                   "Why Does Prayer Feel Hard?"]):
+            db.session.add(Sermon(
+                source_id=sermon.source_id, church_id=church.id,
+                video_id=f"past{n}", title=title,
+                published_at=datetime(2026, 8, n + 1), status="ingested"))
+        db.session.commit()
+
+        with patch("sermon_packet.call_gemini", return_value=_model_reply()) as gem:
+            packet.build_packet(sermon, church)
+        prompt = gem.call_args.args[0]
+        assert "What Happens When We Fail God?" in prompt
+        assert "Why Does Prayer Feel Hard?" in prompt
+
+    def test_generic_service_recordings_are_not_used_as_examples(self, sermon, church):
+        """A feed half full of 'Traditional Service' would otherwise teach a
+        church that its house style is to name nothing."""
+        for n, title in enumerate(["Traditional Service", "Modern Service",
+                                   "Sunday Worship", "The Cost of Following"]):
+            db.session.add(Sermon(
+                source_id=sermon.source_id, church_id=church.id,
+                video_id=f"gen{n}", title=title,
+                published_at=datetime(2026, 7, n + 1), status="ingested"))
+        db.session.commit()
+
+        examples = packet.past_title_examples(church.id, exclude_id=sermon.id)
+        assert "The Cost of Following" in examples
+        for generic in ("Traditional Service", "Modern Service", "Sunday Worship"):
+            assert generic not in examples
+
+    def test_another_churchs_titles_are_never_used(self, sermon, church):
+        from models import Church
+        other = Church(name="Other", billing_exempt=True)
+        db.session.add(other); db.session.flush()
+        db.session.add(Sermon(
+            source_id=sermon.source_id, church_id=other.id, video_id="oth1",
+            title="A Title From Another Church", published_at=datetime(2026, 8, 1),
+            status="ingested"))
+        db.session.commit()
+        try:
+            assert "A Title From Another Church" not in packet.past_title_examples(church.id)
+        finally:
+            Sermon.query.filter_by(church_id=other.id).delete()
+            Church.query.filter_by(id=other.id).delete()
+            db.session.commit()
+
+
+class TestUpcomingEvents:
+    def test_events_in_the_window_reach_the_prompt(self, sermon, church):
+        from datetime import timedelta
+        from models import CalendarEvent, ChurchCalendar
+        cal = ChurchCalendar(church_id=church.id, url="https://x/c.ics", label="Main")
+        db.session.add(cal); db.session.flush()
+        db.session.add(CalendarEvent(
+            calendar_id=cal.id, church_id=church.id, title="Youth Cookout",
+            starts_at=datetime.utcnow() + timedelta(days=3), location="Fellowship Hall"))
+        db.session.commit()
+
+        with patch("sermon_packet.call_gemini", return_value=_model_reply()) as gem:
+            packet.build_packet(sermon, church)
+        # The prompt is wrapped, so phrases are matched against a
+        # whitespace-collapsed copy rather than the raw text.
+        prompt = " ".join(gem.call_args.args[0].split())
+        assert "Youth Cookout" in prompt
+        assert "Fellowship Hall" in prompt
+        assert "never invent a detail" in prompt
+
+    def test_events_beyond_the_window_are_left_out(self, sermon, church):
+        from datetime import timedelta
+        from models import CalendarEvent, ChurchCalendar
+        cal = ChurchCalendar(church_id=church.id, url="https://x/d.ics", label="Main")
+        db.session.add(cal); db.session.flush()
+        db.session.add(CalendarEvent(
+            calendar_id=cal.id, church_id=church.id, title="Christmas Eve Service",
+            starts_at=datetime.utcnow() + timedelta(days=90)))
+        db.session.commit()
+        assert "Christmas Eve Service" not in " ".join(packet.upcoming_events(church.id))
+
+
+class TestQuoteQuality:
+    def test_a_short_fragment_is_rejected(self):
+        """Eight-word floor: a shorter run is a clause, not a thought."""
+        assert not packet.verify_quote("It simply stays connected.", TRANSCRIPT)
+
+    def test_the_prompt_bans_press_release_phrasing(self, sermon, church):
+        """The phrases that make generated posts read like a description of a
+        video rather than a church talking to its people."""
+        with patch("sermon_packet.call_gemini", return_value=_model_reply()) as gem:
+            packet.build_packet(sermon, church)
+        prompt = " ".join(gem.call_args.args[0].split())
+        for banned in ("this message", "join us as we explore", "unpacks", "dives into"):
+            assert banned in prompt   # named as forbidden
+        assert "Write FROM the message, not ABOUT the video" in prompt
+
+
+class TestDisfluencies:
+    """Verbatim extraction preserves stutters and restarts intact. They are
+    genuinely what was said and genuinely unusable on a graphic, so they are
+    rejected rather than repaired — repairing would break the guarantee that
+    the words are exactly the preacher's."""
+
+    def test_a_stutter_is_rejected(self):
+        assert packet.has_disfluency(
+            "Pharaoh ordered that the baby boys of of the Israelites be killed.")
+
+    def test_a_restarted_phrase_is_rejected(self):
+        assert packet.has_disfluency(
+            "The prophets spent a lot of time to a lot of time calling the people back.")
+
+    def test_deliberate_repetition_is_kept(self):
+        """Rhetoric repeats words; a restart repeats a whole phrase."""
+        assert not packet.has_disfluency(
+            "A pattern of the Old Testament repeats itself over and over again today.")
+
+    def test_a_clean_sentence_passes(self):
+        assert not packet.has_disfluency(
+            "The branch does not strain to produce grapes it simply stays connected.")
+
+    def test_disfluent_quotes_never_reach_the_packet(self, sermon, church):
+        transcript = ("We are looking at the vine today. "
+                      "The branch does not not strain to produce grapes at all.")
+        sermon.transcript = transcript
+        db.session.commit()
+        reply = _model_reply(quotes=[
+            "The branch does not not strain to produce grapes at all."])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert result["quotes"] == []
+        assert result["quotes_rejected"] == 1
+
+
+class TestQuotationsInsidePosts:
+    """A quotation inside a social post is published exactly as widely as one
+    on a graphic, and the quotes-array filter did not cover it."""
+
+    def test_a_post_quoting_the_message_is_kept(self, sermon, church):
+        reply = _model_reply(social=[{
+            "platform": "facebook",
+            "body": 'Sunday: "The branch does not strain to produce grapes." What if rest is the point?',
+        }])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert len(result["social"]) == 1
+
+    def test_a_post_quoting_something_never_said_is_dropped(self, sermon, church):
+        reply = _model_reply(social=[{
+            "platform": "instagram",
+            "body": 'As we heard Sunday: "For the Lord is his strength and his shield."',
+        }])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert result["social"] == []
+        assert result["social_rejected"] == 1
+
+    def test_a_scare_quoted_word_is_not_treated_as_a_quotation(self, sermon, church):
+        reply = _model_reply(social=[{
+            "platform": "facebook",
+            "body": 'What does it mean to "abide"? Sunday looked at the vine.',
+        }])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert len(result["social"]) == 1
+
+    def test_curly_quotes_are_checked_too(self, sermon, church):
+        reply = _model_reply(social=[{
+            "platform": "facebook",
+            "body": '“Your breakthrough is coming to you this year.”',
+        }])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert result["social"] == []
+
+    def test_a_post_with_no_quotation_is_untouched(self, sermon, church):
+        reply = _model_reply(social=[{"platform": "facebook",
+                                      "body": "Rest is not laziness. Stay connected."}])
+        with patch("sermon_packet.call_gemini", return_value=reply):
+            result = packet.build_packet(sermon, church)
+        assert len(result["social"]) == 1
