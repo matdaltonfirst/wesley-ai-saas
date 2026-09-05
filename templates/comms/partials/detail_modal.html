@@ -43,16 +43,6 @@
 
   /* Badges row */
   .modal-badges { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
-  .mbadge { display:inline-flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:700; padding:4px 10px; border-radius:20px; letter-spacing:0.03em; text-transform:uppercase; }
-  .mbadge.red     { background:var(--danger-bg); color:var(--danger); }
-  .mbadge.yellow  { background:var(--warn-bg); color:var(--gold-ink); }
-  .mbadge.green   { background:var(--ok-bg); color:var(--ok); }
-  .mbadge.blue    { background:var(--cream); color:var(--ink-soft); }
-  .mbadge.tier    { background:var(--cream); color:var(--body); }
-  .mbadge.status-in_queue    { background:var(--cream); color:var(--body); }
-  .mbadge.status-in_progress { background:var(--teal-tint); color:var(--teal); }
-  .mbadge.status-completed   { background:var(--ok-bg); color:var(--ok); }
-  .mbadge.status-cancelled   { background:var(--cream); color:var(--faint); }
 
   /* Detail rows */
   .modal-section { margin-bottom:20px; }
@@ -137,10 +127,10 @@
       const statusClass = 'status-' + d.status;
 
       let badges = '';
-      if (d.triage_code) badges += `<span class="mbadge ${priorityClass}">${labelPriority(d.triage_code)}</span>`;
-      if (d.production_tier) badges += `<span class="mbadge tier">Tier ${d.production_tier}</span>`;
-      badges += `<span class="mbadge ${statusClass}">${labelStatus(d.status)}</span>`;
-      if (d.estimated_completion) badges += `<span class="mbadge tier">Est. ${d.estimated_completion}</span>`;
+      if (d.triage_code) badges += `<span class="pill ${priorityClass}">${labelPriority(d.triage_code)}</span>`;
+      if (d.production_tier) badges += `<span class="pill tier">Tier ${d.production_tier}</span>`;
+      badges += `<span class="pill ${statusClass}">${labelStatus(d.status)}</span>`;
+      if (d.estimated_completion) badges += `<span class="pill tier">Est. ${d.estimated_completion}</span>`;
 
       const dels = (d.deliverables || []).map(x => `<span class="del-tag">${x}</span>`).join('');
 

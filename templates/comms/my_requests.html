@@ -48,17 +48,10 @@
     .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
     .page-title { font-size:1.35rem; font-weight:700; color:var(--text); letter-spacing:-0.022em; }
     .page-subtitle { font-size:0.84rem; color:var(--text-muted); margin-top:4px; }
-    .page-header-btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#fff; border-radius: var(--r-pill); padding:9px 18px; font-size:0.86rem; font-weight: 700; text-decoration:none; transition:background 0.15s; white-space:nowrap;
-      font-family: var(--font-display);
-    }
-    .page-header-btn:hover { background:var(--accent-hover); }
 
     /* ── Request card grid ── */
     .request-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:16px; }
     @media (max-width:520px) { .request-grid { grid-template-columns:1fr; } }
-
-    .req-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:12px; }
-    .req-card:hover { border-color:#c4d0dc; }
 
     /* Card header */
     .req-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
@@ -67,19 +60,6 @@
 
     /* Badge row */
     .badge-row { display:flex; flex-wrap:wrap; gap:5px; }
-    .badge { display:inline-flex; align-items:center; font-size:0.6875rem; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; }
-    .badge.red     { background:var(--danger-bg); color:var(--danger); }
-    .badge.yellow  { background:var(--warn-bg); color:var(--gold-ink); }
-    .badge.green   { background:var(--ok-bg); color:var(--ok); }
-    .badge.blue    { background:var(--cream); color:var(--ink-soft); }
-    .badge.pending { background:var(--cream); color:var(--faint); }
-    .badge.tier    { background:var(--cream); color:var(--body); }
-    .badge.graphic { background:var(--teal-tint); color:#6d28d9; }
-    .badge.video   { background:#fce7f3; color:#9d174d; }
-    .badge.status-in_queue    { background:var(--cream); color:var(--body); }
-    .badge.status-in_progress { background:var(--teal-tint); color:var(--teal); }
-    .badge.status-completed   { background:var(--ok-bg); color:var(--ok); }
-    .badge.status-cancelled   { background:var(--cream); color:var(--faint); }
 
     /* Meta row */
     .req-meta { display:flex; flex-wrap:wrap; gap:10px; font-size:0.8125rem; color:var(--text-muted); }
@@ -104,14 +84,6 @@
 
     /* Card footer */
     .req-card-footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:4px; border-top:1px solid var(--cream); }
-    .btn-detail { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
-    .btn-detail:hover { border-color:var(--accent); color:var(--accent); background:var(--teal-tint); }
-    .btn-reevaluate { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid var(--teal-tint); color:var(--ink-soft); border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
-    .btn-reevaluate:hover { background:var(--teal-tint); }
-    .btn-reevaluate:disabled { opacity:0.5; cursor:not-allowed; }
-
-    /* Empty state */
-    .empty-state { text-align:center; padding:60px 20px; background:#fff; border:1px solid var(--border); border-radius:14px; }
         .empty-state-icon {
       width: 56px;
       height: 56px;
@@ -126,6 +98,10 @@
     .empty-state-icon .ico { width: 26px; height: 26px; }
     .empty-state-title { font-size:1.05rem; font-weight:600; color:var(--text); margin-bottom:7px; }
     .empty-state-sub { font-size:0.86rem; color:var(--text-muted); margin-bottom:20px; }
+  
+    /* Layout only — surface, border and elevation come from .card. */
+    .req-card    { display:flex; flex-direction:column; gap:12px; }
+    .empty-state { text-align:center; padding:60px 20px; }
   </style>
 </head>
 <body>
@@ -199,25 +175,25 @@
             <div class="page-title">My Requests</div>
             <div class="page-subtitle">{{ requests|length }} request{{ 's' if requests|length != 1 else '' }} submitted</div>
           </div>
-          <a href="/comms/new" class="page-header-btn">
+          <a href="/comms/new" class="btn btn--primary btn--sm">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             New Request
           </a>
         </div>
 
         {% if not requests %}
-        <div class="empty-state">
+        <div class="card empty-state">
           <div class="empty-state-icon"><svg class="ico"><use href="#i-clipboard"></use></svg></div>
           <div class="empty-state-title">No requests yet</div>
           <div class="empty-state-sub">Submit your first communications request and AI triage will handle the rest.</div>
-          <a href="/comms/new" class="page-header-btn" style="display:inline-flex;">Submit a Request</a>
+          <a href="/comms/new" class="btn btn--primary btn--sm" style="display:inline-flex;">Submit a Request</a>
         </div>
         {% else %}
         <div class="request-grid">
           {% for req in requests %}
           {% set event_date_iso = req.event_date.isoformat() %}
           {% set created_iso    = req.created_at.isoformat() %}
-          <div class="req-card">
+          <div class="card card--hover req-card">
 
             <!-- Header -->
             <div class="req-card-header">
@@ -228,19 +204,19 @@
             <!-- Badges -->
             <div class="badge-row">
               {% if req.triage_code %}
-              <span class="badge {{ req.triage_code }}">
+              <span class="pill pill--sm {{ req.triage_code }}">
                 {{ {'red':'Urgent','yellow':'High','green':'Normal','blue':'Low'}[req.triage_code] }}
               </span>
               {% else %}
-              <span class="badge pending">Pending Triage</span>
+              <span class="pill pill--sm pending">Pending Triage</span>
               {% endif %}
               {% if req.production_tier %}
-              <span class="badge tier">Tier {{ req.production_tier }}</span>
+              <span class="pill pill--sm tier">Tier {{ req.production_tier }}</span>
               {% endif %}
-              <span class="badge status-{{ req.status }}">
+              <span class="pill pill--sm status-{{ req.status }}">
                 {{ {'in_queue':'In Queue','in_progress':'In Progress','completed':'Completed','cancelled':'Cancelled'}[req.status] }}
               </span>
-              <span class="badge {{ req.request_type }}">{{ req.request_type|title }}</span>
+              <span class="pill pill--sm {{ req.request_type }}">{{ req.request_type|title }}</span>
             </div>
 
             <!-- Meta -->
@@ -308,12 +284,12 @@
 
             <!-- Card footer -->
             <div class="req-card-footer">
-              <button class="btn-detail" onclick="window._openDetailModal('{{ req.id }}')">
+              <button class="btn btn--ghost btn--xs" onclick="window._openDetailModal('{{ req.id }}')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 View Details
               </button>
               {% if not req.triage_code %}
-              <button class="btn-reevaluate" onclick="reEvaluate(this, '{{ req.id }}')" data-req-id="{{ req.id }}">
+              <button class="btn btn--outline btn--xs" onclick="reEvaluate(this, '{{ req.id }}')" data-req-id="{{ req.id }}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Run Triage
               </button>

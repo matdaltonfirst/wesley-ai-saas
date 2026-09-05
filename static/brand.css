@@ -25,6 +25,9 @@
   --teal-dark:      #1e8f97;
   --teal-tint:      #e7f5f6;
   --teal-line:      rgba(42, 173, 181, 0.32);
+  /* Legible teal for text and icons sitting on an ink surface. --teal-line is
+     a 32%-alpha border colour and fails badly when used as a text colour. */
+  --teal-on-ink:    #9fe3e8;
 
   /* Cream — warm neutrals. These are what stop the UI reading as generic
      dashboard grey; the brand's paper is warm, not blue-grey. */
@@ -245,8 +248,34 @@ h4 { font-size: 1rem;     letter-spacing: -0.01em; font-weight: 700; }
 }
 .btn--light:hover { background: rgba(255, 255, 255, 0.18); }
 
+/* Borderless text action — "Back", "Skip", "Cancel". Carries the same type
+   and rhythm as the other buttons without competing with the primary one. */
+.btn--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn--quiet:hover { background: var(--cream); color: var(--ink); }
+
+/* Outlined teal — a secondary action that still reads as the accent. */
+.btn--outline {
+  background: transparent;
+  border-color: var(--teal);
+  color: var(--teal-dark);
+}
+.btn--outline:hover { background: var(--teal-tint); border-color: var(--teal-dark); }
+
 .btn--danger       { background: var(--danger); color: var(--white); }
 .btn--danger:hover { background: #ab3a24; color: var(--white); }
+
+/* Destructive secondary — outlined rather than filled, so a dangerous action
+   is findable without shouting louder than the primary one beside it. */
+.btn--danger-ghost {
+  background: transparent;
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+.btn--danger-ghost:hover { background: var(--danger-bg); border-color: var(--danger); }
 
 .btn--sm  { padding: 9px 16px;  font-size: 0.82rem; }
 .btn--xs  { padding: 7px 13px;  font-size: 0.76rem; }
@@ -323,6 +352,26 @@ h4 { font-size: 1rem;     letter-spacing: -0.01em; font-weight: 700; }
 .pill--warn   { background: var(--warn-bg);   color: var(--gold-ink); }
 .pill--danger { background: var(--danger-bg); color: var(--danger); }
 .pill--ink    { background: var(--ink); color: var(--white); }
+.pill--sm { font-size: 0.66rem; padding: 3px 9px; letter-spacing: 0.06em; }
+
+/* ── Communications triage tones ──────────────────────────────────────────────
+   Priority, request type and production status are a shared vocabulary across
+   the Communications screens. They were previously redefined in three separate
+   templates, which is how "graphic" ended up purple-on-teal and "video" pink —
+   neither of which exists in the brand. */
+.pill.red     { background: var(--danger-bg);  color: var(--danger); }
+.pill.yellow  { background: var(--warn-bg);    color: var(--gold-ink); }
+.pill.green   { background: var(--ok-bg);      color: var(--ok); }
+.pill.blue    { background: var(--steel-tint); color: var(--steel); }
+.pill.pending { background: var(--cream);      color: var(--faint); }
+.pill.tier    { background: var(--cream);      color: var(--body); }
+.pill.graphic { background: var(--teal-tint);  color: var(--teal-dark); }
+.pill.video   { background: var(--steel-tint); color: var(--steel); }
+.pill.status-in_queue    { background: var(--cream);      color: var(--body); }
+.pill.status-in_progress { background: var(--teal-tint);  color: var(--teal-dark); }
+.pill.status-completed   { background: var(--ok-bg);      color: var(--ok); }
+.pill.status-cancelled   { background: var(--cream);      color: var(--faint); }
+
 .pill--dot::before {
   content: "";
   width: 6px; height: 6px;

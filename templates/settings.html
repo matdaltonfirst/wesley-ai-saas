@@ -306,19 +306,6 @@
       .db-sidebar-overlay.db-sidebar-open { display: block; }
       .db-panel { padding: 24px 16px 56px; }
     }
-
-    /* ══════════════════════════════════════════════
-       CARDS  (all original styles preserved)
-    ══════════════════════════════════════════════ */
-    .settings-card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-      transition: box-shadow 0.2s cubic-bezier(0.4,0,0.2,1);
-    }
     .settings-card-header {
       display: flex;
       align-items: center;
@@ -330,23 +317,6 @@
       font-weight: 600;
       color: var(--text);
     }
-
-    /* ── Upload button ── */
-    .upload-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--accent);
-      color: #fff;
-      border-radius: var(--r-pill);
-      padding: 7px 14px;
-      font-size: 0.82rem;
-      font-weight: 700;
-      font-family: var(--font-display);
-      cursor: pointer;
-      transition: background 0.18s cubic-bezier(0.4,0,0.2,1), box-shadow 0.18s cubic-bezier(0.4,0,0.2,1);
-    }
-    .upload-label:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(42,173,181,0.25); }
 
     /* ── Upload progress bar ── */
     .upload-progress {
@@ -423,7 +393,7 @@
     .doc-visibility-toggle {
       background: none;
       border: none;
-      color: var(--border);
+      color: var(--faint);
       cursor: pointer;
       padding: 5px;
       border-radius: 6px;
@@ -440,7 +410,7 @@
     .doc-delete-btn {
       background: none;
       border: none;
-      color: var(--border);
+      color: var(--faint);
       cursor: pointer;
       padding: 5px;
       border-radius: 6px;
@@ -469,22 +439,6 @@
       justify-content: flex-end;
       margin-top: 14px;
     }
-
-    .refresh-btn-sm {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-family: var(--font);
-      font-size: 0.8rem;
-      padding: 6px 12px;
-      cursor: pointer;
-      border-radius: 7px;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
-    }
-    .refresh-btn-sm:hover { color: var(--text); border-color: var(--accent); background: var(--surface); }
 
     /* ── Website / form fields ── */
     .website-field-label {
@@ -517,23 +471,6 @@
     }
     .website-url-input::placeholder { color: var(--faint); }
 
-    .website-save-btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      font-size: 0.85rem;
-      font-weight: 700;
-      font-family: var(--font-display);
-      padding: 9px 18px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.15s;
-      flex-shrink: 0;
-    }
-    .website-save-btn:hover { background: var(--accent-hover); }
-    .website-save-btn:disabled { background: var(--cream-deep); cursor: not-allowed; }
-
     .website-status {
       font-size: 0.82rem;
       color: var(--text-muted);
@@ -554,22 +491,6 @@
       gap: 8px;
     }
     .crawl-pages-count { font-size: 0.82rem; color: var(--text-muted); }
-    .crawl-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 0.82rem;
-      font-family: var(--font-display);
-      padding: 7px 14px;
-      border-radius: var(--r-pill);
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s, background 0.15s;
-    }
-    .crawl-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--teal-tint); }
-    .crawl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
 
     /* ── Embed code block ── */
@@ -584,23 +505,11 @@
       font-weight: 600;
       color: var(--text);
     }
-    .website-copy-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 6px;
-      padding: 5px 12px;
-      font-size: 0.8125rem;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .website-copy-btn:hover { background: var(--teal-tint); color: var(--accent); border-color: var(--accent); }
     .website-embed-code {
       background: var(--ink-deep);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
-      color: var(--teal-line);
+      color: var(--teal-on-ink);
       font-family: "SFMono-Regular", "Consolas", monospace;
       font-size: 0.8125rem;
       padding: 12px 14px;
@@ -699,22 +608,13 @@
       text-overflow: ellipsis;
     }
     .staff-meta { font-size: 0.73rem; color: var(--text-muted); margin-top: 1px; }
-    .staff-role-badge {
-      font-size: 0.67rem;
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 4px;
-      letter-spacing: 0.04em;
-      flex-shrink: 0;
-      text-transform: uppercase;
-    }
     .staff-role-badge.admin   { background: var(--ok-bg); color: var(--ok); }
     .staff-role-badge.staff   { background: var(--cream); color: var(--ink-soft); }
     .staff-role-badge.pending { background: var(--warn-bg); color: var(--gold-ink); }
     .staff-remove-btn {
       background: none;
       border: none;
-      color: var(--border);
+      color: var(--faint);
       cursor: pointer;
       padding: 5px;
       border-radius: 6px;
@@ -725,19 +625,6 @@
     }
     .staff-remove-btn { color: var(--text-muted) !important; }
     .staff-remove-btn:hover { color: var(--danger) !important; background: var(--danger-bg); }
-    .staff-resend-btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      flex-shrink: 0;
-      transition: color 0.15s, background 0.15s, border-color 0.15s;
-    }
-    .staff-resend-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--ok-bg); }
-    .staff-resend-btn:disabled { opacity: 0.5; cursor: default; }
     .staff-empty {
       padding: 34px 20px;
       font-size: 0.9rem;
@@ -912,21 +799,6 @@
       border-top: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .pg-save-btn {
-      width: 100%;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      font-size: 0.92rem;
-      font-weight: 700;
-      font-family: var(--font-display);
-      padding: 12px 0;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .pg-save-btn:hover { background: var(--accent-hover); }
-    .pg-save-btn:disabled { background: var(--cream-deep); cursor: not-allowed; }
     .pg-save-status {
       font-size: 0.8rem;
       margin-top: 8px;
@@ -1000,13 +872,6 @@
       margin-bottom: 4px;
     }
     @media (max-width: 700px) { .an-stat-grid { grid-template-columns: repeat(2, 1fr); } }
-    .an-stat-card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
     .an-stat-value {
       font-size: 1.75rem;
       font-weight: 700;
@@ -1139,15 +1004,6 @@
     .gc-table tr:last-child td { border-bottom: none; }
     .gc-name { font-weight: 600; color: var(--ink); }
     .gc-contact { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
-    .gc-badge {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
     .gc-badge-new       { background: var(--teal-tint); color: var(--teal-dark); }
     .gc-badge-contacted { background: var(--warn-bg); color: var(--gold-ink); }
     .gc-badge-connected { background: var(--ok-bg); color: var(--ok); }
@@ -1184,22 +1040,6 @@
       .gc-table th:nth-child(3), .gc-table td:nth-child(3),
       .gc-table th:nth-child(5), .gc-table td:nth-child(5) { display: none; }
     }
-
-    /* ── Data Sources shared ── */
-    .teal-btn {
-      background: var(--teal); color: #fff; border: none; border-radius: var(--r-pill);
-      padding: 8px 16px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
-      transition: background 0.15s;
-      font-family: var(--font-display);
-    }
-    .teal-btn:hover { background: var(--teal-dark); }
-    .cancel-btn {
-      background: var(--cream); color: var(--body); border: 1px solid var(--line);
-      border-radius: var(--r-pill); padding: 8px 16px; font-size: 0.82rem; font-weight: 700;
-      cursor: pointer; transition: background 0.15s;
-      font-family: var(--font-display);
-    }
-    .cancel-btn:hover { background: var(--line); }
     .ds-field-label {
       display: block; font-size: 0.8rem; font-weight: 600; color: var(--body);
       margin-bottom: 6px;
@@ -1222,40 +1062,16 @@
     }
     .ds-toggle-wrap input:checked + .ds-toggle-slider { background: var(--teal); }
     .ds-toggle-wrap input:checked + .ds-toggle-slider::before { transform: translateX(16px); }
-
-    /* ── Snippet cards ── */
-    .sn-card {
-      background: #fff; border: 1px solid var(--line); border-radius: 12px;
-      padding: 16px; display: flex; flex-direction: column; gap: 10px;
-      transition: opacity 0.2s;
-    }
     .sn-card.sn-inactive { opacity: 0.5; }
     .sn-card-title { font-weight: 700; font-size: 0.92rem; color: var(--ink); }
-    .sn-cat-badge {
-      display: inline-block; padding: 2px 9px; border-radius: 20px;
-      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.04em; background: var(--teal-tint); color: var(--teal-dark);
-    }
     .sn-preview { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
     .sn-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
     .sn-status { font-size: 0.72rem; font-weight: 600; }
     .sn-status-active  { color: var(--ok); }
     .sn-status-inactive { color: var(--faint); }
     .sn-actions { display: flex; gap: 6px; }
-    .sn-btn {
-      font-size: 0.75rem; font-weight: 600; border-radius: 6px; cursor: pointer;
-      padding: 4px 10px; border: 1px solid var(--line); background: var(--paper);
-      color: var(--body); transition: all 0.14s;
-    }
-    .sn-btn:hover { background: var(--line); }
     .sn-btn-del { color: var(--danger); border-color: var(--danger-line); background: #fff5f5; }
     .sn-btn-del:hover { background: var(--danger-bg); }
-
-    /* ── Q&A accordion ── */
-    .qna-item {
-      background: #fff; border: 1px solid var(--line); border-radius: 10px;
-      margin-bottom: 10px; overflow: hidden; transition: opacity 0.2s;
-    }
     .qna-item.qna-inactive { opacity: 0.5; }
     .qna-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -1279,7 +1095,6 @@
     .fb-filter-btn { border:1px solid var(--border);background:#fff;color:var(--muted);border-radius:7px;padding:7px 12px;font:600 0.75rem var(--font);cursor:pointer; }
     .fb-filter-btn.fb-filter-active { background:var(--teal-tint);border-color:#8fcbd0;color:var(--teal-dark); }
     .fb-list { display:flex;flex-direction:column;gap:12px; }
-    .fb-item { border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden; }
     .fb-item-head { display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--cream);background:var(--paper); }
     .fb-reason { font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--gold-ink);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:5px;padding:3px 6px; }
     .fb-date { margin-left:auto;font-size:0.72rem;color:var(--faint); }
@@ -1298,7 +1113,6 @@
     /* ── Event Calendars ── */
     .cal-warning { font-size:0.8rem;line-height:1.5;color:var(--gold-ink);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:10px 12px;margin:0 0 16px; }
     .cal-list { display:flex;flex-direction:column;gap:12px;margin-top:16px; }
-    .cal-item { border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden; }
     .cal-item-head { display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--paper);border-bottom:1px solid var(--cream); }
     .cal-item-title { font-size:0.86rem;font-weight:600;color:var(--ink); }
     .cal-item-meta { font-size:0.72rem;color:var(--faint); }
@@ -1313,9 +1127,6 @@
     .cal-event-when { color:var(--teal-dark);font-weight:600;white-space:nowrap; }
     .cal-event-title { color:var(--ink-soft); }
     .cal-event-loc { color:var(--faint); }
-
-    /* ── Sermons ── */
-    .ser-item { border:1px solid var(--border);border-radius:10px;background:#fff;padding:12px 14px;margin-bottom:10px; }
     .ser-title { font-size:0.86rem;font-weight:600;color:var(--ink); }
     .ser-meta { font-size:0.72rem;color:var(--faint);margin-top:2px; }
     .ser-status { font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-radius:5px;padding:3px 6px;margin-left:8px; }
@@ -1391,13 +1202,18 @@
       font-family:ui-monospace,Menlo,monospace; font-size:0.78rem; color:var(--ink);
       line-height:1.7; white-space:pre-wrap; overflow-x:auto;
     }
-    .pk-copy {
-      border:1px solid var(--line-strong); background:#fff; border-radius:6px; cursor:pointer;
-      font-size:0.72rem; color:#0c7a86; padding:4px 9px; margin-top:6px; white-space:nowrap;
-    }
-    .pk-copy:hover { background:var(--teal-tint); }
     .pk-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .pk-status { font-size:0.78rem; color:var(--muted); }
+  
+    /* Local geometry only — surface, border and elevation come from .card.
+       These list rows clip their inner header/body to the rounded corner, so
+       they drop the card's default padding. */
+    .settings-card { margin-bottom: 20px; }
+    .sn-card       { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+    .qna-item      { padding: 0; overflow: hidden; margin-bottom: 10px; border-radius: var(--r-md); }
+    .fb-item       { padding: 0; overflow: hidden; border-radius: var(--r-md); }
+    .cal-item      { padding: 0; overflow: hidden; border-radius: var(--r-md); }
+    .ser-item      { padding: 12px 14px; margin-bottom: 10px; border-radius: var(--r-md); }
   </style>
 </head>
 <body class="settings-page">
@@ -1678,10 +1494,10 @@
             the recording &mdash; anything the transcript didn&rsquo;t contain has already been removed.
           </p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="fb-filter-row">
             <span class="db-panel-subtitle" style="margin:0;" id="pkCount">&nbsp;</span>
-            <button class="refresh-btn-sm" id="pkRefreshBtn" style="margin-left:auto;">Refresh</button>
+            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="pkRefreshBtn" style="margin-left:auto;">Refresh</button>
           </div>
           <div id="pkList"><div class="an-empty">Loading&hellip;</div></div>
         </section>
@@ -1692,10 +1508,10 @@
           <h1 class="db-panel-title">Chat Logs</h1>
           <p class="db-panel-subtitle">Conversations started from your public website widget.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Website Conversations</h2>
-            <button class="refresh-btn-sm" id="wconvRefreshBtn">
+            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="wconvRefreshBtn">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -1718,21 +1534,21 @@
 
         <!-- Stat cards -->
         <div class="an-stat-grid" id="gcStatGrid">
-          <div class="an-stat-card">
+          <div class="stat an-stat-card">
             <div class="an-stat-value an-loading" id="gcStatNew">—</div>
             <div class="an-stat-label">New</div>
           </div>
-          <div class="an-stat-card">
+          <div class="stat an-stat-card">
             <div class="an-stat-value an-loading" id="gcStatContacted">—</div>
             <div class="an-stat-label">Contacted</div>
           </div>
-          <div class="an-stat-card">
+          <div class="stat an-stat-card">
             <div class="an-stat-value an-loading" id="gcStatConnected">—</div>
             <div class="an-stat-label">Connected</div>
           </div>
         </div>
 
-        <section class="settings-card">
+        <section class="card settings-card">
           <!-- Filter tabs -->
           <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
             <button class="gc-filter-btn gc-filter-active" data-filter="">All</button>
@@ -1753,17 +1569,17 @@
           <p class="db-panel-subtitle">Review answers visitors marked as unhelpful and publish corrections to Q&amp;A.</p>
         </div>
         <div class="an-stat-grid" id="feedbackStats">
-          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatOpen">—</div><div class="an-stat-label">Needs Review</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatHelpful">—</div><div class="an-stat-label">Helpful</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatNotHelpful">—</div><div class="an-stat-label">Not Helpful</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading" id="fbStatCorrected">—</div><div class="an-stat-label">Corrected</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading" id="fbStatOpen">—</div><div class="an-stat-label">Needs Review</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading" id="fbStatHelpful">—</div><div class="an-stat-label">Helpful</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading" id="fbStatNotHelpful">—</div><div class="an-stat-label">Not Helpful</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading" id="fbStatCorrected">—</div><div class="an-stat-label">Corrected</div></div>
         </div>
-        <section class="settings-card" style="margin-top:20px;">
+        <section class="card settings-card" style="margin-top:20px;">
           <div class="fb-filter-row">
             <button class="fb-filter-btn fb-filter-active" data-status="open">Needs Review</button>
             <button class="fb-filter-btn" data-status="corrected">Corrected</button>
             <button class="fb-filter-btn" data-status="dismissed">Dismissed</button>
-            <button class="refresh-btn-sm" id="feedbackRefreshBtn" style="margin-left:auto;">Refresh</button>
+            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="feedbackRefreshBtn" style="margin-left:auto;">Refresh</button>
           </div>
           <div class="fb-list" id="feedbackList"><div class="an-empty">Loading…</div></div>
         </section>
@@ -1776,26 +1592,26 @@
           <p class="db-panel-subtitle">Conversation activity from your public website widget.</p>
         </div>
         <div class="an-stat-grid" id="analyticsChatsCards">
-          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">This month</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">All time</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Avg messages / convo</div></div>
-          <div class="an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Most active day (7 days)</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">This month</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">All time</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Avg messages / convo</div></div>
+          <div class="stat an-stat-card"><div class="an-stat-value an-loading">—</div><div class="an-stat-label">Most active day (7 days)</div></div>
         </div>
-        <section class="settings-card" style="margin-top:20px;">
+        <section class="card settings-card" style="margin-top:20px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Conversations by Day</h2>
             <span style="font-size:0.75rem;color:#94a3b8;">Last 30 days</span>
           </div>
           <div class="an-chart-wrap"><canvas id="chartDailyConvs"></canvas></div>
         </section>
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Peak Hours</h2>
             <span style="font-size:0.75rem;color:#94a3b8;">All time, by hour of day</span>
           </div>
           <div class="an-chart-wrap"><canvas id="chartPeakHours"></canvas></div>
         </section>
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Recent Conversations</h2>
           </div>
@@ -1809,13 +1625,13 @@
           <h1 class="db-panel-title">Topic Analysis</h1>
           <p class="db-panel-subtitle">What are visitors asking about most? Auto-categorized from opening questions.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Topic Distribution</h2>
           </div>
           <div class="an-donut-wrap"><canvas id="chartTopics"></canvas></div>
         </section>
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Top Categories</h2>
           </div>
@@ -1830,13 +1646,13 @@
           <p class="db-panel-subtitle">Conversations where the bot may not have had enough information to answer confidently.</p>
         </div>
         <div id="sentimentSummary"><div class="an-empty">Loading…</div></div>
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Conversations Needing Attention</h2>
           </div>
           <div id="sentimentTable"><div class="an-empty">Loading…</div></div>
         </section>
-        <section class="settings-card" style="margin-top:16px;" id="sentimentSuggestions"></section>
+        <section class="card settings-card" style="margin-top:16px;" id="sentimentSuggestions"></section>
       </div>
 
       <!-- ── Knowledge Guide ── -->
@@ -1860,11 +1676,11 @@
             <h1 class="db-panel-title">Text Snippets</h1>
             <p class="db-panel-subtitle">Add information your documents don't cover. The bot draws from these to answer visitor questions.</p>
           </div>
-          <button class="teal-btn" id="snippetAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Snippet</button>
+          <button class="btn btn--primary btn--sm teal-btn" id="snippetAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Snippet</button>
         </div>
 
         <!-- Add / Edit form (hidden by default) -->
-        <section class="settings-card" id="snippetFormCard" style="display:none;margin-bottom:20px;">
+        <section class="card settings-card" id="snippetFormCard" style="display:none;margin-bottom:20px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title" id="snippetFormTitle">New Snippet</h2>
           </div>
@@ -1902,8 +1718,8 @@
             </div>
           </div>
           <div style="display:flex;gap:10px;margin-top:4px;">
-            <button class="teal-btn" id="snippetSaveBtn">Save</button>
-            <button class="cancel-btn" id="snippetCancelBtn">Cancel</button>
+            <button class="btn btn--primary btn--sm teal-btn" id="snippetSaveBtn">Save</button>
+            <button class="btn btn--quiet btn--sm cancel-btn" id="snippetCancelBtn">Cancel</button>
           </div>
           <div id="snippetFormMsg" style="margin-top:10px;font-size:0.82rem;"></div>
         </section>
@@ -1921,11 +1737,11 @@
             <h1 class="db-panel-title">Q&amp;A</h1>
             <p class="db-panel-subtitle">Set exact answers to common questions. When someone asks something similar, the bot uses your answer every time.</p>
           </div>
-          <button class="teal-btn" id="qnaAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Q&amp;A</button>
+          <button class="btn btn--primary btn--sm teal-btn" id="qnaAddBtn" style="white-space:nowrap;margin-top:4px;">+ Add Q&amp;A</button>
         </div>
 
         <!-- Add / Edit form -->
-        <section class="settings-card" id="qnaFormCard" style="display:none;margin-bottom:20px;">
+        <section class="card settings-card" id="qnaFormCard" style="display:none;margin-bottom:20px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title" id="qnaFormTitle">New Q&amp;A</h2>
           </div>
@@ -1948,8 +1764,8 @@
             </div>
           </div>
           <div style="display:flex;gap:10px;margin-top:4px;">
-            <button class="teal-btn" id="qnaSaveBtn">Save</button>
-            <button class="cancel-btn" id="qnaCancelBtn">Cancel</button>
+            <button class="btn btn--primary btn--sm teal-btn" id="qnaSaveBtn">Save</button>
+            <button class="btn btn--quiet btn--sm cancel-btn" id="qnaCancelBtn">Cancel</button>
           </div>
           <div id="qnaFormMsg" style="margin-top:10px;font-size:0.82rem;"></div>
         </section>
@@ -1966,10 +1782,10 @@
           <h1 class="db-panel-title">Files</h1>
           <p class="db-panel-subtitle">Upload PDFs and DOCX files to give your bot additional knowledge.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Documents</h2>
-            <label class="upload-label" for="fileUpload">
+            <label class="btn btn--primary btn--sm upload-label" for="fileUpload">
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <line x1="7" y1="1" x2="7" y2="13"/>
                 <line x1="1" y1="7" x2="13" y2="7"/>
@@ -1983,7 +1799,7 @@
             <div class="doc-empty-full">Loading…</div>
           </div>
           <div class="card-footer-row">
-            <button class="refresh-btn-sm" id="refreshBtn">
+            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="refreshBtn">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -2000,7 +1816,7 @@
           <h1 class="db-panel-title">Website</h1>
           <p class="db-panel-subtitle">Crawl your church website so the widget chatbot can answer questions from it.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Website Chatbot</h2>
           </div>
@@ -2014,14 +1830,14 @@
               autocomplete="off"
               spellcheck="false"
             />
-            <button class="website-save-btn" id="websiteSaveBtn">Save</button>
+            <button class="btn btn--primary btn--sm website-save-btn" id="websiteSaveBtn">Save</button>
           </div>
           <div class="website-status" id="websiteStatus">Loading…</div>
           <!-- Shown once a URL is saved -->
           <div id="websiteCrawlSection" style="display:none">
             <div class="crawl-row">
               <span class="crawl-pages-count" id="crawlPagesCount"></span>
-              <button class="crawl-btn" id="crawlBtn">
+              <button class="btn btn--ghost btn--sm crawl-btn" id="crawlBtn">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
                   <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -2039,7 +1855,7 @@
           <h1 class="db-panel-title">Event Calendars</h1>
           <p class="db-panel-subtitle">Connect public calendar feeds so Wesley always knows what's coming up — no re-crawling, never stale.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Connected Calendars</h2>
           </div>
@@ -2057,7 +1873,7 @@
               autocomplete="off"
               spellcheck="false"
             />
-            <button class="website-save-btn" id="calendarAddBtn">Connect</button>
+            <button class="btn btn--primary btn--sm website-save-btn" id="calendarAddBtn">Connect</button>
           </div>
           <div class="website-status" id="calendarStatus">
             In Google Calendar: Settings → your calendar → Integrate calendar → "Public address in iCal format".
@@ -2073,7 +1889,7 @@
           <h1 class="db-panel-title">Sermons</h1>
           <p class="db-panel-subtitle">Connect your YouTube channel so Wesley can answer questions about your messages.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">YouTube Channel</h2>
           </div>
@@ -2087,7 +1903,7 @@
           <h1 class="db-panel-title">Embed Code</h1>
           <p class="db-panel-subtitle">Add the Wesley AI widget to your church website with one line of code.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Website Widget</h2>
           </div>
@@ -2097,7 +1913,7 @@
           </p>
           <div class="embed-block-header">
             <span class="embed-block-title">Embed snippet</span>
-            <button class="website-copy-btn" id="copyEmbedBtn">Copy</button>
+            <button class="btn btn--ghost btn--xs website-copy-btn" id="copyEmbedBtn">Copy</button>
           </div>
           <div class="website-embed-code" id="embedCode" title="Click to select all">&lt;script src="https://app.wesleyai.co/widget.js" data-church-id="{{ church_id }}"&gt;&lt;/script&gt;</div>
         </section>
@@ -2155,7 +1971,7 @@
             </div><!-- /.pg-fields -->
 
             <div class="pg-save-row">
-              <button class="pg-save-btn" id="pgSaveBtn">Save Changes</button>
+              <button class="btn btn--primary btn--block pg-save-btn" id="pgSaveBtn">Save Changes</button>
               <div class="pg-save-status" id="pgStatus"></div>
             </div>
           </div><!-- /.pg-left -->
@@ -2181,14 +1997,14 @@
           </p>
         </div>
 
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Denominational Profile</h2>
           </div>
           <div id="thProfileBody"><div class="an-empty">Loading…</div></div>
         </section>
 
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Local Practices</h2>
           </div>
@@ -2200,12 +2016,12 @@
           </p>
           <div id="thPracticeFields" style="display:grid;gap:14px;"></div>
           <div style="display:flex;gap:10px;margin-top:16px;">
-            <button class="teal-btn" id="thPracticeSave">Save local practices</button>
+            <button class="btn btn--primary btn--sm teal-btn" id="thPracticeSave">Save local practices</button>
           </div>
           <div id="thPracticeMsg" class="website-status"></div>
         </section>
 
-        <section class="settings-card" style="margin-top:16px;">
+        <section class="card settings-card" style="margin-top:16px;">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Approved Theological Q&amp;A</h2>
           </div>
@@ -2216,7 +2032,7 @@
           </p>
           <div id="thQnaSummary" class="website-status"></div>
           <div style="margin-top:12px;">
-            <button class="cancel-btn" id="thQnaLink">Manage Q&amp;A →</button>
+            <button class="btn btn--quiet btn--sm cancel-btn" id="thQnaLink">Manage Q&amp;A →</button>
           </div>
         </section>
       </div>
@@ -2228,7 +2044,7 @@
           <h1 class="db-panel-title">Integrations</h1>
           <p class="db-panel-subtitle">Connect the tools your church already uses.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Planning Center</h2>
           </div>
@@ -2248,10 +2064,10 @@
           <h1 class="db-panel-title">Team</h1>
           <p class="db-panel-subtitle">Invite staff members to access the dashboard.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Team Members</h2>
-            <button class="refresh-btn-sm" id="staffRefreshBtn">
+            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="staffRefreshBtn">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -2264,7 +2080,7 @@
           </div>
           <div class="staff-invite-row">
             <input type="email" id="staffInviteEmail" class="website-url-input" placeholder="colleague@church.org" autocomplete="off" spellcheck="false"/>
-            <button class="website-save-btn" id="staffInviteBtn">Send Invite</button>
+            <button class="btn btn--primary btn--sm website-save-btn" id="staffInviteBtn">Send Invite</button>
           </div>
           <div class="website-status" id="staffInviteStatus"></div>
         </section>
@@ -2278,7 +2094,7 @@
           <h1 class="db-panel-title">Subscription</h1>
           <p class="db-panel-subtitle">Manage your billing, payment method, and invoices.</p>
         </div>
-        <section class="settings-card">
+        <section class="card settings-card">
           <div class="settings-card-header">
             <h2 class="settings-card-title">Billing</h2>
           </div>
@@ -2329,7 +2145,7 @@
             '<div class="staff-email">' + u.email + '</div>' +
             '<div class="staff-meta">Joined ' + new Date(u.created_at).toLocaleDateString() + '</div>' +
           '</div>' +
-          '<span class="staff-role-badge ' + u.role + '">' + u.role + '</span>' +
+          '<span class="pill pill--sm staff-role-badge ' + u.role + '">' + u.role + '</span>' +
           (u.role === 'staff'
             ? '<button class="staff-remove-btn" data-id="' + u.id + '" title="Remove staff member">' +
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
@@ -2346,8 +2162,8 @@
             '<div class="staff-email">' + inv.email + '</div>' +
             '<div class="staff-meta">Invite sent ' + new Date(inv.created_at).toLocaleDateString() + '</div>' +
           '</div>' +
-          '<span class="staff-role-badge pending">Pending</span>' +
-          '<button class="staff-resend-btn" data-id="' + inv.id + '">Resend</button>' +
+          '<span class="pill pill--sm staff-role-badge pending">Pending</span>' +
+          '<button class="btn btn--ghost btn--xs staff-resend-btn" data-id="' + inv.id + '">Resend</button>' +
           '<button class="staff-remove-btn staff-cancel-btn" data-id="' + inv.id + '" title="Cancel invite">' +
             '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
           '</button>';
@@ -2610,15 +2426,15 @@
       }
       if (gc.pco_sync_status === 'syncing' || gc.pco_sync_status === 'pending') {
         return '<span style="font-size:0.75rem;color:#64748b;">Pending</span> ' +
-          '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync now</button>';
+          '<button class="btn btn--ghost btn--xs gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync now</button>';
       }
       if (gc.pco_sync_error || gc.pco_sync_status === 'partial' || gc.pco_sync_status === 'failed') {
         var state = gc.pco_person_id ? 'Partial' : 'Failed';
         return '<span title="' + esc(gc.pco_sync_error) + '" style="cursor:help;font-size:0.75rem;color:#b91c1c;">' + state + '</span> ' +
-          '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Retry</button>';
+          '<button class="btn btn--ghost btn--xs gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Retry</button>';
       }
       if (allData && allData.pco_connected) {
-        return '<button class="gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync</button>';
+        return '<button class="btn btn--ghost btn--xs gc-pco-retry refresh-btn-sm" data-id="' + gc.id + '">Sync</button>';
       }
       return '<span style="color:#cbd5e0;font-size:0.75rem;">—</span>';
     }
@@ -2726,7 +2542,7 @@
         '<div class="website-field-label">Denominational affiliation</div>' +
         '<div class="website-url-row">' +
           '<select id="thDenomSelect" class="website-url-input">' + options + '</select>' +
-          '<button class="website-save-btn" id="thDenomSave">Save</button>' +
+          '<button class="btn btn--primary btn--sm website-save-btn" id="thDenomSave">Save</button>' +
         '</div>' +
         '<p style="font-size:0.8rem;color:#64748b;line-height:1.55;margin:10px 0 0;">' +
           'Changing this changes every theological answer Wesley gives — in the ' +

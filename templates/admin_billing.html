@@ -16,7 +16,7 @@
     .ph-brand { display: flex; align-items: center; gap: 12px; }
     .ph-badge {
       background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
-      color: var(--teal-line); font-size: 0.7rem; font-weight: 700;
+      color: #9fe3e8; font-size: 0.7rem; font-weight: 700;
       letter-spacing: 0.08em; text-transform: uppercase;
       padding: 3px 8px; border-radius: 4px;
     }
@@ -29,19 +29,14 @@
     .admin-nav-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
     .admin-nav-tab.active { color: #fff; background: rgba(255,255,255,0.13); }
     .back-link {
-      color: var(--teal-line); font-size: 0.82rem; text-decoration: none;
+      color: var(--teal-on-ink); font-size: 0.82rem; text-decoration: none;
       display: flex; align-items: center; gap: 5px; margin-left: auto;
     }
     .back-link:hover { color: #fff; }
     .container { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
-
-    /* Table card */
-    .card { background: #fff; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
     .card-header { padding: 18px 24px; border-bottom: 1px solid var(--cream); display: flex; align-items: center; gap: 12px; }
     .card-header h2 { font-size: 0.95rem; font-weight: 700; color: var(--ink); }
     .card-header span { font-size: 0.78rem; color: var(--faint); margin-left: auto; }
-    .refresh-btn { background: var(--cream); border: 1px solid var(--line); border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: var(--body); }
-    .refresh-btn:hover { background: var(--line); }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
     th { text-align: left; padding: 10px 14px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); border-bottom: 1px solid var(--cream); white-space: nowrap; }
@@ -52,19 +47,13 @@
     /* Church name cell */
     .ch-name { font-weight: 700; color: var(--ink); }
     .ch-email { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
-
-    /* Status badges */
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
     .badge-active        { background: var(--ok-bg); color: var(--ok); }
-    .badge-expiring      { background: #fef3c7; color: var(--gold-ink); }
+    .badge-expiring      { background: var(--warn-bg); color: var(--gold-ink); }
     .badge-expired       { background: var(--danger-bg); color: var(--danger); }
     .badge-no-sub        { background: var(--cream); color: var(--muted); }
     .badge-stripe        { background: var(--cream); color: var(--ink-soft); }
     .badge-manual        { background: var(--teal-tint); color: var(--ink-soft); }
     .badge-none          { background: var(--cream); color: var(--muted); }
-
-    /* Action buttons */
-    .act-btn { display: inline-block; padding: 5px 11px; border-radius: 6px; font-size: 0.73rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; margin: 2px 2px 2px 0; white-space: nowrap; transition: all 0.14s; }
     .act-btn-teal  { background: var(--teal); color: #fff; border-color: var(--teal); }
     .act-btn-teal:hover  { background: var(--teal-dark); }
     .act-btn-amber { background: var(--warn); color: #fff; border-color: var(--warn); }
@@ -87,18 +76,15 @@
     .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--teal); }
     .form-note { grid-column: 1 / -1; }
     .form-actions { display: flex; gap: 8px; }
-    .save-btn { background: var(--teal); color: #fff; border: none; border-radius: var(--r-pill); padding: 8px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
-      font-family: var(--font-display);
-    }
-    .save-btn:hover { background: var(--teal-dark); }
-    .cancel-btn { background: var(--cream); color: var(--body); border: 1px solid var(--line); border-radius: 7px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-    .cancel-btn:hover { background: var(--line); }
     .form-msg { font-size: 0.78rem; margin-top: 8px; }
 
     .invite-status { font-size: 0.76rem; color: var(--muted); }
     .invite-sent   { color: var(--ok); }
     .empty-state   { text-align: center; padding: 40px; color: var(--faint); font-size: 0.875rem; }
     .loading-row td { text-align: center; padding: 32px; color: var(--faint); }
+  
+    /* The billing table clips its corners against the card edge. */
+    .card { overflow: hidden; padding: 0; }
   </style>
 </head>
 <body>
@@ -130,7 +116,7 @@
   <div class="card">
     <div class="card-header">
       <h2>All Church Accounts</h2>
-      <button class="refresh-btn" onclick="loadTable()">↻ Refresh</button>
+      <button class="btn btn--ghost btn--xs" onclick="loadTable()">↻ Refresh</button>
       <span id="tableSubtitle"></span>
     </div>
     <div style="overflow-x:auto;">
@@ -177,7 +163,7 @@ function statusBadge(status) {
     no_sub:        ["No Sub",        "badge-no-sub"],
   };
   var info = map[status] || ["Unknown", "badge-none"];
-  return `<span class="badge ${info[1]}">${info[0]}</span>`;
+  return `<span class="pill pill--sm ${info[1]}">${info[0]}</span>`;
 }
 
 function billingBadge(type) {
@@ -187,7 +173,7 @@ function billingBadge(type) {
     none:   ["None",    "badge-none"],
   };
   var info = map[type] || ["—", "badge-none"];
-  return `<span class="badge ${info[1]}">${info[0]}</span>`;
+  return `<span class="pill pill--sm ${info[1]}">${info[0]}</span>`;
 }
 
 function inviteCell(c) {
@@ -205,25 +191,25 @@ function actionsCell(c) {
 
   // Mark as Manually Paid — for no_sub or expired
   if (c.status === "no_sub" || c.status === "expired") {
-    btns += `<button class="act-btn act-btn-teal" onclick="openForm(${c.id})">Mark as Manually Paid</button>`;
+    btns += `<button class="btn btn--ghost btn--xs act-btn act-btn-teal" onclick="openForm(${c.id})">Mark as Manually Paid</button>`;
   }
 
   // Stripe invite — manual billing, days_remaining <= 60
   if (c.billing_type === "manual" && (c.days_remaining === null || c.days_remaining <= 60)) {
     var label = c.stripe_invite_sent ? "Resend Invite" : "Send Stripe Invite";
     var cls   = c.stripe_invite_sent ? "act-btn-amber" : "act-btn-teal";
-    btns += `<button class="act-btn ${cls}" onclick="sendInvite(${c.id})">` + esc(label) + `</button>`;
+    btns += `<button class="btn btn--ghost btn--xs act-btn ${cls}" onclick="sendInvite(${c.id})">` + esc(label) + `</button>`;
   }
 
   // Revoke — manual payment active
   if (c.manual_payment_active) {
-    btns += `<button class="act-btn act-btn-red" onclick="revokeManual(${c.id})">Revoke</button>`;
+    btns += `<button class="btn btn--ghost btn--xs act-btn act-btn-red" onclick="revokeManual(${c.id})">Revoke</button>`;
   }
 
   // View in Stripe
   if (c.stripe_customer_id) {
     var stripeUrl = "https://dashboard.stripe.com/customers/" + esc(c.stripe_customer_id);
-    btns += `<a class="act-btn act-btn-gray" href="${stripeUrl}" target="_blank" rel="noopener">View in Stripe →</a>`;
+    btns += `<a class="btn btn--ghost btn--xs act-btn act-btn-gray" href="${stripeUrl}" target="_blank" rel="noopener">View in Stripe →</a>`;
   }
 
   return btns || `<span style="color:#94a3b8;font-size:0.75rem;">—</span>`;
@@ -282,8 +268,8 @@ function renderTable() {
             </div>
           </div>
           <div class="form-actions">
-            <button class="save-btn" onclick="savePaid(${c.id})">Save</button>
-            <button class="cancel-btn" onclick="closeForm(${c.id})">Cancel</button>
+            <button class="btn btn--primary btn--sm" onclick="savePaid(${c.id})">Save</button>
+            <button class="btn btn--quiet btn--sm" onclick="closeForm(${c.id})">Cancel</button>
           </div>
           <div class="form-msg" id="fm-${c.id}"></div>
         </td>

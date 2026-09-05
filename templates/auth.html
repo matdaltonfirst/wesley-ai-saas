@@ -118,31 +118,6 @@
       box-shadow: 0 0 0 3px var(--accent-ring);
     }
     input::placeholder { color: var(--faint); }
-    .submit-btn {
-      width: 100%;
-      padding: 15px;
-      background: var(--teal);
-      color: var(--white);
-      border: none;
-      border-radius: var(--r-pill);
-      font-family: var(--font-display);
-      font-size: 0.95rem;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 10px;
-      box-shadow: var(--shadow-teal);
-      transition: background var(--duration) var(--ease),
-                  transform 0.1s var(--ease),
-                  box-shadow var(--duration) var(--ease);
-    }
-    .submit-btn:hover:not(:disabled) { background: var(--teal-dark); transform: translateY(-2px); }
-    .submit-btn:active:not(:disabled) { transform: translateY(0); }
-    .submit-btn:disabled {
-      background: var(--cream-deep);
-      color: var(--muted);
-      box-shadow: none;
-      cursor: not-allowed;
-    }
 
     /* Loading spinner inside button */
     .submit-btn .spinner {
@@ -220,6 +195,8 @@
       .auth-card { padding: 26px 22px 24px; border-radius: var(--r-lg); }
       input      { font-size: 1rem; }
     }
+  
+    .submit-btn { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -252,7 +229,7 @@
         <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" />
       </div>
       <div class="forgot-link"><a href="/forgot-password">Forgot password?</a></div>
-      <button class="submit-btn" id="loginBtn">Sign In</button>
+      <button class="btn btn--primary btn--lg btn--block submit-btn" id="loginBtn">Sign In</button>
       <div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>
     </div>
 
@@ -271,7 +248,7 @@
         <label for="signupPassword">Password</label>
         <input type="password" id="signupPassword" placeholder="At least 8 characters" autocomplete="new-password" />
       </div>
-      <button class="submit-btn" id="signupBtn">Create Account</button>
+      <button class="btn btn--primary btn--lg btn--block submit-btn" id="signupBtn">Create Account</button>
       <div class="switch-link">Already have an account? <a href="/login">Sign in</a></div>
     </div>
 

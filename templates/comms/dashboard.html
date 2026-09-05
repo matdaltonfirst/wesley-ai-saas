@@ -88,9 +88,6 @@
     /* ── Action cards ── */
     .action-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
     @media (max-width:700px) { .action-grid { grid-template-columns:1fr; } }
-
-    .action-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:12px; text-decoration:none; color:inherit; transition:border-color 0.15s, box-shadow 0.15s, transform 0.12s; }
-    .action-card:hover { border-color:var(--accent); box-shadow:0 4px 12px rgba(42,173,181,0.1); transform:translateY(-1px); }
     .action-card-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
     /* One tile treatment, three roles: teal for the primary action, ink for
        neutral navigation. Three unrelated pastel tints read as three unrelated
@@ -106,6 +103,8 @@
     .stats-row { display:flex; gap:20px; flex-wrap:wrap; }
     .stat-pill { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 16px; font-size:0.875rem; color:var(--text-muted); }
     .stat-pill strong { color:var(--text); font-weight:700; font-size:1rem; }
+  
+    .action-card { display:flex; flex-direction:column; gap:12px; text-decoration:none; }
   </style>
 </head>
 <body>
@@ -253,7 +252,7 @@
 
         <!-- Action cards -->
         <div class="action-grid">
-          <a href="/comms/new" class="action-card">
+          <a href="/comms/new" class="card card--hover action-card">
             <div class="action-card-icon teal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
@@ -263,7 +262,7 @@
             <div class="action-card-desc">Submit a graphics or video production request. AI triage assigns priority automatically.</div>
             <div class="action-card-cta">Submit request →</div>
           </a>
-          <a href="/comms/my-requests" class="action-card">
+          <a href="/comms/my-requests" class="card card--hover action-card">
             <div class="action-card-icon navy">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -274,7 +273,7 @@
             <div class="action-card-cta">View my requests →</div>
           </a>
           {% if user_role == 'admin' %}
-          <a href="/comms/admin" class="action-card">
+          <a href="/comms/admin" class="card card--hover action-card">
             <div class="action-card-icon purple">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -286,7 +285,7 @@
             <div class="action-card-cta">Open queue →</div>
           </a>
           {% else %}
-          <div class="action-card" style="opacity:0.5; pointer-events:none; cursor:default;">
+          <div class="card card--hover action-card" style="opacity:0.5; pointer-events:none; cursor:default;">
             <div class="action-card-icon purple">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>

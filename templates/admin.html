@@ -49,7 +49,7 @@
     .admin-badge {
       background: rgba(255,255,255,0.12);
       border: 1px solid rgba(255,255,255,0.18);
-      color: var(--teal-line);
+      color: var(--teal-on-ink);
       font-size: 0.7rem;
       font-weight: 700;
       letter-spacing: 0.08em;
@@ -77,7 +77,7 @@
     .admin-nav-tab.active { color: #fff; background: rgba(255,255,255,0.13); }
 
     .back-link {
-      color: var(--teal-line);
+      color: var(--teal-on-ink);
       font-size: 0.82rem;
       text-decoration: none;
       display: flex;
@@ -95,19 +95,6 @@
       display: flex;
       flex-direction: column;
       gap: 28px;
-    }
-
-    /* ── Card ── */
-    .admin-card {
-      background: #fff;
-      border: 1px solid rgba(42,173,181,0.12);
-      border-radius: 16px;
-      padding: 28px 32px;
-      box-shadow: 0 4px 20px rgba(18,35,58,0.07);
-      transition: box-shadow var(--duration) var(--ease);
-    }
-    .admin-card:hover {
-      box-shadow: 0 8px 28px rgba(18,35,58,0.1);
     }
     .card-title {
       font-size: 1.1rem;
@@ -176,27 +163,6 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 3px var(--accent-ring);
     }
-    .refresh-btn {
-      padding: 8px 16px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      font-size: 0.83rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background var(--duration) var(--ease), box-shadow var(--duration) var(--ease), transform 0.1s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-display);
-    }
-    .refresh-btn:hover {
-      background: var(--accent-hover);
-      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
-    }
-    .refresh-btn:active { transform: scale(0.98); }
-    .refresh-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     #churchTableWrap {
       border-radius: 12px;
@@ -229,37 +195,10 @@
     }
     .churches-table tr:last-child td { border-bottom: none; }
     .churches-table tbody tr:hover { background: var(--teal-tint); }
-
-    .status-badge {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
     .status-badge.active   { background: var(--ok-bg); color: var(--ok); }
     .status-badge.trialing { background: var(--warn-bg); color: var(--gold-ink); }
     .status-badge.expired  { background: var(--danger-bg); color: var(--danger); }
-    .status-badge.exempt   { background: var(--teal-tint); color: #3730a3; }
-
-    .edit-btn {
-      padding: 5px 12px;
-      background: none;
-      border: 1.5px solid var(--teal-line);
-      border-radius: var(--radius);
-      color: var(--ink);
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease), transform 0.1s;
-      white-space: nowrap;
-    }
-    .edit-btn:hover { border-color: var(--accent); background: var(--teal-tint); }
-    .edit-btn:active { transform: scale(0.98); }
-    .edit-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .status-badge.exempt   { background: var(--teal-tint); color: var(--teal-dark); }
 
     .table-empty {
       text-align: center;
@@ -420,53 +359,6 @@
       border-top: 1px solid var(--teal-tint);
       flex-wrap: wrap;
     }
-    .modal-save-btn {
-      padding: 9px 22px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background var(--duration) var(--ease), box-shadow var(--duration) var(--ease), transform 0.1s;
-      font-family: var(--font-display);
-    }
-    .modal-save-btn:hover:not(:disabled) {
-      background: var(--accent-hover);
-      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
-    }
-    .modal-save-btn:active:not(:disabled) { transform: scale(0.98); }
-    .modal-save-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .modal-save-btn:disabled { background: var(--cream-deep); cursor: not-allowed; }
-    .modal-cancel-btn {
-      padding: 9px 18px;
-      background: none;
-      border: 1.5px solid var(--line-strong);
-      color: var(--muted);
-      border-radius: var(--radius);
-      font-size: 0.87rem;
-      cursor: pointer;
-      transition: border-color var(--duration) var(--ease), color var(--duration) var(--ease), transform 0.1s;
-    }
-    .modal-cancel-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .modal-cancel-btn:active { transform: scale(0.98); }
-    .modal-cancel-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .reset-pw-btn {
-      padding: 9px 16px;
-      background: none;
-      border: 1.5px solid var(--danger-line);
-      color: var(--danger);
-      border-radius: var(--radius);
-      font-size: 0.83rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--duration) var(--ease), transform 0.1s;
-      margin-left: auto;
-    }
-    .reset-pw-btn:hover { background: var(--danger-bg); }
-    .reset-pw-btn:active { transform: scale(0.98); }
-    .reset-pw-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .modal-status {
       width: 100%;
       font-size: 0.8rem;
@@ -539,39 +431,6 @@
       gap: 14px;
       margin-top: 18px;
     }
-    .save-btn {
-      padding: 10px 24px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      font-family: var(--font-display);
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background var(--duration) var(--ease), box-shadow var(--duration) var(--ease), transform 0.1s;
-    }
-    .save-btn:hover:not(:disabled) {
-      background: var(--accent-hover);
-      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
-    }
-    .save-btn:active:not(:disabled) { transform: scale(0.98); }
-    .save-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .save-btn:disabled { background: var(--cream-deep); cursor: not-allowed; }
-    .reset-btn {
-      background: none;
-      border: 1px solid var(--line-strong);
-      color: var(--muted);
-      padding: 10px 18px;
-      border-radius: var(--radius);
-      font-family: var(--font);
-      font-size: 0.88rem;
-      cursor: pointer;
-      transition: border-color var(--duration) var(--ease), color var(--duration) var(--ease), transform 0.1s;
-    }
-    .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .reset-btn:active { transform: scale(0.98); }
-    .reset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .toast {
       display: none;
       align-items: center;
@@ -584,19 +443,13 @@
     .toast.success { background: var(--ok-bg); border: 1px solid var(--ok-line); color: var(--ok); }
     .toast.error   { background: var(--danger-bg); border: 1px solid var(--danger-line); color: var(--danger); }
     .toast.visible { display: inline-flex; animation: slideIn 0.3s var(--ease) both; }
-
-    /* ── Forbidden ── */
-    .forbidden-card {
-      background: #fff;
-      border: 1px solid var(--danger-line);
-      border-radius: 16px;
-      padding: 48px 36px;
-      text-align: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-    }
     .forbidden-icon  { font-size: 2.5rem; margin-bottom: 16px; }
     .forbidden-title { font-size: 1.15rem; font-weight: 700; color: var(--danger); margin-bottom: 8px; }
     .forbidden-desc  { font-size: 0.88rem; color: var(--muted); }
+  
+    /* Local: these two panels want more air than the default card padding. */
+    .admin-card     { padding: 28px 32px; }
+    .forbidden-card { padding: 48px 36px; text-align: center; border-color: var(--danger-line); }
   </style>
 </head>
 <body>
@@ -623,7 +476,7 @@
 
     {% if forbidden %}
 
-    <div class="forbidden-card">
+    <div class="card forbidden-card">
       <div class="forbidden-icon"><svg class="ico"><use href="#i-lock"></use></svg></div>
       <div class="forbidden-title">Access Denied</div>
       <div class="forbidden-desc">This page is restricted to Wesley AI super admins.</div>
@@ -632,7 +485,7 @@
     {% else %}
 
     <!-- ── Stats bar ── -->
-    <div class="admin-card">
+    <div class="card admin-card">
       <div class="card-title">Usage Overview</div>
       <div class="card-desc" style="margin-bottom:18px">Live stats across all churches.</div>
       <div class="stats-grid" id="statsGrid">
@@ -645,12 +498,12 @@
     </div>
 
     <!-- ── All Churches ── -->
-    <div class="admin-card">
+    <div class="card admin-card">
       <div class="card-title">All Churches</div>
       <div class="card-desc">Click "Edit" to open the church editor.</div>
       <div class="table-controls">
         <input class="search-input" id="churchSearch" type="text" placeholder="Search by name or email…" />
-        <button class="refresh-btn" id="refreshChurchesBtn">
+        <button class="btn btn--primary btn--sm" id="refreshChurchesBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -664,7 +517,7 @@
     </div>
 
     <!-- ── System Prompt ── -->
-    <div class="admin-card">
+    <div class="card admin-card">
       <div class="card-title">Master System Prompt</div>
       <div class="card-desc">
         This prompt is sent to the AI before every conversation, across all churches.
@@ -678,8 +531,8 @@
       <textarea id="promptArea" spellcheck="true">{{ current_prompt }}</textarea>
       <div class="char-count"><span id="charCount">0</span> characters</div>
       <div class="actions">
-        <button class="save-btn" id="saveBtn">Save changes</button>
-        <button class="reset-btn" id="resetBtn">Reset to default</button>
+        <button class="btn btn--primary" id="saveBtn">Save changes</button>
+        <button class="btn btn--ghost" id="resetBtn">Reset to default</button>
         <div class="toast" id="toast"></div>
       </div>
     </div>
@@ -741,10 +594,10 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="modal-save-btn" id="modalSaveBtn">Save changes</button>
-        <button class="modal-cancel-btn" id="modalCancelBtn">Cancel</button>
+        <button class="btn btn--primary btn--sm" id="modalSaveBtn">Save changes</button>
+        <button class="btn btn--quiet btn--sm" id="modalCancelBtn">Cancel</button>
         <div class="modal-status" id="modalStatus"></div>
-        <button class="reset-pw-btn" id="resetPwBtn">Reset Password</button>
+        <button class="btn btn--danger-ghost btn--sm" id="resetPwBtn">Reset Password</button>
       </div>
     </div>
   </div>
@@ -833,12 +686,12 @@
                 <td>${esc(fmtDate(c.created_at))}</td>
                 <td>${esc(fmtDate(c.trial_ends_at))}</td>
                 <td>${esc(c.plan)}</td>
-                <td><span class="status-badge ${esc(c.status)}">${esc(c.status)}</span></td>
+                <td><span class="pill pill--sm status-badge ${esc(c.status)}">${esc(c.status)}</span></td>
                 <td style="text-align:right">${fmtNum(c.message_count + c.widget_message_count)}</td>
                 <td style="text-align:right">${fmtNum(c.doc_count)}</td>
                 <td style="text-align:right">${fmtNum(c.ai_calls_30d)}</td>
                 <td style="text-align:right">${fmtNum(c.ai_tokens_30d)}</td>
-                <td><button class="edit-btn" data-id="${c.id}">Edit</button></td>
+                <td><button class="btn btn--ghost btn--xs" data-id="${c.id}">Edit</button></td>
               </tr>
             `).join("")}
           </tbody>

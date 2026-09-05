@@ -52,9 +52,6 @@
     .page-title { font-size:1.35rem; font-weight:700; color:var(--text); letter-spacing:-0.022em; }
     .page-subtitle { font-size:0.84rem; color:var(--text-muted); margin-top:4px; line-height:1.5; }
 
-    /* ── Form card ── */
-    .form-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:28px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
-
     .field-group { margin-bottom:22px; }
     .field-label { font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:7px; display:block; }
     .field-label .field-required { color:var(--danger); margin-left:2px; }
@@ -108,13 +105,6 @@
     .form-footer { display:flex; align-items:center; justify-content:space-between; margin-top:28px; padding-top:20px; border-top:1px solid var(--border); gap:12px; flex-wrap:wrap; }
     .form-cancel { font-size:0.86rem; color:var(--text-muted); text-decoration:none; transition:color 0.13s; }
     .form-cancel:hover { color:var(--text); }
-    .form-submit {
-      background:var(--accent); color:#fff; border:none; border-radius: var(--r-pill);
-      font-size:0.92rem; font-weight: 700; font-family: var(--font-display);
-      padding:11px 28px; cursor:pointer; transition:background 0.15s;
-    }
-    .form-submit:hover { background:var(--accent-hover); }
-    .form-submit:disabled { background:var(--cream-deep); cursor:not-allowed; }
 
     /* AI triage notice */
     .triage-notice {
@@ -129,6 +119,8 @@
     .error-list-title { font-size:0.84rem; font-weight:600; color:var(--danger); margin-bottom:6px; }
     .error-list ul { padding-left:18px; }
     .error-list li { font-size:0.82rem; color:var(--danger); margin-bottom:2px; }
+  
+    .form-card { padding:28px; }
   </style>
 </head>
 <body>
@@ -233,7 +225,7 @@
 
         <form method="POST" action="/comms/new" id="requestForm">
 
-          <div class="form-card">
+          <div class="card form-card">
 
             <!-- Request Type -->
             <div class="field-group">
@@ -332,7 +324,7 @@
 
           <div class="form-footer">
             <a href="/comms" class="form-cancel">Cancel</a>
-            <button type="submit" class="form-submit" id="submitBtn">
+            <button type="submit" class="btn btn--primary" id="submitBtn">
               Submit &amp; Run Triage
             </button>
           </div>

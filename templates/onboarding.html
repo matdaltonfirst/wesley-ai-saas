@@ -171,63 +171,6 @@
     }
     .btn-row.spread { justify-content: space-between; }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-pill);
-      padding: 11px 26px;
-      font-size: 0.9rem;
-      font-weight: 700;
-      font-family: var(--font-display);
-      cursor: pointer;
-      transition: filter 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-      white-space: nowrap;
-    }
-    .btn-primary:hover:not(:disabled) {
-      filter: brightness(0.88);
-      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
-    }
-    .btn-primary:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    .btn-ghost {
-      background: none;
-      color: var(--text-muted);
-      border: none;
-      padding: 11px 14px;
-      font-size: 0.88rem;
-      font-family: var(--font);
-      cursor: pointer;
-      border-radius: 10px;
-      transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      white-space: nowrap;
-    }
-    .btn-ghost:hover { color: var(--text); background: var(--surface); }
-
-    .btn-outline {
-      background: none;
-      color: var(--accent);
-      border: 1.5px solid var(--accent);
-      border-radius: 10px;
-      padding: 10px 20px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-      white-space: nowrap;
-    }
-    .btn-outline:hover {
-      background: var(--teal-tint);
-      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
-    }
-    .btn-outline:active {
-      transform: scale(0.98);
-    }
-
     /* ── Step 2 crawl status ── */
     .crawl-status-row {
       display: flex;
@@ -274,7 +217,7 @@
       background: var(--ink-deep);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 12px;
-      color: var(--teal-line);
+      color: var(--teal-on-ink);
       font-family: "SFMono-Regular", "Consolas", monospace;
       font-size: 0.77rem;
       padding: 14px 16px;
@@ -290,18 +233,6 @@
       justify-content: flex-end;
       margin-bottom: 28px;
     }
-    .btn-copy {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 10px;
-      padding: 6px 14px;
-      font-size: 0.8rem;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .btn-copy:hover { background: var(--teal-tint); color: var(--accent); border-color: var(--accent); }
 
     .step3-cta-row {
       display: flex;
@@ -399,7 +330,7 @@
 
         <div class="step-status" id="step1Status"></div>
         <div class="btn-row">
-          <button class="btn-primary" id="step1Next">Next →</button>
+          <button class="btn btn--primary" id="step1Next">Next →</button>
         </div>
       </div>
 
@@ -424,7 +355,7 @@
         </div>
 
         <div class="btn-row" style="margin-top: 4px;">
-          <button class="btn-primary" id="crawlStartBtn">Start Crawl</button>
+          <button class="btn btn--primary" id="crawlStartBtn">Start Crawl</button>
         </div>
 
         <div class="crawl-status-row">
@@ -435,8 +366,8 @@
         <hr class="step2-divider" />
 
         <div class="btn-row spread">
-          <button class="btn-ghost" id="step2Skip">Skip this step</button>
-          <button class="btn-primary" id="step2Continue" style="display:none">Continue →</button>
+          <button class="btn btn--quiet" id="step2Skip">Skip this step</button>
+          <button class="btn btn--primary" id="step2Continue" style="display:none">Continue →</button>
         </div>
       </div>
 
@@ -454,10 +385,10 @@
         </div>
         <div class="step-status" id="obCalStatus"></div>
         <div class="btn-row spread">
-          <button class="btn-ghost" id="obCalSkip">Skip for now</button>
+          <button class="btn btn--quiet" id="obCalSkip">Skip for now</button>
           <span>
-            <button class="btn-primary" id="obCalConnect">Connect calendar</button>
-            <button class="btn-primary" id="obCalContinue" style="display:none">Continue →</button>
+            <button class="btn btn--primary" id="obCalConnect">Connect calendar</button>
+            <button class="btn btn--primary" id="obCalContinue" style="display:none">Continue →</button>
           </span>
         </div>
       </div>
@@ -476,10 +407,10 @@
         </div>
         <div class="step-status" id="obYtStatus"></div>
         <div class="btn-row spread">
-          <button class="btn-ghost" id="obYtSkip">Skip for now</button>
+          <button class="btn btn--quiet" id="obYtSkip">Skip for now</button>
           <span>
-            <button class="btn-primary" id="obYtConnect">Connect channel</button>
-            <button class="btn-primary" id="obYtContinue" style="display:none">Continue →</button>
+            <button class="btn btn--primary" id="obYtConnect">Connect channel</button>
+            <button class="btn btn--primary" id="obYtContinue" style="display:none">Continue →</button>
           </span>
         </div>
       </div>
@@ -492,10 +423,10 @@
 
         <div class="step-status" id="obPcoStatus"></div>
         <div class="btn-row spread">
-          <button class="btn-ghost" id="obPcoSkip">Skip for now</button>
+          <button class="btn btn--quiet" id="obPcoSkip">Skip for now</button>
           <span>
-            <button class="btn-primary" id="obPcoConnect">Connect Planning Center</button>
-            <button class="btn-primary" id="obPcoContinue" style="display:none">Continue →</button>
+            <button class="btn btn--primary" id="obPcoConnect">Connect Planning Center</button>
+            <button class="btn btn--primary" id="obPcoContinue" style="display:none">Continue →</button>
           </span>
         </div>
       </div>
@@ -509,12 +440,12 @@
 
         <div class="embed-block" id="embedCodeBlock"></div>
         <div class="embed-copy-row">
-          <button class="btn-copy" id="copyEmbedBtn">Copy code</button>
+          <button class="btn btn--ghost btn--xs" id="copyEmbedBtn">Copy code</button>
         </div>
 
         <div class="step3-cta-row">
-          <button class="btn-outline" onclick="window.location.href='/dashboard'">Go to Dashboard</button>
-          <button class="btn-primary" onclick="window.location.href='/'">Start chatting →</button>
+          <button class="btn btn--outline" onclick="window.location.href='/dashboard'">Go to Dashboard</button>
+          <button class="btn btn--primary" onclick="window.location.href='/'">Start chatting →</button>
         </div>
       </div>
 
