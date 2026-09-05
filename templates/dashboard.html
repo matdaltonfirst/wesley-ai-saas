@@ -4,24 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>{{ bot_name }} — {{ church_name }}</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <style>
-    /* ── Primary colour override (server-rendered, so no FOUC) ── */
-    :root {
-      --accent:        {{ primary_color }};
-      --accent-hover:  {{ primary_color }};
-      --border-focus:  {{ primary_color }};
-      --user-bg:       {{ primary_color }};
-      --accent-ring:   {{ primary_color }}33;
-      --accent-subtle: {{ primary_color }}0a;
-      --sidebar-active-accent: {{ primary_color }};
-    }
-    .send-btn:hover:not(:disabled) { background: {{ primary_color }}; filter: brightness(0.88); }
+    /* The staff console is Wesley AI's own product surface, so it wears the
+       Wesley palette. A church's primary_color still brands the public
+       widget — widget-core.js reads it from its own config — but it no
+       longer repaints the internal chrome, which is what made the app look
+       like a different product at every church. */
+    .send-btn:hover:not(:disabled) { background: var(--teal-dark); }
 
     /* Church name row below the logo */
     .sidebar-church {
@@ -46,7 +39,6 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 6px;
     }
     .sidebar-user-email {
       font-size: 0.75rem;
@@ -54,14 +46,23 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      padding: 0 2px;
+      padding: 6px 2px 0;
+    }
+    /* The top bar already carries the account email and sign-out on desktop.
+       Repeating them here was pure clutter — but the top bar's right side is
+       hidden under 768px, so the sidebar keeps them for mobile. */
+    .sidebar-user-email,
+    .sidebar-footer .logout-btn { display: none; }
+    @media (max-width: 768px) {
+      .sidebar-user-email { display: block; }
+      .sidebar-footer .logout-btn { display: inline-flex; align-items: center; }
     }
     .logout-btn {
       background: none;
       border: none;
       color: rgba(255,255,255,0.4);
       font-size: 0.75rem;
-      font-family: var(--font);
+      font-family: var(--font-body);
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 6px;
@@ -96,9 +97,9 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .conv-item:hover { background: rgba(22,149,160,0.08); color: rgba(255,255,255,0.85); }
+    .conv-item:hover { background: rgba(42,173,181,0.08); color: rgba(255,255,255,0.85); }
     .conv-item.active {
-      background: rgba(22,149,160,0.12);
+      background: rgba(42,173,181,0.12);
       border-left-color: var(--sidebar-active-accent);
       color: rgba(255,255,255,0.95);
       font-weight: 600;
@@ -107,6 +108,7 @@
   </style>
 </head>
 <body>
+  {% include 'partials/icons.html' %}
   <!-- Mobile sidebar backdrop -->
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
@@ -195,19 +197,19 @@
             <p class="greeting-sub">I can answer questions, find information in your church documents, help draft communications, assist with planning, and more.</p>
             <div class="suggestions">
               <button class="suggestion-btn">
-                <span class="sug-icon">📋</span>
+                <span class="sug-icon"><svg class="ico"><use href="#i-clipboard"></use></svg></span>
                 <span>What is our volunteer policy?</span>
               </button>
               <button class="suggestion-btn">
-                <span class="sug-icon">📝</span>
+                <span class="sug-icon"><svg class="ico"><use href="#i-pen"></use></svg></span>
                 <span>Help me draft a Sunday bulletin</span>
               </button>
               <button class="suggestion-btn">
-                <span class="sug-icon">📅</span>
+                <span class="sug-icon"><svg class="ico"><use href="#i-calendar"></use></svg></span>
                 <span>What events are coming up?</span>
               </button>
               <button class="suggestion-btn">
-                <span class="sug-icon">🙏</span>
+                <span class="sug-icon"><svg class="ico"><use href="#i-heart"></use></svg></span>
                 <span>Write a prayer for our newsletter</span>
               </button>
             </div>

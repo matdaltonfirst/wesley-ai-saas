@@ -35,7 +35,7 @@
   .modal-header { display:flex; align-items:flex-start; justify-content:space-between; padding:20px 24px 16px; border-bottom:1px solid var(--border); gap:12px; flex-shrink:0; }
   .modal-title { font-size:1.05rem; font-weight:700; color:var(--text); letter-spacing:-0.015em; }
   .modal-close { background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; border-radius:6px; display:flex; transition:color 0.13s, background 0.13s; }
-  .modal-close:hover { color:var(--text); background:#f1f5f9; }
+  .modal-close:hover { color:var(--text); background:var(--cream); }
 
   .modal-body { overflow-y:auto; padding:20px 24px 24px; flex:1; }
   .modal-body::-webkit-scrollbar { width:4px; }
@@ -44,15 +44,15 @@
   /* Badges row */
   .modal-badges { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
   .mbadge { display:inline-flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:700; padding:4px 10px; border-radius:20px; letter-spacing:0.03em; text-transform:uppercase; }
-  .mbadge.red     { background:#fee2e2; color:#991b1b; }
-  .mbadge.yellow  { background:#fef9c3; color:#854d0e; }
-  .mbadge.green   { background:#dcfce7; color:#166534; }
-  .mbadge.blue    { background:#dbeafe; color:#1e40af; }
-  .mbadge.tier    { background:#f1f5f9; color:#475569; }
-  .mbadge.status-in_queue    { background:#f1f5f9; color:#475569; }
-  .mbadge.status-in_progress { background:#ccfbf1; color:#0d9488; }
-  .mbadge.status-completed   { background:#dcfce7; color:#166534; }
-  .mbadge.status-cancelled   { background:#f1f5f9; color:#94a3b8; }
+  .mbadge.red     { background:var(--danger-bg); color:var(--danger); }
+  .mbadge.yellow  { background:var(--warn-bg); color:var(--gold-ink); }
+  .mbadge.green   { background:var(--ok-bg); color:var(--ok); }
+  .mbadge.blue    { background:var(--cream); color:var(--ink-soft); }
+  .mbadge.tier    { background:var(--cream); color:var(--body); }
+  .mbadge.status-in_queue    { background:var(--cream); color:var(--body); }
+  .mbadge.status-in_progress { background:var(--teal-tint); color:var(--teal); }
+  .mbadge.status-completed   { background:var(--ok-bg); color:var(--ok); }
+  .mbadge.status-cancelled   { background:var(--cream); color:var(--faint); }
 
   /* Detail rows */
   .modal-section { margin-bottom:20px; }
@@ -64,16 +64,16 @@
 
   /* Deliverable tags */
   .del-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
-  .del-tag { font-size:0.75rem; background:#f1f5f9; color:#475569; border-radius:5px; padding:2px 8px; }
+  .del-tag { font-size:0.75rem; background:var(--cream); color:var(--body); border-radius:5px; padding:2px 8px; }
 
   /* AI explanation block */
   .ai-block { background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 16px; }
   .ai-block-header { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
-  .ai-block-title { font-size:0.78rem; font-weight:700; color:#0369a1; letter-spacing:0.03em; text-transform:uppercase; }
+  .ai-block-title { font-size:0.78rem; font-weight:700; color:var(--teal-dark); letter-spacing:0.03em; text-transform:uppercase; }
   .ai-block-body { font-size:0.87rem; color:#0c4a6e; line-height:1.6; }
 
   .modal-loading { text-align:center; padding:40px 20px; color:var(--text-muted); font-size:0.88rem; }
-  .modal-error   { text-align:center; padding:40px 20px; color:#dc2626; font-size:0.88rem; }
+  .modal-error   { text-align:center; padding:40px 20px; color:var(--danger); font-size:0.88rem; }
 </style>
 
 <script>

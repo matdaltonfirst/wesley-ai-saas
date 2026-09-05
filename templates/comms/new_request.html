@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>New Request — Communications</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
-    .db-sidebar { width:244px; flex-shrink:0; background:linear-gradient(180deg, #0f1f2e 0%, #0c1a26 100%); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid rgba(255,255,255,0.06); }
+    .db-sidebar { width:244px; flex-shrink:0; background:linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid rgba(255,255,255,0.06); }
     .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
     .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
     .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -20,7 +18,7 @@
     .db-sidebar-nav::-webkit-scrollbar { width:3px; }
     .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
     .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.85); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
-    .db-nav-standalone:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.9); }
+    .db-nav-standalone:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.9); }
     .db-nav-section { margin-bottom:1px; }
     .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.625rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.45); border-radius:6px; transition:color 0.13s; }
     .db-section-header:hover { color:rgba(255,255,255,0.5); }
@@ -30,8 +28,8 @@
     .db-nav-section.db-section-open .db-section-items { display:flex; }
     .db-section-items .db-nav-item-link { padding-left:28px; }
     .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:10px 12px 10px 14px; border-radius:0 8px 8px 0; border-left:3px solid transparent; color:rgba(255,255,255,0.85); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
-    .db-nav-item-link:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.85); }
-    .db-nav-item-link.db-nav-active { background:rgba(22,149,160,0.12); border-left-color:#1695a0; color:#ffffff; font-weight:600; }
+    .db-nav-item-link:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.85); }
+    .db-nav-item-link.db-nav-active { background:rgba(42,173,181,0.12); border-left-color:var(--teal); color:#ffffff; font-weight:600; }
     .db-nav-item-link svg { flex-shrink:0; opacity:0.85; }
     .db-nav-item-link.db-nav-active svg { opacity:1; }
     .db-sidebar-footer { padding:14px 16px; border-top:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
@@ -46,7 +44,7 @@
     }
 
     /* ── Main ── */
-    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f8fafc; }
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:var(--paper); }
     .comms-page { padding:40px 36px 72px; max-width:680px; }
     @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
 
@@ -59,7 +57,7 @@
 
     .field-group { margin-bottom:22px; }
     .field-label { font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:7px; display:block; }
-    .field-label .field-required { color:#dc2626; margin-left:2px; }
+    .field-label .field-required { color:var(--danger); margin-left:2px; }
     .field-hint { font-size:0.75rem; color:var(--text-muted); margin-top:4px; }
 
     .field-input, .field-select, .field-textarea {
@@ -68,9 +66,9 @@
       outline:none; transition:border-color 0.15s, box-shadow 0.15s;
     }
     .field-input:focus, .field-select:focus, .field-textarea:focus {
-      border-color:var(--accent); box-shadow:0 0 0 3px rgba(41,171,181,0.22);
+      border-color:var(--accent); box-shadow:0 0 0 3px rgba(42,173,181,0.22);
     }
-    .field-input::placeholder, .field-textarea::placeholder { color:#94a3b8; }
+    .field-input::placeholder, .field-textarea::placeholder { color:var(--faint); }
     .field-textarea { resize:vertical; min-height:88px; line-height:1.55; }
     .field-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23656d76' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; cursor:pointer; }
 
@@ -84,7 +82,7 @@
       transition:border-color 0.15s, background 0.15s, color 0.15s;
     }
     .radio-option:checked + .radio-label {
-      border-color:var(--accent); background:#e8f7f8; color:var(--accent); font-weight:600;
+      border-color:var(--accent); background:var(--teal-tint); color:var(--accent); font-weight:600;
     }
     .radio-label:hover { border-color:var(--border-focus); color:var(--text); }
 
@@ -98,7 +96,7 @@
       transition:border-color 0.15s, background 0.15s, color 0.15s;
     }
     .checkbox-option:checked + .checkbox-label {
-      border-color:var(--accent); background:#e8f7f8; color:var(--accent); font-weight:600;
+      border-color:var(--accent); background:var(--teal-tint); color:var(--accent); font-weight:600;
     }
     .checkbox-label:hover { border-color:var(--border-focus); color:var(--text); }
 
@@ -111,26 +109,26 @@
     .form-cancel { font-size:0.86rem; color:var(--text-muted); text-decoration:none; transition:color 0.13s; }
     .form-cancel:hover { color:var(--text); }
     .form-submit {
-      background:var(--accent); color:#fff; border:none; border-radius:9px;
-      font-size:0.92rem; font-weight:600; font-family:var(--font);
+      background:var(--accent); color:#fff; border:none; border-radius: var(--r-pill);
+      font-size:0.92rem; font-weight: 700; font-family: var(--font-display);
       padding:11px 28px; cursor:pointer; transition:background 0.15s;
     }
     .form-submit:hover { background:var(--accent-hover); }
-    .form-submit:disabled { background:#a0d4d8; cursor:not-allowed; }
+    .form-submit:disabled { background:var(--cream-deep); cursor:not-allowed; }
 
     /* AI triage notice */
     .triage-notice {
-      display:flex; align-items:flex-start; gap:10px; background:#f0fdf4;
-      border:1px solid #bbf7d0; border-radius:9px; padding:12px 14px;
-      margin-bottom:24px; font-size:0.82rem; color:#166534; line-height:1.5;
+      display:flex; align-items:flex-start; gap:10px; background:var(--ok-bg);
+      border:1px solid var(--ok-line); border-radius:9px; padding:12px 14px;
+      margin-bottom:24px; font-size:0.82rem; color:var(--ok); line-height:1.5;
     }
     .triage-notice svg { flex-shrink:0; margin-top:1px; }
 
     /* Error list */
-    .error-list { background:#fef2f2; border:1px solid #fecaca; border-radius:9px; padding:12px 16px; margin-bottom:22px; }
-    .error-list-title { font-size:0.84rem; font-weight:600; color:#991b1b; margin-bottom:6px; }
+    .error-list { background:var(--danger-bg); border:1px solid var(--danger-line); border-radius:9px; padding:12px 16px; margin-bottom:22px; }
+    .error-list-title { font-size:0.84rem; font-weight:600; color:var(--danger); margin-bottom:6px; }
     .error-list ul { padding-left:18px; }
-    .error-list li { font-size:0.82rem; color:#991b1b; margin-bottom:2px; }
+    .error-list li { font-size:0.82rem; color:var(--danger); margin-bottom:2px; }
   </style>
 </head>
 <body>

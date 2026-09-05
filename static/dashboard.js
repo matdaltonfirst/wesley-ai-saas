@@ -537,10 +537,18 @@ let _chatsChart1 = null;
 let _chatsChart2 = null;
 let _topicsChart  = null;
 
-const CHART_TEAL        = "#1695a0";
-const CHART_TEAL_FILL   = "rgba(22,149,160,0.15)";
-const CHART_GRID_COLOR  = "#f1f5f9";
-const CHART_TICK_FONT   = { size: 11, family: "'Plus Jakarta Sans', sans-serif" };
+const CHART_TEAL        = "#2aadb5";
+const CHART_TEAL_FILL   = "rgba(42,173,181,0.15)";
+const CHART_GRID_COLOR  = "#f4f2ee";
+const CHART_TICK_FONT   = { size: 11, family: "'DM Sans', sans-serif" };
+
+/* Categorical series colours drawn from the brand rather than a stock rainbow:
+   teal and ink carry the weight, gold and terracotta separate the tail. Chart.js
+   needs literal values, so these cannot be var() references. */
+const CHART_PALETTE = [
+  "#2aadb5", "#12233a", "#d4a843", "#1e8f97", "#5b6474",
+  "#7fd6db", "#23364f", "#c8472f", "#a9b2bd",
+];
 
 function anFormatDate(iso) {
   if (!iso) return "";
@@ -672,7 +680,7 @@ async function loadTopicsAnalytics() {
     const ctx = document.getElementById("chartTopics");
     const donutWrap = ctx && ctx.closest(".an-donut-wrap");
     if (ctx && nonEmpty.length) {
-      const palette = ["#1695a0","#0ea5e9","#8b5cf6","#f59e0b","#10b981","#ef4444","#f97316","#6366f1","#94a3b8"];
+      const palette = CHART_PALETTE;
       _topicsChart = new Chart(ctx, {
         type: "doughnut",
         data: {
@@ -1382,7 +1390,7 @@ async function feedbackPublishCorrection(id) {
   const msg = document.getElementById(`fb-msg-${id}`);
   if (!question || !answer) {
     msg.textContent = "Question and corrected answer are required.";
-    msg.style.color = "#dc2626";
+    msg.style.color = "#c8472f";
     return;
   }
   const res = await fetch(`/api/feedback/${id}/correct`, {
@@ -1393,7 +1401,7 @@ async function feedbackPublishCorrection(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     msg.textContent = data.error || "Could not publish correction.";
-    msg.style.color = "#dc2626";
+    msg.style.color = "#c8472f";
     return;
   }
   _qnaPairs = [];
@@ -1533,7 +1541,7 @@ async function snippetDelete(id) {
 
     if (!title || !content) {
       msg.textContent = "Title and content are required.";
-      msg.style.color = "#ef4444";
+      msg.style.color = "#c8472f";
       return;
     }
     const body = { title, content, category: category || null, is_active: active };
@@ -1547,7 +1555,7 @@ async function snippetDelete(id) {
     const d = await res.json();
     if (!res.ok) {
       msg.textContent = d.error || "Error saving snippet.";
-      msg.style.color = "#ef4444";
+      msg.style.color = "#c8472f";
       return;
     }
     if (idVal) {
@@ -1671,7 +1679,7 @@ async function qnaDelete(id) {
 
     if (!question || !answer) {
       msg.textContent = "Question and answer are required.";
-      msg.style.color = "#ef4444";
+      msg.style.color = "#c8472f";
       return;
     }
     const body   = { question, answer, is_active: active };
@@ -1685,7 +1693,7 @@ async function qnaDelete(id) {
     const d = await res.json();
     if (!res.ok) {
       msg.textContent = d.error || "Error saving Q&A.";
-      msg.style.color = "#ef4444";
+      msg.style.color = "#c8472f";
       return;
     }
     if (idVal) {

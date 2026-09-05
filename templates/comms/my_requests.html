@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Requests — Communications</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
-    .db-sidebar { width:244px; flex-shrink:0; background:linear-gradient(180deg, #0f1f2e 0%, #0c1a26 100%); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid rgba(255,255,255,0.06); }
+    .db-sidebar { width:244px; flex-shrink:0; background:linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%); display:flex; flex-direction:column; height:100%; overflow:hidden; border-right:1px solid rgba(255,255,255,0.06); }
     .db-sidebar-header { padding:18px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
     .db-logo { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
     .db-logo-icon { width:26px; height:26px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -20,7 +18,7 @@
     .db-sidebar-nav::-webkit-scrollbar { width:3px; }
     .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
     .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.85); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
-    .db-nav-standalone:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.9); }
+    .db-nav-standalone:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.9); }
     .db-nav-section { margin-bottom:1px; }
     .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.625rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.45); border-radius:6px; transition:color 0.13s; }
     .db-section-header:hover { color:rgba(255,255,255,0.5); }
@@ -30,8 +28,8 @@
     .db-nav-section.db-section-open .db-section-items { display:flex; }
     .db-section-items .db-nav-item-link { padding-left:28px; }
     .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:10px 12px 10px 14px; border-radius:0 8px 8px 0; border-left:3px solid transparent; color:rgba(255,255,255,0.85); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
-    .db-nav-item-link:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.85); }
-    .db-nav-item-link.db-nav-active { background:rgba(22,149,160,0.12); border-left-color:#1695a0; color:#ffffff; font-weight:600; }
+    .db-nav-item-link:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.85); }
+    .db-nav-item-link.db-nav-active { background:rgba(42,173,181,0.12); border-left-color:var(--teal); color:#ffffff; font-weight:600; }
     .db-nav-item-link svg { flex-shrink:0; opacity:0.85; }
     .db-nav-item-link.db-nav-active svg { opacity:1; }
     .db-sidebar-footer { padding:14px 16px; border-top:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
@@ -44,13 +42,15 @@
       .db-sidebar.db-sidebar-open { left:0; }
       .db-sidebar-overlay.db-sidebar-open { display:block; }
     }
-    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f8fafc; }
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:var(--paper); }
     .comms-page { padding:40px 36px 72px; max-width:960px; }
     @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
     .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
     .page-title { font-size:1.35rem; font-weight:700; color:var(--text); letter-spacing:-0.022em; }
     .page-subtitle { font-size:0.84rem; color:var(--text-muted); margin-top:4px; }
-    .page-header-btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#fff; border-radius:9px; padding:9px 18px; font-size:0.86rem; font-weight:600; text-decoration:none; transition:background 0.15s; white-space:nowrap; }
+    .page-header-btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#fff; border-radius: var(--r-pill); padding:9px 18px; font-size:0.86rem; font-weight: 700; text-decoration:none; transition:background 0.15s; white-space:nowrap;
+      font-family: var(--font-display);
+    }
     .page-header-btn:hover { background:var(--accent-hover); }
 
     /* ── Request card grid ── */
@@ -68,18 +68,18 @@
     /* Badge row */
     .badge-row { display:flex; flex-wrap:wrap; gap:5px; }
     .badge { display:inline-flex; align-items:center; font-size:0.6875rem; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; }
-    .badge.red     { background:#fee2e2; color:#991b1b; }
-    .badge.yellow  { background:#fef9c3; color:#854d0e; }
-    .badge.green   { background:#dcfce7; color:#166534; }
-    .badge.blue    { background:#dbeafe; color:#1e40af; }
-    .badge.pending { background:#f1f5f9; color:#94a3b8; }
-    .badge.tier    { background:#f1f5f9; color:#475569; }
-    .badge.graphic { background:#ede9fe; color:#6d28d9; }
+    .badge.red     { background:var(--danger-bg); color:var(--danger); }
+    .badge.yellow  { background:var(--warn-bg); color:var(--gold-ink); }
+    .badge.green   { background:var(--ok-bg); color:var(--ok); }
+    .badge.blue    { background:var(--cream); color:var(--ink-soft); }
+    .badge.pending { background:var(--cream); color:var(--faint); }
+    .badge.tier    { background:var(--cream); color:var(--body); }
+    .badge.graphic { background:var(--teal-tint); color:#6d28d9; }
     .badge.video   { background:#fce7f3; color:#9d174d; }
-    .badge.status-in_queue    { background:#f1f5f9; color:#475569; }
-    .badge.status-in_progress { background:#ccfbf1; color:#0d9488; }
-    .badge.status-completed   { background:#dcfce7; color:#166534; }
-    .badge.status-cancelled   { background:#f1f5f9; color:#94a3b8; }
+    .badge.status-in_queue    { background:var(--cream); color:var(--body); }
+    .badge.status-in_progress { background:var(--teal-tint); color:var(--teal); }
+    .badge.status-completed   { background:var(--ok-bg); color:var(--ok); }
+    .badge.status-cancelled   { background:var(--cream); color:var(--faint); }
 
     /* Meta row */
     .req-meta { display:flex; flex-wrap:wrap; gap:10px; font-size:0.8125rem; color:var(--text-muted); }
@@ -88,7 +88,7 @@
 
     /* Deliverable tags */
     .del-tags { display:flex; flex-wrap:wrap; gap:5px; }
-    .del-tag { font-size:0.75rem; background:#f1f5f9; color:#475569; border-radius:5px; padding:2px 8px; }
+    .del-tag { font-size:0.75rem; background:var(--cream); color:var(--body); border-radius:5px; padding:2px 8px; }
 
     /* Progress bars */
     .progress-section { display:flex; flex-direction:column; gap:8px; }
@@ -103,21 +103,33 @@
     .req-explanation { font-size:0.8rem; color:var(--text-muted); line-height:1.55; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 
     /* Card footer */
-    .req-card-footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:4px; border-top:1px solid #f1f5f9; }
+    .req-card-footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:4px; border-top:1px solid var(--cream); }
     .btn-detail { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
-    .btn-detail:hover { border-color:var(--accent); color:var(--accent); background:#e8f7f8; }
-    .btn-reevaluate { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid #e0e7ff; color:#4338ca; border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
-    .btn-reevaluate:hover { background:#e0e7ff; }
+    .btn-detail:hover { border-color:var(--accent); color:var(--accent); background:var(--teal-tint); }
+    .btn-reevaluate { display:inline-flex; align-items:center; gap:5px; background:none; border:1.5px solid var(--teal-tint); color:var(--ink-soft); border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:500; font-family:var(--font); cursor:pointer; transition:border-color 0.15s,color 0.15s,background 0.15s; }
+    .btn-reevaluate:hover { background:var(--teal-tint); }
     .btn-reevaluate:disabled { opacity:0.5; cursor:not-allowed; }
 
     /* Empty state */
     .empty-state { text-align:center; padding:60px 20px; background:#fff; border:1px solid var(--border); border-radius:14px; }
-    .empty-state-icon { font-size:2.5rem; margin-bottom:12px; }
+        .empty-state-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--cream);
+      color: var(--faint);
+      border-radius: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .empty-state-icon .ico { width: 26px; height: 26px; }
     .empty-state-title { font-size:1.05rem; font-weight:600; color:var(--text); margin-bottom:7px; }
     .empty-state-sub { font-size:0.86rem; color:var(--text-muted); margin-bottom:20px; }
   </style>
 </head>
 <body>
+  {% include 'partials/icons.html' %}
 <div class="app-wrapper">
 
   <nav class="top-nav">
@@ -195,7 +207,7 @@
 
         {% if not requests %}
         <div class="empty-state">
-          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-icon"><svg class="ico"><use href="#i-clipboard"></use></svg></div>
           <div class="empty-state-title">No requests yet</div>
           <div class="empty-state-sub">Submit your first communications request and AI triage will handle the rest.</div>
           <a href="/comms/new" class="page-header-btn" style="display:inline-flex;">Submit a Request</a>

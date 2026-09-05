@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Subscribe — Wesley AI</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     html { height: auto; overflow: visible; }
@@ -12,7 +13,9 @@
       height: auto;
       overflow-y: auto;
       min-height: 100vh;
-      background: linear-gradient(135deg, #f0fafb 0%, #e8f5f6 50%, #f4fbfb 100%);
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(42,173,181,0.30), transparent 62%),
+        linear-gradient(168deg, var(--ink) 0%, var(--ink-deep) 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -54,19 +57,19 @@
       color: var(--text-muted);
       margin-bottom: 20px;
       padding: 10px 16px;
-      background: #fffbeb;
-      border: 1px solid #fde68a;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-line);
       border-radius: 10px;
       line-height: 1.5;
       animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
     .trial-banner.expired {
-      background: #fff1f2;
+      background: var(--danger-bg);
       border-color: #fecdd3;
-      color: #9f1239;
+      color: var(--danger);
     }
-    .trial-banner strong { color: #92400e; }
-    .trial-banner.expired strong { color: #9f1239; }
+    .trial-banner strong { color: var(--gold-ink); }
+    .trial-banner.expired strong { color: var(--danger); }
 
     /* ── Billing toggle ── */
     .billing-toggle-wrap {
@@ -75,7 +78,7 @@
       justify-content: center;
       gap: 0;
       margin-bottom: 20px;
-      background: #e8f5f6;
+      background: var(--teal-tint);
       border: 1.5px solid #b5dfe2;
       border-radius: 40px;
       padding: 4px;
@@ -98,13 +101,13 @@
     }
     .toggle-opt.active {
       background: #fff;
-      color: #0f172a;
-      box-shadow: 0 2px 8px rgba(12,61,67,0.15);
+      color: var(--ink);
+      box-shadow: 0 2px 8px rgba(18,35,58,0.15);
     }
     .save-badge {
       display: inline-block;
-      background: #d1fae5;
-      color: #065f46;
+      background: var(--ok-bg);
+      color: var(--ok);
       font-size: 0.65rem;
       font-weight: 800;
       letter-spacing: 0.05em;
@@ -116,18 +119,18 @@
     /* Card */
     .sub-card {
       background: #fff;
-      border: 1px solid rgba(41,171,181,0.12);
+      border: 1px solid rgba(42,173,181,0.12);
       border-radius: 20px;
       padding: 36px 36px 32px;
-      box-shadow: 0 8px 32px rgba(12,61,67,0.1);
+      box-shadow: 0 8px 32px rgba(18,35,58,0.1);
       text-align: center;
       animation: cardIn 0.45s cubic-bezier(0.4, 0, 0.2, 1) 0.05s both;
     }
 
     .founders-badge {
       display: inline-block;
-      background: #d1fae5;
-      color: #065f46;
+      background: var(--ok-bg);
+      color: var(--ok);
       font-size: 0.72rem;
       font-weight: 700;
       letter-spacing: 0.08em;
@@ -169,7 +172,7 @@
     .price-amount {
       font-size: 3.5rem;
       font-weight: 800;
-      background: linear-gradient(135deg, #0f1f2e 0%, #1695a0 100%);
+      background: linear-gradient(135deg, var(--ink) 0%, var(--teal) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -191,7 +194,7 @@
     .price-saving {
       font-size: 0.82rem;
       font-weight: 700;
-      color: #059669;
+      color: var(--ok);
       margin-bottom: 22px;
       min-height: 1.1em;
     }
@@ -224,18 +227,16 @@
     .feature-check {
       width: 20px;
       height: 20px;
-      background: #d1fae5;
-      color: #059669;
+      background: var(--teal-tint);
+      color: var(--teal-dark);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.7rem;
-      font-weight: 800;
       flex-shrink: 0;
       margin-top: 2px;
-      box-shadow: 0 2px 6px rgba(5,150,105,0.15);
     }
+    .feature-check .ico { width: 12px; height: 12px; stroke-width: 2.75; }
 
     /* CTA */
     .sub-btn {
@@ -244,18 +245,18 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 10px;
+      border-radius: var(--r-pill);
       padding: 14px 24px;
       font-size: 1rem;
       font-weight: 700;
-      font-family: var(--font);
+      font-family: var(--font-display);
       cursor: pointer;
       transition: filter 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       margin-bottom: 12px;
     }
     .sub-btn:hover:not(:disabled) {
       filter: brightness(0.88);
-      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
     }
     .sub-btn:active:not(:disabled) {
       transform: scale(0.98);
@@ -273,7 +274,7 @@
     /* Error */
     .sub-error {
       font-size: 0.82rem;
-      color: #dc2626;
+      color: var(--danger);
       margin-top: 10px;
       min-height: 18px;
       text-align: center;
@@ -291,6 +292,7 @@
   </style>
 </head>
 <body>
+  {% include 'partials/icons.html' %}
 
   <div class="sub-wrap">
 
@@ -337,23 +339,23 @@
 
       <ul class="feature-list">
         <li>
-          <span class="feature-check">✓</span>
+          <span class="feature-check"><svg class="ico"><use href="#i-check"></use></svg></span>
           <span>AI chat trained on your church documents and website</span>
         </li>
         <li>
-          <span class="feature-check">✓</span>
+          <span class="feature-check"><svg class="ico"><use href="#i-check"></use></svg></span>
           <span>Embeddable chatbot widget for your church website</span>
         </li>
         <li>
-          <span class="feature-check">✓</span>
+          <span class="feature-check"><svg class="ico"><use href="#i-check"></use></svg></span>
           <span>Unlimited staff conversations</span>
         </li>
         <li>
-          <span class="feature-check">✓</span>
+          <span class="feature-check"><svg class="ico"><use href="#i-check"></use></svg></span>
           <span>Upload PDFs, DOCX files, and crawl your website</span>
         </li>
         <li>
-          <span class="feature-check">✓</span>
+          <span class="feature-check"><svg class="ico"><use href="#i-check"></use></svg></span>
           <span>Custom bot name, welcome message, and brand color</span>
         </li>
       </ul>

@@ -1,6 +1,10 @@
 // ── Config ─────────────────────────────────────────────────────────────────
 marked.setOptions({ breaks: true, gfm: true });
 
+// The assistant's avatar shows the church's configured bot name, not a generic
+// "AI" — declared up here because the message renderers below reference it.
+const BOT_INITIAL = ((window.BOT_NAME || "Wesley").trim()[0] || "W").toUpperCase();
+
 // ── State ──────────────────────────────────────────────────────────────────
 let currentConversationId = null;
 
@@ -68,7 +72,7 @@ function appendAssistantMsg(text, sources, targetRow) {
     : "";
 
   row.innerHTML = `
-    <div class="msg-avatar assistant">AI</div>
+    <div class="msg-avatar assistant">${BOT_INITIAL}</div>
     <div class="msg-body">
       <div class="msg-bubble assistant">
         <div class="assistant-text">${renderMd(text)}</div>
@@ -84,7 +88,7 @@ function beginAssistantStream() {
   const row = document.createElement("div");
   row.className = "msg-row assistant";
   row.innerHTML = `
-    <div class="msg-avatar assistant">AI</div>
+    <div class="msg-avatar assistant">${BOT_INITIAL}</div>
     <div class="msg-body">
       <div class="msg-bubble assistant">
         <div class="assistant-text"></div>
@@ -100,7 +104,7 @@ function showTyping() {
   row.className = "msg-row assistant";
   row.id = "typingRow";
   row.innerHTML = `
-    <div class="msg-avatar assistant">AI</div>
+    <div class="msg-avatar assistant">${BOT_INITIAL}</div>
     <div class="msg-body">
       <div class="typing"><span></span><span></span><span></span></div>
     </div>`;
@@ -115,7 +119,7 @@ function appendError(msg) {
   row.className = "error-row";
   row.innerHTML = `
     <div class="error-bubble">
-      <span class="error-icon">⚠</span>
+      <span class="error-icon"><svg class="ico"><use href="#i-alert"></use></svg></span>
       <span>${esc(msg)}</span>
     </div>`;
   messagesEl.appendChild(row);
@@ -268,7 +272,7 @@ async function loadConversation(convId) {
 }
 
 // ── Suggestion icons paired with the 4 default starter questions ───────────
-const SUG_ICONS = ["📋", "📝", "📅", "🙏"];
+const SUG_ICONS = ["clipboard", "pen", "calendar", "heart"];
 
 // ── New chat ───────────────────────────────────────────────────────────────
 function newChat() {
@@ -281,7 +285,7 @@ function newChat() {
   const initial    = (botName.trim().charAt(0) || "W").toUpperCase();
 
   const sugsHTML = starters.slice(0, 4).map((q, i) =>
-    `<button class="suggestion-btn"><span class="sug-icon">${SUG_ICONS[i] || "💬"}</span><span>${esc(q)}</span></button>`
+    `<button class="suggestion-btn"><span class="sug-icon"><svg class="ico"><use href="#i-${SUG_ICONS[i] || "message"}"></use></svg></span><span>${esc(q)}</span></button>`
   ).join("");
 
   currentConversationId = null;

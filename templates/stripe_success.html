@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Subscribed — Wesley AI</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     html { height: auto; overflow: visible; }
@@ -12,7 +13,9 @@
       height: auto;
       overflow-y: auto;
       min-height: 100vh;
-      background: linear-gradient(135deg, #f0fafb 0%, #e8f5f6 50%, #f4fbfb 100%);
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(42,173,181,0.30), transparent 62%),
+        linear-gradient(168deg, var(--ink) 0%, var(--ink-deep) 100%);
       -webkit-font-smoothing: antialiased;
       display: flex;
       flex-direction: column;
@@ -36,31 +39,33 @@
     .success-logo  { height: 36px; }
 
     .success-card {
-      background: #fff;
-      border: 1px solid rgba(41,171,181,0.12);
-      border-radius: 18px;
-      padding: 40px 36px 36px;
-      box-shadow: 0 8px 32px rgba(12,61,67,0.1);
+      background: var(--white);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--r-xl);
+      padding: 38px 34px 34px;
+      box-shadow: 0 40px 80px -32px rgba(4, 12, 24, 0.6);
       animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .check-circle {
-      width: 60px;
-      height: 60px;
-      background: #d1fae5;
-      border-radius: 50%;
+      width: 58px;
+      height: 58px;
+      background: var(--teal-tint);
+      color: var(--teal-dark);
+      border-radius: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0 auto 20px;
-      font-size: 1.6rem;
     }
+    .check-circle .ico { width: 27px; height: 27px; stroke-width: 2.25; }
 
     .success-title {
-      font-size: 1.45rem;
-      font-weight: 700;
-      color: var(--text);
-      letter-spacing: -0.025em;
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.03em;
       margin: 0 0 10px;
     }
 
@@ -73,26 +78,27 @@
 
     .success-btn {
       display: inline-block;
-      background: var(--accent);
+      background: var(--teal);
       color: #fff;
       border: none;
-      border-radius: 10px;
+      border-radius: var(--r-pill);
       padding: 13px 30px;
       font-size: 0.9375rem;
       font-weight: 700;
-      font-family: var(--font);
+      font-family: var(--font-display);
       cursor: pointer;
       text-decoration: none;
       transition: filter 0.15s, box-shadow 0.15s, transform 0.1s;
     }
     .success-btn:hover {
       filter: brightness(0.88);
-      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
     }
     .success-btn:active { transform: scale(0.98); }
   </style>
 </head>
 <body>
+  {% include 'partials/icons.html' %}
 
   <div class="success-wrap">
 
@@ -101,7 +107,7 @@
     </div>
 
     <div class="success-card">
-      <div class="check-circle">✓</div>
+      <div class="check-circle"><svg class="ico"><use href="#i-check"></use></svg></div>
       <h1 class="success-title">You're subscribed!</h1>
       <p class="success-sub">
         Welcome to Wesley AI. Your subscription is now active and your church's

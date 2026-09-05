@@ -4,16 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Communications — Wesley AI</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     .db-layout { display:flex; flex:1; min-height:0; overflow:hidden; }
 
     /* ── Sidebar ── */
     .db-sidebar {
-      width:244px; flex-shrink:0; background:linear-gradient(180deg, #0f1f2e 0%, #0c1a26 100%);
+      width:244px; flex-shrink:0; background:linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%);
       display:flex; flex-direction:column; height:100%; overflow:hidden;
       border-right:1px solid rgba(255,255,255,0.06);
     }
@@ -26,7 +24,7 @@
     .db-sidebar-nav::-webkit-scrollbar { width:3px; }
     .db-sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:2px; }
     .db-nav-standalone { display:flex; align-items:center; gap:9px; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.85); font-size:0.862rem; font-weight:500; text-decoration:none; transition:background 0.13s,color 0.13s; margin-bottom:6px; }
-    .db-nav-standalone:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.9); }
+    .db-nav-standalone:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.9); }
     .db-nav-section { margin-bottom:1px; }
     .db-section-header { display:flex; align-items:center; gap:7px; width:100%; padding:5px 10px; background:none; border:none; cursor:pointer; text-align:left; font-family:var(--font); font-size:0.625rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.45); border-radius:6px; transition:color 0.13s; }
     .db-section-header:hover { color:rgba(255,255,255,0.5); }
@@ -36,8 +34,8 @@
     .db-nav-section.db-section-open .db-section-items { display:flex; }
     .db-section-items .db-nav-item-link { padding-left:28px; }
     .db-nav-item-link { display:flex; align-items:center; gap:9px; padding:10px 12px 10px 14px; border-radius:0 8px 8px 0; border-left:3px solid transparent; color:rgba(255,255,255,0.85); font-size:0.855rem; font-weight:400; text-decoration:none; transition:background 0.13s,color 0.13s; }
-    .db-nav-item-link:hover { background:rgba(22,149,160,0.08); color:rgba(255,255,255,0.85); }
-    .db-nav-item-link.db-nav-active { background:rgba(22,149,160,0.12); border-left-color:#1695a0; color:#ffffff; font-weight:600; }
+    .db-nav-item-link:hover { background:rgba(42,173,181,0.08); color:rgba(255,255,255,0.85); }
+    .db-nav-item-link.db-nav-active { background:rgba(42,173,181,0.12); border-left-color:var(--teal); color:#ffffff; font-weight:600; }
     .db-nav-item-link svg { flex-shrink:0; opacity:0.85; }
     .db-nav-item-link.db-nav-active svg { opacity:1; }
     .db-sidebar-footer { padding:14px 16px; border-top:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; }
@@ -54,39 +52,52 @@
     }
 
     /* ── Main ── */
-    .db-main { flex:1; min-width:0; overflow-y:auto; background:#f8fafc; }
+    .db-main { flex:1; min-width:0; overflow-y:auto; background:var(--paper); }
     .comms-page { padding:40px 36px 72px; max-width:900px; }
     @media (max-width:768px) { .comms-page { padding:24px 16px 56px; } }
 
     .page-header { margin-bottom:32px; }
-    .page-title { font-size:1.5rem; font-weight:700; color:var(--text); letter-spacing:-0.025em; }
-    .page-subtitle { font-size:0.875rem; color:var(--text-muted); margin-top:5px; line-height:1.5; }
+    .page-title { font-family:var(--font-display); font-size:clamp(1.5rem,2.2vw,1.85rem); font-weight:800; color:var(--ink); letter-spacing:-0.03em; }
+    .page-subtitle { font-size:0.92rem; color:var(--muted); margin-top:6px; line-height:1.55; }
 
     /* ── Priority count cards ── */
     .priority-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:32px; }
     @media (max-width:600px) { .priority-grid { grid-template-columns:repeat(2,1fr); } }
 
-    .priority-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:18px 20px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-    .priority-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-    .priority-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-    .priority-dot.red    { background:#ef4444; }
-    .priority-dot.yellow { background:#eab308; }
-    .priority-dot.green  { background:#22c55e; }
-    .priority-dot.blue   { background:#3b82f6; }
-    .priority-card-label { font-size:0.75rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-muted); }
-    .priority-card-count { font-size:2rem; font-weight:700; color:var(--text); letter-spacing:-0.03em; line-height:1; }
-    .priority-card-sub { font-size:0.75rem; color:var(--text-muted); margin-top:4px; }
+    /* Priority reads off a coloured rail on the card edge rather than a loose
+       dot floating beside the label — fewer marks, clearer scan, and it keeps
+       the four tiles reading as one set. */
+    .priority-card {
+      position:relative; overflow:hidden;
+      background:var(--white); border:1px solid var(--line);
+      border-radius:var(--r-lg); padding:18px 20px 18px 22px;
+      box-shadow:var(--shadow-sm);
+      transition:box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+    }
+    .priority-card:hover { box-shadow:var(--shadow-md); border-color:var(--teal-line); }
+    .priority-card::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--faint); }
+    .priority-card.p-red::before    { background:var(--danger); }
+    .priority-card.p-yellow::before { background:var(--gold); }
+    .priority-card.p-green::before  { background:var(--ok); }
+    .priority-card.p-blue::before   { background:var(--steel); }
+    .priority-card-top { display:flex; align-items:center; margin-bottom:10px; }
+    .priority-card-label { font-family:var(--font-display); font-size:0.68rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); }
+    .priority-card-count { font-family:var(--font-display); font-size:2rem; font-weight:800; color:var(--ink); letter-spacing:-0.03em; line-height:1; }
+    .priority-card-sub { font-size:0.75rem; color:var(--muted); margin-top:5px; }
 
     /* ── Action cards ── */
     .action-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
     @media (max-width:700px) { .action-grid { grid-template-columns:1fr; } }
 
     .action-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:12px; text-decoration:none; color:inherit; transition:border-color 0.15s, box-shadow 0.15s, transform 0.12s; }
-    .action-card:hover { border-color:var(--accent); box-shadow:0 4px 12px rgba(41,171,181,0.1); transform:translateY(-1px); }
+    .action-card:hover { border-color:var(--accent); box-shadow:0 4px 12px rgba(42,173,181,0.1); transform:translateY(-1px); }
     .action-card-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .action-card-icon.teal   { background:#ccfbf1; color:#0d9488; }
-    .action-card-icon.navy   { background:#dbeafe; color:#1d4ed8; }
-    .action-card-icon.purple { background:#ede9fe; color:#7c3aed; }
+    /* One tile treatment, three roles: teal for the primary action, ink for
+       neutral navigation. Three unrelated pastel tints read as three unrelated
+       products. */
+    .action-card-icon.teal   { background:var(--teal-tint); color:var(--teal-dark); }
+    .action-card-icon.navy   { background:var(--steel-tint); color:var(--steel); }
+    .action-card-icon.purple { background:var(--cream); color:var(--ink-soft); }
     .action-card-title { font-size:1rem; font-weight:600; color:var(--text); }
     .action-card-desc { font-size:0.8125rem; color:var(--text-muted); line-height:1.5; }
     .action-card-cta { margin-top:auto; font-size:0.8125rem; font-weight:600; color:var(--accent); display:flex; align-items:center; gap:5px; }
@@ -203,33 +214,29 @@
 
         <!-- Priority overview -->
         <div class="priority-grid">
-          <div class="priority-card">
+          <div class="priority-card p-red">
             <div class="priority-card-top">
-              <span class="priority-dot red"></span>
               <span class="priority-card-label">Urgent</span>
             </div>
             <div class="priority-card-count">{{ stats.red }}</div>
             <div class="priority-card-sub">Red priority</div>
           </div>
-          <div class="priority-card">
+          <div class="priority-card p-yellow">
             <div class="priority-card-top">
-              <span class="priority-dot yellow"></span>
               <span class="priority-card-label">High</span>
             </div>
             <div class="priority-card-count">{{ stats.yellow }}</div>
             <div class="priority-card-sub">Yellow priority</div>
           </div>
-          <div class="priority-card">
+          <div class="priority-card p-green">
             <div class="priority-card-top">
-              <span class="priority-dot green"></span>
               <span class="priority-card-label">Normal</span>
             </div>
             <div class="priority-card-count">{{ stats.green }}</div>
             <div class="priority-card-sub">Green priority</div>
           </div>
-          <div class="priority-card">
+          <div class="priority-card p-blue">
             <div class="priority-card-top">
-              <span class="priority-dot blue"></span>
               <span class="priority-card-label">Low</span>
             </div>
             <div class="priority-card-count">{{ stats.blue }}</div>

@@ -4,8 +4,13 @@
     {
       "name": "wesley-dev",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["app.py"],
-      "port": 5001
+      "runtimeArgs": [
+        "app.py"
+      ],
+      "port": 5001,
+      "env": {
+        "FLASK_DEBUG": "1"
+      }
     }
   ]
 }

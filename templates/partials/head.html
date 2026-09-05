@@ -1,0 +1,10 @@
+{#
+  Shared head assets. Every page includes this so the brand loads in exactly
+  one place — before this existed each template imported its own font and
+  redeclared its own colours, which is how the app drifted off-brand.
+#}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Lora:ital,wght@0,600;0,700;1,500&family=Red+Hat+Display:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='WesleyAI.png') }}">

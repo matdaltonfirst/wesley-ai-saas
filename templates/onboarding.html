@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Welcome — Wesley AI</title>
+  {% include 'partials/head.html' %}
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     /* Reset overflow — style.css locks html+body for the chat page */
@@ -13,7 +14,7 @@
       height: auto;
       overflow-y: auto;
       min-height: 100vh;
-      background: linear-gradient(135deg, #f0fafb 0%, #e8f5f6 50%, #f4fbfb 100%);
+      background: var(--paper);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -80,10 +81,10 @@
     /* ── Card ── */
     .wizard-card {
       background: #fff;
-      border: 1px solid rgba(41,171,181,0.12);
-      border-radius: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--r-xl);
       padding: 36px 36px 32px;
-      box-shadow: 0 8px 32px rgba(12,61,67,0.1);
+      box-shadow: var(--shadow-lg);
       animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
@@ -140,9 +141,9 @@
     }
     .field-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(41,171,181,0.22);
+      box-shadow: 0 0 0 3px rgba(42,173,181,0.22);
     }
-    .field-input::placeholder { color: #94a3b8; }
+    .field-input::placeholder { color: var(--faint); }
     select.field-input { appearance: none; background-image: none; cursor: pointer; }
     .field-help {
       font-size: 0.78rem;
@@ -158,8 +159,8 @@
       margin: 14px 0 20px;
       line-height: 1.5;
     }
-    .step-status.ok  { color: #059669; }
-    .step-status.err { color: #dc2626; }
+    .step-status.ok  { color: var(--ok); }
+    .step-status.err { color: var(--danger); }
 
     /* ── Buttons ── */
     .btn-row {
@@ -174,18 +175,18 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 10px;
+      border-radius: var(--r-pill);
       padding: 11px 26px;
       font-size: 0.9rem;
-      font-weight: 600;
-      font-family: var(--font);
+      font-weight: 700;
+      font-family: var(--font-display);
       cursor: pointer;
       transition: filter 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
     }
     .btn-primary:hover:not(:disabled) {
       filter: brightness(0.88);
-      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
     }
     .btn-primary:active:not(:disabled) {
       transform: scale(0.98);
@@ -220,8 +221,8 @@
       white-space: nowrap;
     }
     .btn-outline:hover {
-      background: #e8f7f8;
-      box-shadow: 0 4px 12px rgba(41,171,181,0.25);
+      background: var(--teal-tint);
+      box-shadow: 0 4px 12px rgba(42,173,181,0.25);
     }
     .btn-outline:active {
       transform: scale(0.98);
@@ -258,15 +259,22 @@
 
     /* ── Step 3 success ── */
     .success-icon {
-      font-size: 2.6rem;
-      text-align: center;
-      margin-bottom: 10px;
+      width: 56px;
+      height: 56px;
+      background: var(--teal-tint);
+      color: var(--teal-dark);
+      border-radius: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
     }
+    .success-icon .ico { width: 26px; height: 26px; }
     .embed-block {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--ink-deep);
+      border: 1px solid rgba(255,255,255,0.12);
       border-radius: 12px;
-      color: #8ecdd2;
+      color: var(--teal-line);
       font-family: "SFMono-Regular", "Consolas", monospace;
       font-size: 0.77rem;
       padding: 14px 16px;
@@ -293,7 +301,7 @@
       cursor: pointer;
       transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .btn-copy:hover { background: #e8f7f8; color: var(--accent); border-color: var(--accent); }
+    .btn-copy:hover { background: var(--teal-tint); color: var(--accent); border-color: var(--accent); }
 
     .step3-cta-row {
       display: flex;
@@ -315,6 +323,7 @@
   </style>
 </head>
 <body>
+  {% include 'partials/icons.html' %}
 
   <div class="wizard">
 
@@ -493,7 +502,7 @@
 
       <!-- ── Step 6: All set ── -->
       <div class="step-panel" id="step6">
-        <div class="success-icon">🎉</div>
+        <div class="success-icon"><svg class="ico"><use href="#i-check-circle"></use></svg></div>
         <div class="step-label">Step 6 of 6</div>
         <h1 class="step-title">You're all set!</h1>
         <p class="step-sub">Add this snippet to your church website to embed the chatbot widget anywhere on your site. You can always grab it later from your Dashboard.</p>
@@ -619,7 +628,7 @@
     function setCrawlMsg(msg, ok) {
       const el = document.getElementById("crawlStatusText");
       el.textContent = msg;
-      el.style.color = ok ? "#059669" : (msg ? "#dc2626" : "");
+      el.style.color = ok ? "#0f8a6a" : (msg ? "#c8472f" : "");
     }
 
     document.getElementById("crawlStartBtn").addEventListener("click", async () => {

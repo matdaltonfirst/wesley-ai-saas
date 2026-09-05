@@ -4,18 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Billing Overview — Wesley AI Admin</title>
+  {% include 'partials/head.html' %}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+    body { font-family: var(--font-body); background: var(--paper); color: var(--ink); }
     .page-header {
-      background: #0f1f2e; color: #fff;
+      background: var(--ink); color: #fff;
       padding: 0 32px; height: 56px;
       display: flex; align-items: center; gap: 20px;
     }
     .ph-brand { display: flex; align-items: center; gap: 12px; }
     .ph-badge {
       background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
-      color: #8ecdd2; font-size: 0.7rem; font-weight: 700;
+      color: var(--teal-line); font-size: 0.7rem; font-weight: 700;
       letter-spacing: 0.08em; text-transform: uppercase;
       padding: 3px 8px; border-radius: 4px;
     }
@@ -28,74 +29,76 @@
     .admin-nav-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
     .admin-nav-tab.active { color: #fff; background: rgba(255,255,255,0.13); }
     .back-link {
-      color: #8ecdd2; font-size: 0.82rem; text-decoration: none;
+      color: var(--teal-line); font-size: 0.82rem; text-decoration: none;
       display: flex; align-items: center; gap: 5px; margin-left: auto;
     }
     .back-link:hover { color: #fff; }
     .container { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
 
     /* Table card */
-    .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
-    .card-header { padding: 18px 24px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; }
-    .card-header h2 { font-size: 0.95rem; font-weight: 700; color: #0f172a; }
-    .card-header span { font-size: 0.78rem; color: #94a3b8; margin-left: auto; }
-    .refresh-btn { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: #475569; }
-    .refresh-btn:hover { background: #e2e8f0; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+    .card-header { padding: 18px 24px; border-bottom: 1px solid var(--cream); display: flex; align-items: center; gap: 12px; }
+    .card-header h2 { font-size: 0.95rem; font-weight: 700; color: var(--ink); }
+    .card-header span { font-size: 0.78rem; color: var(--faint); margin-left: auto; }
+    .refresh-btn { background: var(--cream); border: 1px solid var(--line); border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: var(--body); }
+    .refresh-btn:hover { background: var(--line); }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-    th { text-align: left; padding: 10px 14px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
-    td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: top; color: #334155; }
+    th { text-align: left; padding: 10px 14px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); border-bottom: 1px solid var(--cream); white-space: nowrap; }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--paper); vertical-align: top; color: var(--ink-soft); }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fafafa; }
 
     /* Church name cell */
-    .ch-name { font-weight: 700; color: #0f172a; }
-    .ch-email { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+    .ch-name { font-weight: 700; color: var(--ink); }
+    .ch-email { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
 
     /* Status badges */
     .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-    .badge-active        { background: #d1fae5; color: #065f46; }
-    .badge-expiring      { background: #fef3c7; color: #92400e; }
-    .badge-expired       { background: #fee2e2; color: #991b1b; }
-    .badge-no-sub        { background: #f1f5f9; color: #64748b; }
-    .badge-stripe        { background: #dbeafe; color: #1e40af; }
-    .badge-manual        { background: #ede9fe; color: #5b21b6; }
-    .badge-none          { background: #f1f5f9; color: #64748b; }
+    .badge-active        { background: var(--ok-bg); color: var(--ok); }
+    .badge-expiring      { background: #fef3c7; color: var(--gold-ink); }
+    .badge-expired       { background: var(--danger-bg); color: var(--danger); }
+    .badge-no-sub        { background: var(--cream); color: var(--muted); }
+    .badge-stripe        { background: var(--cream); color: var(--ink-soft); }
+    .badge-manual        { background: var(--teal-tint); color: var(--ink-soft); }
+    .badge-none          { background: var(--cream); color: var(--muted); }
 
     /* Action buttons */
     .act-btn { display: inline-block; padding: 5px 11px; border-radius: 6px; font-size: 0.73rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; margin: 2px 2px 2px 0; white-space: nowrap; transition: all 0.14s; }
-    .act-btn-teal  { background: #1695a0; color: #fff; border-color: #1695a0; }
-    .act-btn-teal:hover  { background: #117a83; }
-    .act-btn-amber { background: #d97706; color: #fff; border-color: #d97706; }
-    .act-btn-amber:hover { background: #b45309; }
-    .act-btn-red   { background: #fff; color: #ef4444; border-color: #fca5a5; }
-    .act-btn-red:hover   { background: #fee2e2; }
-    .act-btn-gray  { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
-    .act-btn-gray:hover  { background: #e2e8f0; }
+    .act-btn-teal  { background: var(--teal); color: #fff; border-color: var(--teal); }
+    .act-btn-teal:hover  { background: var(--teal-dark); }
+    .act-btn-amber { background: var(--warn); color: #fff; border-color: var(--warn); }
+    .act-btn-amber:hover { background: var(--gold-ink); }
+    .act-btn-red   { background: #fff; color: var(--danger); border-color: var(--danger-line); }
+    .act-btn-red:hover   { background: var(--danger-bg); }
+    .act-btn-gray  { background: var(--cream); color: var(--body); border-color: var(--line); }
+    .act-btn-gray:hover  { background: var(--line); }
 
     /* Inline mark-paid form */
     .form-row { display: none; }
-    .form-row td { background: #f8fafc; padding: 16px 14px; border-top: 2px solid #1695a0; }
+    .form-row td { background: var(--paper); padding: 16px 14px; border-top: 2px solid var(--teal); }
     .form-row.open { display: table-row; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
-    .form-grid label { font-size: 0.75rem; font-weight: 600; color: #475569; display: block; margin-bottom: 4px; }
+    .form-grid label { font-size: 0.75rem; font-weight: 600; color: var(--body); display: block; margin-bottom: 4px; }
     .form-grid input, .form-grid select, .form-grid textarea {
-      width: 100%; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px 10px;
-      font-size: 0.83rem; color: #1e293b; font-family: inherit; background: #fff;
+      width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
+      font-size: 0.83rem; color: var(--ink); font-family: inherit; background: #fff;
     }
-    .form-grid input:focus, .form-grid select:focus { outline: none; border-color: #1695a0; }
+    .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--teal); }
     .form-note { grid-column: 1 / -1; }
     .form-actions { display: flex; gap: 8px; }
-    .save-btn { background: #1695a0; color: #fff; border: none; border-radius: 7px; padding: 8px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
-    .save-btn:hover { background: #117a83; }
-    .cancel-btn { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 7px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-    .cancel-btn:hover { background: #e2e8f0; }
+    .save-btn { background: var(--teal); color: #fff; border: none; border-radius: var(--r-pill); padding: 8px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+      font-family: var(--font-display);
+    }
+    .save-btn:hover { background: var(--teal-dark); }
+    .cancel-btn { background: var(--cream); color: var(--body); border: 1px solid var(--line); border-radius: 7px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .cancel-btn:hover { background: var(--line); }
     .form-msg { font-size: 0.78rem; margin-top: 8px; }
 
-    .invite-status { font-size: 0.76rem; color: #64748b; }
-    .invite-sent   { color: #059669; }
-    .empty-state   { text-align: center; padding: 40px; color: #94a3b8; font-size: 0.875rem; }
-    .loading-row td { text-align: center; padding: 32px; color: #94a3b8; }
+    .invite-status { font-size: 0.76rem; color: var(--muted); }
+    .invite-sent   { color: var(--ok); }
+    .empty-state   { text-align: center; padding: 40px; color: var(--faint); font-size: 0.875rem; }
+    .loading-row td { text-align: center; padding: 32px; color: var(--faint); }
   </style>
 </head>
 <body>
