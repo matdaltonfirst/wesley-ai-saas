@@ -1,0 +1,99 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+  <h1 style="margin:0 0 6px;font-size:1.15rem;color:#0c3d43;">Sunday, ready to post</h1>
+  <p style="margin:0 0 22px;font-size:0.85rem;color:#64748b;">
+    {{ church_name }} &nbsp;·&nbsp; {{ sermon.title }}
+  </p>
+
+  <p style="margin:0 0 22px;font-size:0.88rem;color:#334155;line-height:1.55;">
+    Everything below comes from what was actually preached. Quotes are word for
+    word — anything the transcript did not contain has already been removed.
+    Read them before posting.
+  </p>
+
+  {% if content.titles %}
+  <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:#0c3d43;">Video title ideas</p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 22px;width:100%;">
+    {% for title in content.titles %}
+    <tr><td style="padding:7px 12px;background:#f0fafa;border-radius:8px;font-size:0.86rem;color:#0f172a;">{{ title }}</td></tr>
+    <tr><td style="height:6px;"></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if content.quotes %}
+  <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:#0c3d43;">
+    Quotes worth sharing
+  </p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 22px;width:100%;">
+    {% for quote in content.quotes %}
+    <tr>
+      <td style="padding:12px 14px;background:#ffffff;border-left:3px solid #0c3d43;border-radius:0 8px 8px 0;">
+        <div style="font-size:0.88rem;color:#0f172a;line-height:1.5;">“{{ quote.text }}”</div>
+        {% if quote.clip_url %}
+        <div style="margin-top:6px;font-size:0.74rem;color:#64748b;">
+          <a href="{{ quote.clip_url }}" style="color:#0c7a86;text-decoration:none;">Watch from {{ quote.timestamp }} →</a>
+        </div>
+        {% endif %}
+      </td>
+    </tr>
+    <tr><td style="height:8px;"></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if content.social %}
+  <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:#0c3d43;">Posts for this week</p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 22px;width:100%;">
+    {% for post in content.social %}
+    <tr>
+      <td style="padding:12px 14px;background:#f8fafc;border-radius:8px;">
+        <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:5px;">{{ post.platform }}</div>
+        <div style="font-size:0.86rem;color:#0f172a;line-height:1.55;white-space:pre-wrap;">{{ post.body }}</div>
+      </td>
+    </tr>
+    <tr><td style="height:8px;"></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if content.chapters %}
+  <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:#0c3d43;">
+    YouTube chapters <span style="font-weight:400;color:#64748b;">— paste into the description</span>
+  </p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 22px;width:100%;">
+    <tr>
+      <td style="padding:12px 14px;background:#f8fafc;border-radius:8px;font-family:ui-monospace,Menlo,monospace;font-size:0.78rem;color:#0f172a;line-height:1.7;">
+        {% for chapter in content.chapters %}{{ chapter.timestamp }} {{ chapter.label }}<br>{% endfor %}
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+
+  {% if content.description %}
+  <p style="margin:0 0 8px;font-size:0.82rem;font-weight:600;color:#0c3d43;">Video description</p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 22px;width:100%;">
+    <tr>
+      <td style="padding:12px 14px;background:#f8fafc;border-radius:8px;font-size:0.85rem;color:#0f172a;line-height:1.55;">
+        {{ content.description }}
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+    <tr>
+      <td style="background:#0c3d43;border-radius:8px;">
+        <a href="{{ app_url }}/dashboard#sermon-packets"
+           style="display:inline-block;padding:11px 20px;color:#ffffff;font-size:0.86rem;text-decoration:none;">
+          Open in Wesley
+        </a>
+      </td>
+    </tr>
+  </table>
+
+  <p style="margin:0;font-size:0.76rem;color:#94a3b8;line-height:1.5;">
+    Wesley wrote this from Sunday's recording. Nothing has been published — it is
+    yours to edit or ignore. Questions: <a href="mailto:{{ support_email }}" style="color:#0c7a86;">{{ support_email }}</a>
+  </p>
+{% endblock %}

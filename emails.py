@@ -244,3 +244,29 @@ def send_weekly_digest_email(
         })
     except Exception as exc:
         log.error("Weekly digest email failed for %s: %s", to_email, exc)
+
+
+def send_sermon_packet_email(
+    to_email: str, church_name: str, sermon, content: dict,
+    from_email: str, app_url: str, support_email: str,
+) -> None:
+    """Send the Monday packet — Sunday's message, ready to post."""
+    html = render_template(
+        "emails/sermon_packet.html",
+        church_name=church_name,
+        sermon=sermon,
+        content=content,
+        app_url=app_url,
+        support_email=support_email,
+    )
+    try:
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            # Names the sermon rather than the product: it should read as a
+            # note about Sunday, not as a notification from software.
+            "subject": f"Sunday, ready to post — {sermon.title}",
+            "html": html,
+        })
+    except Exception as exc:
+        log.error("Sermon packet email failed for %s: %s", to_email, exc)

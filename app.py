@@ -683,6 +683,17 @@ def transcript_backfill_job():
                      result["filled"], result["failed"])
 
 
+def monday_packet_job():
+    """Turn Sunday's sermon into a week of content and email it to admins.
+
+    Runs after the transcript backfill and the embedding warm, so a sermon
+    ingested overnight is fully prepared before its packet is built.
+    """
+    with app.app_context():
+        from packets import run_monday_packets
+        run_monday_packets()
+
+
 def weekly_digest_job():
     """Monday 13:00 UTC (early morning US) job: email each church a summary of
     last week's widget activity."""
@@ -715,6 +726,7 @@ _SCHEDULED_JOBS = [
     ("invite_cleanup",        invite_cleanup_job,        CronTrigger(hour=4, minute=0)),
     ("trial_reminder",        trial_reminder_job,        CronTrigger(hour=9, minute=0)),
     ("manual_billing_check",  manual_billing_check_job,  CronTrigger(hour=8, minute=0)),
+    ("monday_packet",         monday_packet_job,         CronTrigger(day_of_week="mon", hour=11, minute=0)),
     ("weekly_digest",         weekly_digest_job,         CronTrigger(day_of_week="mon", hour=13, minute=0)),
     ("calendar_refresh",      calendar_refresh_job,      CronTrigger(hour=1, minute=30)),
     ("sermon_check",          sermon_check_job,          CronTrigger(hour=4, minute=30)),
