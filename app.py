@@ -186,6 +186,7 @@ def create_app(testing: bool = False) -> Flask:
     from routes.calendars import calendars_bp
     from routes.pco_routes import pco_bp
     from routes.sermons_routes import sermons_bp
+    from routes.packets_routes import packets_bp
     from knowledge_packs import knowledge_bp
 
     _app.register_blueprint(auth_bp)
@@ -200,6 +201,7 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(calendars_bp)
     _app.register_blueprint(pco_bp)
     _app.register_blueprint(sermons_bp)
+    _app.register_blueprint(packets_bp)
     _app.register_blueprint(knowledge_bp)
 
     # ── Security headers ─────────────────────────────────────────────────────

@@ -1698,3 +1698,219 @@ async function qnaDelete(id) {
     document.getElementById("qnaFormCard").style.display = "none";
   });
 })();
+
+// ── Sunday Content (sermon packets) ─────────────────────────────────────────
+
+let _packets = [];
+
+function pkCsrf() {
+  const el = document.querySelector('meta[name="csrf-token"]');
+  return el ? el.getAttribute("content") : "";
+}
+
+function pkDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+async function loadPackets() {
+  const list = document.getElementById("pkList");
+  const count = document.getElementById("pkCount");
+  if (!list) return;
+  try {
+    const res = await fetch("/api/packets");
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+    _packets = data.packets || [];
+  } catch {
+    list.innerHTML = '<div class="an-empty">Could not load Sunday content.</div>';
+    return;
+  }
+
+  if (!_packets.length) {
+    if (count) count.textContent = "";
+    list.innerHTML =
+      '<div class="an-empty">Nothing yet. Wesley builds this from your sermon recording ' +
+      'the Monday after it is preached &mdash; connect a sermon source under Data Sources ' +
+      'if you have not already.</div>';
+    return;
+  }
+  if (count) {
+    count.textContent = _packets.length + (_packets.length === 1 ? " message" : " messages");
+  }
+  list.innerHTML = _packets.map(renderPacket).join("");
+  wirePacketCards();
+}
+
+function renderPacket(p) {
+  const s = p.sermon || {};
+  if (p.status !== "ready") {
+    return '<div class="settings-card" style="margin-bottom:14px;">' +
+      '<div style="font-weight:600;">' + esc(s.title || "Untitled") + "</div>" +
+      '<div class="an-empty" style="text-align:left;padding:8px 0 0;">' +
+      (p.status === "failed"
+        ? "Wesley could not build content from this message. " + esc(p.error || "")
+        : "Still working on this one.") +
+      "</div></div>";
+  }
+
+  const c = p.content || {};
+  const quotes = (c.quotes || []).map(function (q) {
+    const link = q.clip_url
+      ? ' <a href="' + esc(q.clip_url) + '" target="_blank" rel="noopener noreferrer" ' +
+        'style="font-size:0.75rem;color:#0c7a86;text-decoration:none;white-space:nowrap;">' +
+        esc(q.timestamp) + " &rarr;</a>"
+      : "";
+    return '<div class="pk-quote">&ldquo;' + esc(q.text) + "&rdquo;" + link +
+           '<button class="pk-copy" data-copy="' + esc(q.text) + '">Copy</button></div>';
+  }).join("");
+
+  const posts = (c.social || []).map(function (post, i) {
+    return '<div class="pk-post">' +
+      '<div class="pk-post-platform">' + esc(post.platform) + "</div>" +
+      '<textarea class="pk-input pk-post-body" data-index="' + i + '" rows="4">' +
+      esc(post.body) + "</textarea>" +
+      '<button class="pk-copy" data-copy-target="post-' + i + '">Copy</button></div>';
+  }).join("");
+
+  const chapters = (c.chapters || [])
+    .map(function (ch) { return ch.timestamp + " " + ch.label; }).join("\n");
+
+  return '<div class="settings-card pk-card" data-id="' + p.id + '" style="margin-bottom:14px;">' +
+    '<div class="pk-head">' +
+      '<div>' +
+        '<div class="pk-title">' + esc(s.title || "Untitled") + "</div>" +
+        '<div class="pk-meta">' +
+          (s.series ? esc(s.series) + " &middot; " : "") + esc(pkDate(s.preached_at)) +
+          (p.emailed_at ? " &middot; emailed " + esc(pkDate(p.emailed_at)) : "") +
+        "</div>" +
+      "</div>" +
+      '<button class="refresh-btn-sm pk-toggle">Open</button>' +
+    "</div>" +
+    '<div class="pk-body" hidden>' +
+      (c.titles && c.titles.length
+        ? '<div class="pk-section"><div class="pk-label">Video title ideas</div>' +
+          c.titles.map(function (t, i) {
+            return '<div class="pk-row"><input class="pk-input pk-title-input" data-index="' + i +
+                   '" value="' + esc(t) + '" />' +
+                   '<button class="pk-copy" data-copy-target="title-' + i + '">Copy</button></div>';
+          }).join("") + "</div>"
+        : "") +
+      (quotes ? '<div class="pk-section"><div class="pk-label">Quotes &mdash; word for word from the recording</div>' + quotes + "</div>" : "") +
+      (posts ? '<div class="pk-section"><div class="pk-label">Posts</div>' + posts + "</div>" : "") +
+      (chapters
+        ? '<div class="pk-section"><div class="pk-label">YouTube chapters</div>' +
+          '<pre class="pk-pre">' + esc(chapters) + "</pre>" +
+          '<button class="pk-copy" data-copy="' + esc(chapters) + '">Copy chapters</button></div>'
+        : "") +
+      (c.description
+        ? '<div class="pk-section"><div class="pk-label">Video description</div>' +
+          '<textarea class="pk-input pk-description" rows="5">' + esc(c.description) + "</textarea>" +
+          '<button class="pk-copy" data-copy-target="description">Copy</button></div>'
+        : "") +
+      '<div class="pk-actions">' +
+        '<button class="db-btn-primary pk-save">Save changes</button>' +
+        '<button class="refresh-btn-sm pk-regen">Rebuild from the recording</button>' +
+        '<span class="pk-status"></span>' +
+      "</div>" +
+    "</div></div>";
+}
+
+function wirePacketCards() {
+  document.querySelectorAll(".pk-card").forEach(function (card) {
+    const body = card.querySelector(".pk-body");
+    const toggle = card.querySelector(".pk-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        body.hidden = !body.hidden;
+        toggle.textContent = body.hidden ? "Open" : "Close";
+      });
+    }
+
+    card.querySelectorAll(".pk-copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        let text = btn.getAttribute("data-copy");
+        const target = btn.getAttribute("data-copy-target");
+        if (target === "description") {
+          text = card.querySelector(".pk-description").value;
+        } else if (target && target.indexOf("post-") === 0) {
+          text = card.querySelector('.pk-post-body[data-index="' + target.slice(5) + '"]').value;
+        } else if (target && target.indexOf("title-") === 0) {
+          text = card.querySelector('.pk-title-input[data-index="' + target.slice(6) + '"]').value;
+        }
+        navigator.clipboard.writeText(text || "").then(function () {
+          const original = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = original; }, 1200);
+        });
+      });
+    });
+
+    const save = card.querySelector(".pk-save");
+    if (save) save.addEventListener("click", function () { savePacket(card); });
+    const regen = card.querySelector(".pk-regen");
+    if (regen) regen.addEventListener("click", function () { regeneratePacket(card); });
+  });
+}
+
+function pkSetStatus(card, message) {
+  const el = card.querySelector(".pk-status");
+  if (el) el.textContent = message;
+}
+
+async function savePacket(card) {
+  const id = card.dataset.id;
+  const payload = {
+    titles: Array.from(card.querySelectorAll(".pk-title-input")).map(function (i) { return i.value; }),
+    social: Array.from(card.querySelectorAll(".pk-post-body")).map(function (t) {
+      return { platform: t.closest(".pk-post").querySelector(".pk-post-platform").textContent, body: t.value };
+    }),
+  };
+  const desc = card.querySelector(".pk-description");
+  if (desc) payload.description = desc.value;
+
+  pkSetStatus(card, "Saving…");
+  try {
+    const res = await fetch("/api/packets/" + id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": pkCsrf() },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    pkSetStatus(card, res.ok ? "Saved." : (data.error || "Could not save."));
+  } catch {
+    pkSetStatus(card, "Could not save. Check your connection.");
+  }
+}
+
+async function regeneratePacket(card) {
+  if (!confirm("Rebuild this from the recording? Any edits you have made here will be replaced.")) return;
+  const id = card.dataset.id;
+  pkSetStatus(card, "Rebuilding…");
+  try {
+    const res = await fetch("/api/packets/" + id + "/regenerate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": pkCsrf() },
+    });
+    const data = await res.json();
+    if (!res.ok) { pkSetStatus(card, data.error || "Could not rebuild."); return; }
+    await loadPackets();
+  } catch {
+    pkSetStatus(card, "Could not rebuild. Check your connection.");
+  }
+}
+
+document.addEventListener("panelShow", function (e) {
+  if (e.detail === "sermon-packets") loadPackets();
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  const btn = document.getElementById("pkRefreshBtn");
+  if (btn) btn.addEventListener("click", loadPackets);
+  // The initial showPanel() runs before this file registers its panelShow
+  // listener, so a deep link — which is exactly how the Monday email arrives —
+  // would otherwise sit on "Loading…" for ever.
+  const panel = document.getElementById("panel-sermon-packets");
+  if (panel && panel.classList.contains("db-panel-active")) loadPackets();
+});

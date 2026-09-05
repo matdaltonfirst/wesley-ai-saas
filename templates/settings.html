@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <title>Wesley AI — Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1345,6 +1346,46 @@
       .kg-item-controls { grid-template-columns:1fr 1fr; }
       .kg-item-controls .kg-source { grid-column:1/-1; }
     }
+  
+    /* ── Sunday Content (sermon packets) ── */
+    .pk-card { }
+    .pk-head { display:flex; align-items:flex-start; gap:12px; }
+    .pk-head > div:first-child { flex:1; min-width:0; }
+    .pk-title { font-weight:600; font-size:0.95rem; color:#0f172a; }
+    .pk-meta { font-size:0.76rem; color:#64748b; margin-top:2px; }
+    .pk-body { margin-top:16px; border-top:1px solid #e6eef0; padding-top:16px; }
+    .pk-section { margin-bottom:18px; }
+    .pk-label {
+      font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em;
+      color:#64748b; margin-bottom:7px;
+    }
+    .pk-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+    .pk-input {
+      flex:1; width:100%; padding:8px 10px; border:1px solid #d7e3e5; border-radius:7px;
+      font:inherit; font-size:0.86rem; color:#0f172a; background:#fff; resize:vertical;
+    }
+    .pk-input:focus { outline:2px solid #0c7a86; outline-offset:-1px; border-color:transparent; }
+    .pk-quote {
+      background:#f8fafc; border-left:3px solid #0c3d43; border-radius:0 7px 7px 0;
+      padding:10px 12px; margin-bottom:7px; font-size:0.86rem; color:#0f172a; line-height:1.5;
+    }
+    .pk-post { background:#f8fafc; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+    .pk-post-platform {
+      font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em;
+      color:#64748b; margin-bottom:5px;
+    }
+    .pk-pre {
+      background:#f8fafc; border-radius:8px; padding:10px 12px; margin:0 0 7px;
+      font-family:ui-monospace,Menlo,monospace; font-size:0.78rem; color:#0f172a;
+      line-height:1.7; white-space:pre-wrap; overflow-x:auto;
+    }
+    .pk-copy {
+      border:1px solid #d7e3e5; background:#fff; border-radius:6px; cursor:pointer;
+      font-size:0.72rem; color:#0c7a86; padding:4px 9px; margin-top:6px; white-space:nowrap;
+    }
+    .pk-copy:hover { background:#f0fafa; }
+    .pk-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .pk-status { font-size:0.78rem; color:#64748b; }
   </style>
 </head>
 <body class="settings-page">
@@ -1396,6 +1437,13 @@
             </svg>
           </button>
           <div class="db-section-items">
+            <button class="db-nav-item" data-panel="sermon-packets">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+              Sunday Content
+            </button>
             <button class="db-nav-item" data-panel="chat-logs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -1610,6 +1658,23 @@
     <main class="db-main" id="dbMain">
 
       <!-- ── Chat Logs ── -->
+      <div class="db-panel" id="panel-sermon-packets">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Sunday Content</h1>
+          <p class="db-panel-subtitle">
+            Everything Wesley pulled from Sunday&rsquo;s message. Quotes are word for word from
+            the recording &mdash; anything the transcript didn&rsquo;t contain has already been removed.
+          </p>
+        </div>
+        <section class="settings-card">
+          <div class="fb-filter-row">
+            <span class="db-panel-subtitle" style="margin:0;" id="pkCount">&nbsp;</span>
+            <button class="refresh-btn-sm" id="pkRefreshBtn" style="margin-left:auto;">Refresh</button>
+          </div>
+          <div id="pkList"><div class="an-empty">Loading&hellip;</div></div>
+        </section>
+      </div>
+
       <div class="db-panel" id="panel-chat-logs">
         <div class="db-panel-header">
           <h1 class="db-panel-title">Chat Logs</h1>
@@ -2363,7 +2428,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations','subscription'];
+    const VALID_PANELS = ['sermon-packets','chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations','subscription'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
