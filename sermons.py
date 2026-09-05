@@ -85,12 +85,56 @@ def resolve_channel(url: str) -> dict:
     }
 
 
+def _airing_state(video_ids: list[str]) -> dict:
+    """Whether each video has actually aired, keyed by video id.
+
+    A church channel's uploads list includes scheduled livestreams that have
+    not happened yet. They look like ordinary videos and carry a plausible
+    date, but there is nothing in them — one was ingested in production and
+    distilled into a "sermon" from a placeholder. The only reliable signal is
+    liveStreamingDetails, which the playlist endpoint does not return.
+    """
+    if not video_ids:
+        return {}
+    try:
+        data = _yt_get("videos", part="liveStreamingDetails,status",
+                       id=",".join(video_ids[:50]))
+    except SermonError:
+        # If this lookup fails, fall back to treating everything as aired
+        # rather than silently ingesting nothing at all.
+        log.warning("Could not check airing state; treating all videos as aired.")
+        return {}
+    state = {}
+    for item in data.get("items", []):
+        live = item.get("liveStreamingDetails") or {}
+        state[item.get("id")] = {
+            "scheduled": live.get("scheduledStartTime"),
+            "ended": live.get("actualEndTime"),
+            "privacy": (item.get("status") or {}).get("privacyStatus"),
+        }
+    return state
+
+
+def has_aired(state: dict) -> bool:
+    """True unless the video is a stream that has not finished, or is private."""
+    if not state:
+        return True                      # an ordinary upload, or unknown
+    if state.get("privacy") == "private":
+        return False
+    # Scheduled but never ended: upcoming, or live right now. Either way there
+    # is no finished message to transcribe yet — leaving it uningested means
+    # the next nightly check picks it up once it has actually aired.
+    if state.get("scheduled") and not state.get("ended"):
+        return False
+    return True
+
+
 def list_recent_videos(channel_id: str, limit: int = BACKFILL_COUNT) -> list[dict]:
-    """Most recent uploads for a channel, newest first."""
+    """Most recent uploads for a channel, newest first, excluding unaired streams."""
     uploads = "UU" + channel_id[2:]  # uploads playlist id mirrors the channel id
     data = _yt_get("playlistItems", part="snippet,contentDetails",
                    playlistId=uploads, maxResults=min(limit, 50))
-    videos = []
+    candidates = []
     for item in data.get("items", []):
         snippet = item.get("snippet", {})
         video_id = item.get("contentDetails", {}).get("videoId")
@@ -98,11 +142,20 @@ def list_recent_videos(channel_id: str, limit: int = BACKFILL_COUNT) -> list[dic
             continue
         published = item.get("contentDetails", {}).get("videoPublishedAt") \
             or snippet.get("publishedAt")
-        videos.append({
+        candidates.append({
             "video_id": video_id,
             "title": snippet.get("title", "")[:500],
             "published_at": datetime.strptime(published[:19], "%Y-%m-%dT%H:%M:%S"),
         })
+
+    airing = _airing_state([c["video_id"] for c in candidates])
+    videos = []
+    for candidate in candidates:
+        if not has_aired(airing.get(candidate["video_id"], {})):
+            log.info("Skipping %s (%r) — not aired yet.",
+                     candidate["video_id"], candidate["title"])
+            continue
+        videos.append(candidate)
     return videos[:limit]
 
 

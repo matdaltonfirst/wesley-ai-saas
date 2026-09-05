@@ -403,3 +403,57 @@ class TestTranscriptBackfill:
         assert first["filled"] == 1
         assert second["filled"] == 0
         _cleanup(church)
+
+
+class TestUnairedStreamsAreSkipped:
+    """A church channel's uploads list includes scheduled livestreams. They look
+    like ordinary videos and carry a plausible date, but there is nothing in
+    them — one reached production and was distilled into a 'sermon' from a
+    placeholder."""
+
+    def test_a_finished_stream_has_aired(self):
+        assert sermon_lib.has_aired({
+            "scheduled": "2026-08-31T14:00:00Z", "ended": "2026-08-31T15:20:00Z"})
+
+    def test_an_upcoming_stream_has_not(self):
+        assert not sermon_lib.has_aired({"scheduled": "2026-09-07T14:00:00Z", "ended": None})
+
+    def test_a_stream_happening_right_now_has_not(self):
+        """Mid-stream there is no finished message to transcribe."""
+        assert not sermon_lib.has_aired({"scheduled": "2026-09-04T14:00:00Z", "ended": None})
+
+    def test_an_ordinary_upload_has_aired(self):
+        assert sermon_lib.has_aired({})
+
+    def test_a_private_video_is_skipped(self):
+        assert not sermon_lib.has_aired({"privacy": "private"})
+
+    def test_unaired_videos_never_become_sermons(self, app, church):
+        raw = {"items": [
+            {"snippet": {"title": "Modern Service", "publishedAt": "2026-08-31T10:00:00Z"},
+             "contentDetails": {"videoId": "upcoming1",
+                                "videoPublishedAt": "2026-08-31T10:00:00Z"}},
+            {"snippet": {"title": "What Happens When We Fail God?",
+                         "publishedAt": "2026-08-30T10:00:00Z"},
+             "contentDetails": {"videoId": "aired1",
+                                "videoPublishedAt": "2026-08-30T10:00:00Z"}},
+        ]}
+        airing = {"items": [
+            {"id": "upcoming1", "liveStreamingDetails": {"scheduledStartTime": "2026-09-06T14:00:00Z"}},
+            {"id": "aired1", "liveStreamingDetails": {"scheduledStartTime": "2026-08-30T14:00:00Z",
+                                                      "actualEndTime": "2026-08-30T15:10:00Z"}},
+        ]}
+        with patch("sermons._yt_get", side_effect=[raw, airing]):
+            videos = sermon_lib.list_recent_videos("UCabc123")
+        assert [v["video_id"] for v in videos] == ["aired1"]
+
+    def test_a_failed_airing_lookup_does_not_block_ingestion(self, app, church):
+        """If the extra lookup fails, ingest everything rather than nothing."""
+        raw = {"items": [
+            {"snippet": {"title": "Sunday Message", "publishedAt": "2026-08-30T10:00:00Z"},
+             "contentDetails": {"videoId": "vidX", "videoPublishedAt": "2026-08-30T10:00:00Z"}},
+        ]}
+        with patch("sermons._yt_get",
+                   side_effect=[raw, sermon_lib.SermonError("quota exceeded")]):
+            videos = sermon_lib.list_recent_videos("UCabc123")
+        assert [v["video_id"] for v in videos] == ["vidX"]
