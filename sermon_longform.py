@@ -223,6 +223,37 @@ def _clean_list(values, limit: int) -> list[str]:
     return out
 
 
+def guide_document(guide: dict) -> str:
+    """Compose the guide into one markdown document.
+
+    The guide is generated as fields so each part can be validated and capped,
+    but a leader does not want eleven boxes — they want a page they can read,
+    edit and print. The document is what staff actually work with, so it is the
+    editable form; the fields stay alongside it as the record of what was
+    generated.
+    """
+    lines = []
+    if guide.get("scripture"):
+        lines += [f"**{guide['scripture']}**", ""]
+    if guide.get("summary"):
+        lines += ["## For the leader", "", guide["summary"], ""]
+    if guide.get("opening"):
+        lines += ["## Opening", "", guide["opening"], ""]
+    if guide.get("digging_in"):
+        lines += ["## Digging in", ""]
+        lines += [f"{i}. {q}" for i, q in enumerate(guide["digging_in"], 1)]
+        lines += [""]
+    if guide.get("applying"):
+        lines += ["## Applying it", ""]
+        lines += [f"{i}. {q}" for i, q in enumerate(guide["applying"], 1)]
+        lines += [""]
+    if guide.get("prayer"):
+        lines += ["## Praying together", "", guide["prayer"], ""]
+    if guide.get("challenge"):
+        lines += ["## This week", "", guide["challenge"], ""]
+    return "\n".join(lines).strip()
+
+
 def build_guide(sermon, church) -> dict:
     """Generate the small group guide. Raises on an unusable response."""
     if not sermon.transcript:
@@ -249,6 +280,7 @@ def build_guide(sermon, church) -> dict:
         [guide["summary"], guide["opening"], guide["prayer"], guide["challenge"]]
         + guide["digging_in"] + guide["applying"])
     guide["unverified"] = unverified_spans(joined, sermon.transcript or "")
+    guide["document"] = guide_document(guide)
     return guide
 
 

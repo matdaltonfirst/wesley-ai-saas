@@ -141,3 +141,66 @@ class TestRegenerate:
         assert res.status_code == 502
         assert json.loads(SermonPacket.query.get(packet.id).content)["titles"] == \
             ["First Title", "Second Title"]
+
+
+class TestDocumentEditing:
+    """Blog and guide are edited as whole documents, not field by field."""
+
+    def _content_with_longform(self):
+        c = _content()
+        c["blog"] = {"title": "Old Title", "body": "Old body.", "words": 2,
+                     "unverified": ["a flagged span"]}
+        c["guide"] = {"scripture": "John 15", "summary": "s", "opening": "o",
+                      "digging_in": ["q1"], "applying": ["a1"], "prayer": "p",
+                      "challenge": "c", "document": "## Opening\n\no"}
+        return c
+
+    @pytest.fixture
+    def longform_packet(self, app, church, packet):
+        packet.content = json.dumps(self._content_with_longform())
+        db.session.commit()
+        return packet
+
+    def test_editing_the_article_splits_the_heading_back_off(
+            self, auth_client, longform_packet):
+        res = auth_client.patch(
+            f"/api/packets/{longform_packet.id}",
+            json={"blog": {"document": "# A New Title\n\nA rewritten body here."}})
+        assert res.status_code == 200
+        blog = res.get_json()["packet"]["content"]["blog"]
+        assert blog["title"] == "A New Title"
+        assert blog["body"] == "A rewritten body here."
+        assert blog["words"] == 4
+
+    def test_editing_the_article_keeps_the_flagged_quotations(
+            self, auth_client, longform_packet):
+        """The warning is about what was generated, and survives an edit."""
+        auth_client.patch(f"/api/packets/{longform_packet.id}",
+                          json={"blog": {"document": "# T\n\nBody."}})
+        stored = json.loads(SermonPacket.query.get(longform_packet.id).content)
+        assert stored["blog"]["unverified"] == ["a flagged span"]
+
+    def test_editing_the_guide_stores_the_document(self, auth_client, longform_packet):
+        res = auth_client.patch(
+            f"/api/packets/{longform_packet.id}",
+            json={"guide": {"document": "## Opening\n\nA question I rewrote."}})
+        assert res.status_code == 200
+        assert "A question I rewrote." in res.get_json()["packet"]["content"]["guide"]["document"]
+
+    def test_editing_the_guide_leaves_the_generated_fields_alone(
+            self, auth_client, longform_packet):
+        """Parsing structure back out of edited prose would rewrite questions."""
+        auth_client.patch(f"/api/packets/{longform_packet.id}",
+                          json={"guide": {"document": "## Opening\n\nRewritten."}})
+        guide = json.loads(SermonPacket.query.get(longform_packet.id).content)["guide"]
+        assert guide["digging_in"] == ["q1"]
+        assert guide["scripture"] == "John 15"
+
+    def test_a_guide_without_a_document_gets_one_on_read(self, auth_client, packet):
+        """Packets built before the editor changed still open with content."""
+        c = _content()
+        c["guide"] = {"scripture": "John 15", "opening": "An old question",
+                      "digging_in": [], "applying": []}
+        packet.content = json.dumps(c); db.session.commit()
+        res = auth_client.get(f"/api/packets/{packet.id}")
+        assert "An old question" in res.get_json()["content"]["guide"]["document"]

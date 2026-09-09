@@ -189,3 +189,28 @@ class TestFlagging:
         long_ = " ".join(["word"] * MIN_FLAGGED_WORDS)
         assert unverified_spans('x "%s" y' % short, "nothing") == []
         assert unverified_spans('x "%s" y' % long_, "nothing") == [long_]
+
+
+class TestGuideDocument:
+    """The guide is generated as fields so each part can be validated, but the
+    thing staff read and edit is one document."""
+
+    def test_the_document_carries_every_section(self, sermon, church):
+        with patch.object(sermon_longform, "call_gemini", return_value=_guide()):
+            doc = build_guide(sermon, church)["document"]
+        for heading in ("For the leader", "Opening", "Digging in", "Applying it",
+                        "Praying together", "This week"):
+            assert "## " + heading in doc, heading
+        assert "**John 15**" in doc
+
+    def test_questions_are_numbered_in_order(self, sermon, church):
+        with patch.object(sermon_longform, "call_gemini", return_value=_guide()):
+            doc = build_guide(sermon, church)["document"]
+        assert "1. What does the vine image suggest?" in doc
+        assert "2. What does the branch do?" in doc
+
+    def test_empty_sections_are_left_out(self):
+        from sermon_longform import guide_document
+        doc = guide_document({"summary": "Only this.", "digging_in": [], "applying": []})
+        assert "## For the leader" in doc
+        assert "Digging in" not in doc and "Praying together" not in doc

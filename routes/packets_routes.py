@@ -31,6 +31,14 @@ def _packet_dict(packet, sermon) -> dict:
         content = json.loads(packet.content) if packet.content else {}
     except (ValueError, TypeError):
         content = {}
+
+    # Guides built before the editor became a single document have only the
+    # generated fields, so compose the document for them on the way out rather
+    # than leaving those packets with an empty editor.
+    guide = content.get("guide")
+    if isinstance(guide, dict) and not guide.get("document"):
+        from sermon_longform import guide_document
+        guide["document"] = guide_document(guide)
     return {
         "id": packet.id,
         "status": packet.status,
@@ -116,30 +124,35 @@ def update_packet(packet_id):
                 })
             content["social"] = posts
         elif field == "blog":
-            # Staff edit the article before it goes on the website, so the body
-            # is stored as given. The verbatim filter ran at generation; a human
-            # editing their own church's post is not the risk it guards against.
+            # Staff edit one document, title included as the leading heading,
+            # so it is split back apart on the way in. The verbatim check ran
+            # at generation; a person editing their own church's article is not
+            # the risk that guards against.
             entry = value if isinstance(value, dict) else {}
-            body = str(entry.get("body") or "").strip()
-            if not body:
+            from sermon_longform import _split_title
+            document = str(entry.get("document") or "").strip()
+            if not document:
                 continue
+            title, body = _split_title(document)
+            existing = content.get("blog") or {}
             content["blog"] = {
-                "title": str(entry.get("title") or "").strip()[:300],
+                "title": (title or existing.get("title") or "")[:300],
                 "body": body[:40000],
                 "words": len(body.split()),
+                "unverified": existing.get("unverified") or [],
             }
         elif field == "guide":
+            # The document is what staff work with, so it is what is stored.
+            # The generated fields are left as they were rather than re-parsed:
+            # guessing structure back out of edited prose would silently
+            # rewrite someone's questions.
             entry = value if isinstance(value, dict) else {}
-            existing = content.get("guide") or {}
-            content["guide"] = {
-                "scripture":  str(entry.get("scripture", existing.get("scripture", "")))[:120],
-                "summary":    str(entry.get("summary", existing.get("summary", "")))[:800],
-                "opening":    str(entry.get("opening", existing.get("opening", "")))[:400],
-                "digging_in": [str(q)[:400] for q in (entry.get("digging_in") or []) if str(q).strip()][:6],
-                "applying":   [str(q)[:400] for q in (entry.get("applying") or []) if str(q).strip()][:6],
-                "prayer":     str(entry.get("prayer", existing.get("prayer", "")))[:500],
-                "challenge":  str(entry.get("challenge", existing.get("challenge", "")))[:400],
-            }
+            document = str(entry.get("document") or "").strip()
+            if not document:
+                continue
+            existing = dict(content.get("guide") or {})
+            existing["document"] = document[:20000]
+            content["guide"] = existing
         changed = True
 
     if not changed:

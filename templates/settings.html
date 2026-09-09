@@ -1201,6 +1201,19 @@
     .pk-check ul { margin: 6px 0 0; padding-left: 18px; }
     .pk-check li { margin-bottom: 3px; }
 
+    /* A whole document, not a field: give it room and a reading measure. */
+    .pk-doc {
+      width: 100%;
+      min-height: 260px;
+      line-height: 1.65;
+      font-size: 0.88rem;
+      padding: 14px 16px;
+      resize: vertical;
+      white-space: pre-wrap;
+      tab-size: 2;
+    }
+    .pk-doc + .pk-copy { margin-top: 8px; }
+
     .pk-quote {
       background:var(--paper); border-left:3px solid var(--ink); border-radius:0 7px 7px 0;
       padding:10px 12px; margin-bottom:7px; font-size:0.86rem; color:var(--ink); line-height:1.5;
