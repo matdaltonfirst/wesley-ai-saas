@@ -1811,6 +1811,120 @@ async function buildForSermon(btn) {
   }
 }
 
+// Quotations the article or guide contains that are not word for word in the
+// recording — usually scripture rendered from a translation rather than from
+// what was said aloud. Surfaced rather than silently removed, because the
+// person publishing is the one who can tell the difference.
+function pkCheckNotice(spans, what) {
+  if (!spans || !spans.length) return "";
+  return '<div class="pk-check">' +
+    "<strong>Check before publishing.</strong> These quoted passages are not " +
+    "word for word in the recording, so they may be scripture from a " +
+    "translation \u2014 or they may be wrong:" +
+    "<ul>" + spans.map(function (q) {
+      return "<li>&ldquo;" + esc(q) + "&rdquo;</li>";
+    }).join("") + "</ul></div>";
+}
+
+// The weekly article. Stored and edited as markdown, because that is what a
+// website editor pastes into and it survives a round trip unchanged.
+function renderBlogSection(c) {
+  if (!c.blog) {
+    return c.blog_error
+      ? '<div class="pk-section"><div class="pk-label">Blog post</div>' +
+        '<div class="an-empty" style="text-align:left;">Could not be written from this ' +
+        'recording. ' + esc(c.blog_error) + "</div></div>"
+      : "";
+  }
+  const b = c.blog;
+  return '<div class="pk-section"><div class="pk-label">Blog post &mdash; ' +
+    esc(String(b.words || 0)) + " words</div>" +
+    pkCheckNotice(b.unverified, "article") +
+    '<div class="pk-row"><input class="pk-input pk-blog-title" value="' +
+      esc(b.title || "") + '" />' +
+      '<button class="pk-copy" data-copy-target="blog-title">Copy</button></div>' +
+    '<textarea class="pk-input pk-blog-body" rows="16">' + esc(b.body || "") + "</textarea>" +
+    '<button class="pk-copy" data-copy-target="blog-body">Copy the article</button></div>';
+}
+
+// The small group guide. Rendered as fields rather than one blob so a leader
+// can lift a single question, and so edits stay structured.
+function renderGuideSection(c) {
+  if (!c.guide) {
+    return c.guide_error
+      ? '<div class="pk-section"><div class="pk-label">Small group guide</div>' +
+        '<div class="an-empty" style="text-align:left;">Could not be written from this ' +
+        'recording. ' + esc(c.guide_error) + "</div></div>"
+      : "";
+  }
+  const g = c.guide;
+  function questions(label, items, cls) {
+    if (!items || !items.length) return "";
+    return '<div class="pk-label" style="margin-top:12px;">' + label + "</div>" +
+      items.map(function (q, i) {
+        return '<div class="pk-row"><textarea class="pk-input ' + cls +
+               '" data-index="' + i + '" rows="2">' + esc(q) + "</textarea></div>";
+      }).join("");
+  }
+  function field(label, value, cls, rows) {
+    if (!value) return "";
+    return '<div class="pk-label" style="margin-top:12px;">' + label + "</div>" +
+      '<textarea class="pk-input ' + cls + '" rows="' + rows + '">' + esc(value) + "</textarea>";
+  }
+  return '<div class="pk-section"><div class="pk-label">Small group guide' +
+    (g.scripture ? " &mdash; " + esc(g.scripture) : "") + "</div>" +
+    pkCheckNotice(g.unverified, "guide") +
+    field("For the leader", g.summary, "pk-guide-summary", 3) +
+    field("Opening question", g.opening, "pk-guide-opening", 2) +
+    questions("Digging in", g.digging_in, "pk-guide-dig") +
+    questions("Applying it", g.applying, "pk-guide-apply") +
+    field("Praying together", g.prayer, "pk-guide-prayer", 2) +
+    field("This week", g.challenge, "pk-guide-challenge", 2) +
+    '<div style="margin-top:10px;">' +
+      '<button class="pk-copy pk-copy-guide">Copy the whole guide</button></div>' +
+    "</div>";
+}
+
+// Flattened for the clipboard, in the order a leader would run the meeting.
+// Reads the inputs, not the stored packet, so unsaved edits copy correctly.
+function guideFromCard(card) {
+  const val = function (sel) {
+    const el = card.querySelector(sel);
+    return el ? el.value.trim() : "";
+  };
+  const list = function (sel) {
+    return Array.from(card.querySelectorAll(sel))
+      .map(function (t) { return t.value.trim(); })
+      .filter(Boolean);
+  };
+  const g = {
+    scripture: pkGuideScripture(card),
+    summary: val(".pk-guide-summary"),
+    opening: val(".pk-guide-opening"),
+    digging_in: list(".pk-guide-dig"),
+    applying: list(".pk-guide-apply"),
+    prayer: val(".pk-guide-prayer"),
+    challenge: val(".pk-guide-challenge"),
+  };
+  const lines = [];
+  if (g.scripture) lines.push(g.scripture, "");
+  if (g.summary) lines.push(g.summary, "");
+  if (g.opening) lines.push("OPENING", g.opening, "");
+  if ((g.digging_in || []).length) {
+    lines.push("DIGGING IN");
+    g.digging_in.forEach(function (q, i) { lines.push((i + 1) + ". " + q); });
+    lines.push("");
+  }
+  if ((g.applying || []).length) {
+    lines.push("APPLYING IT");
+    g.applying.forEach(function (q, i) { lines.push((i + 1) + ". " + q); });
+    lines.push("");
+  }
+  if (g.prayer) lines.push("PRAYING TOGETHER", g.prayer, "");
+  if (g.challenge) lines.push("THIS WEEK", g.challenge);
+  return lines.join("\n");
+}
+
 function renderPacket(p) {
   const s = p.sermon || {};
   if (p.status !== "ready") {
@@ -1845,6 +1959,9 @@ function renderPacket(p) {
   const chapters = (c.chapters || [])
     .map(function (ch) { return ch.timestamp + " " + ch.label; }).join("\n");
 
+  const blog = renderBlogSection(c);
+  const guide = renderGuideSection(c);
+
   return '<div class="settings-card pk-card" data-id="' + p.id + '" style="margin-bottom:14px;">' +
     '<div class="pk-head">' +
       '<div>' +
@@ -1877,6 +1994,7 @@ function renderPacket(p) {
           '<textarea class="pk-input pk-description" rows="5">' + esc(c.description) + "</textarea>" +
           '<button class="pk-copy" data-copy-target="description">Copy</button></div>'
         : "") +
+      blog + guide +
       '<div class="pk-actions">' +
         '<button class="db-btn-primary pk-save">Save changes</button>' +
         '<button class="refresh-btn-sm pk-regen">Rebuild from the recording</button>' +
@@ -1906,6 +2024,14 @@ function wirePacketCards() {
           text = card.querySelector('.pk-post-body[data-index="' + target.slice(5) + '"]').value;
         } else if (target && target.indexOf("title-") === 0) {
           text = card.querySelector('.pk-title-input[data-index="' + target.slice(6) + '"]').value;
+        } else if (target === "blog-title") {
+          text = card.querySelector(".pk-blog-title").value;
+        } else if (target === "blog-body") {
+          text = card.querySelector(".pk-blog-body").value;
+        } else if (btn.classList.contains("pk-copy-guide")) {
+          // Read the fields back rather than the stored guide, so an edit that
+          // has not been saved yet still copies what is on screen.
+          text = guideFromCard(card);
         }
         navigator.clipboard.writeText(text || "").then(function () {
           const original = btn.textContent;
@@ -1927,6 +2053,16 @@ function pkSetStatus(card, message) {
   if (el) el.textContent = message;
 }
 
+function pkGuideScripture(card) {
+  const all = Array.from(card.querySelectorAll(".pk-label"));
+  const heading = all.find(function (el) {
+    return el.textContent.indexOf("Small group guide") === 0;
+  });
+  if (!heading) return "";
+  const parts = heading.textContent.split("\u2014");
+  return parts.length > 1 ? parts[1].trim() : "";
+}
+
 async function savePacket(card) {
   const id = card.dataset.id;
   const payload = {
@@ -1937,6 +2073,31 @@ async function savePacket(card) {
   };
   const desc = card.querySelector(".pk-description");
   if (desc) payload.description = desc.value;
+
+  const blogBody = card.querySelector(".pk-blog-body");
+  if (blogBody) {
+    const blogTitle = card.querySelector(".pk-blog-title");
+    payload.blog = { title: blogTitle ? blogTitle.value : "", body: blogBody.value };
+  }
+
+  const guideOpening = card.querySelector(".pk-guide-opening");
+  const guideDig = card.querySelectorAll(".pk-guide-dig");
+  if (guideOpening || guideDig.length) {
+    const val = function (sel) {
+      const el = card.querySelector(sel);
+      return el ? el.value : "";
+    };
+    payload.guide = {
+      scripture:  pkGuideScripture(card),
+      summary:    val(".pk-guide-summary"),
+      opening:    val(".pk-guide-opening"),
+      digging_in: Array.from(guideDig).map(function (t) { return t.value; }),
+      applying:   Array.from(card.querySelectorAll(".pk-guide-apply"))
+                       .map(function (t) { return t.value; }),
+      prayer:     val(".pk-guide-prayer"),
+      challenge:  val(".pk-guide-challenge"),
+    };
+  }
 
   pkSetStatus(card, "Saving…");
   try {

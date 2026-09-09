@@ -23,7 +23,7 @@ packets_bp = Blueprint("packets", __name__)
 # value is that they are provably what was preached and provably where, and an
 # edited "quote" is no longer a quote. Staff who want different words can write
 # a post instead.
-EDITABLE = {"titles", "description", "social"}
+EDITABLE = {"titles", "description", "social", "blog", "guide"}
 
 
 def _packet_dict(packet, sermon) -> dict:
@@ -115,6 +115,31 @@ def update_packet(packet_id):
                     "body": body[:5000],
                 })
             content["social"] = posts
+        elif field == "blog":
+            # Staff edit the article before it goes on the website, so the body
+            # is stored as given. The verbatim filter ran at generation; a human
+            # editing their own church's post is not the risk it guards against.
+            entry = value if isinstance(value, dict) else {}
+            body = str(entry.get("body") or "").strip()
+            if not body:
+                continue
+            content["blog"] = {
+                "title": str(entry.get("title") or "").strip()[:300],
+                "body": body[:40000],
+                "words": len(body.split()),
+            }
+        elif field == "guide":
+            entry = value if isinstance(value, dict) else {}
+            existing = content.get("guide") or {}
+            content["guide"] = {
+                "scripture":  str(entry.get("scripture", existing.get("scripture", "")))[:120],
+                "summary":    str(entry.get("summary", existing.get("summary", "")))[:800],
+                "opening":    str(entry.get("opening", existing.get("opening", "")))[:400],
+                "digging_in": [str(q)[:400] for q in (entry.get("digging_in") or []) if str(q).strip()][:6],
+                "applying":   [str(q)[:400] for q in (entry.get("applying") or []) if str(q).strip()][:6],
+                "prayer":     str(entry.get("prayer", existing.get("prayer", "")))[:500],
+                "challenge":  str(entry.get("challenge", existing.get("challenge", "")))[:400],
+            }
         changed = True
 
     if not changed:
@@ -207,9 +232,11 @@ def regenerate_packet(packet_id):
     if not sermon or not sermon.transcript:
         return jsonify({"error": "That sermon has no transcript to work from."}), 400
 
+    from sermon_longform import build_longform
     from sermon_packet import build_packet
     try:
         content = build_packet(sermon, current_user.church)
+        content.update(build_longform(sermon, current_user.church))
     except Exception as exc:
         log.error("Packet regenerate failed for packet_id=%s: %s", packet_id, exc)
         return jsonify({"error": "Could not rebuild this packet. Please try again."}), 502

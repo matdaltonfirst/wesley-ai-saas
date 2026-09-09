@@ -93,13 +93,25 @@ def generate_packet(sermon) -> SermonPacket:
     try:
         church = Church.query.get(sermon.church_id)
         content = build_packet(sermon, church)
+        # The long-form pieces are a separate pair of calls and are allowed to
+        # fail on their own: an article that did not come back must not cost
+        # the church its quotes and social posts.
+        from sermon_longform import build_longform
+        try:
+            content.update(build_longform(sermon, church))
+        except Exception as exc:                       # never reached normally
+            log.error("Long-form failed wholesale for sermon_id=%s: %s",
+                      sermon.id, exc)
         packet.content = json.dumps(content)
         packet.status = "ready"
         packet.error = None
         packet.generated_at = datetime.utcnow()
-        log.info("Packet ready for sermon_id=%s (%r): %d quote(s), %d post(s)",
+        log.info("Packet ready for sermon_id=%s (%r): %d quote(s), %d post(s), "
+                 "blog=%s, guide=%s",
                  sermon.id, sermon.title,
-                 len(content.get("quotes", [])), len(content.get("social", [])))
+                 len(content.get("quotes", [])), len(content.get("social", [])),
+                 "yes" if content.get("blog") else "no",
+                 "yes" if content.get("guide") else "no")
     except Exception as exc:
         db.session.rollback()
         packet.status = "failed"

@@ -108,6 +108,28 @@ _TEST_PASSWORD = "SecureTestPass1!"
 
 
 @pytest.fixture(autouse=True)
+def no_live_model_calls(monkeypatch):
+    """Fail loudly if a test reaches the real Gemini API.
+
+    Every test that needs a model response patches call_gemini at its call site,
+    so nothing here should ever construct a live client. Without this net a new
+    code path that calls the model from somewhere the tests did not anticipate
+    makes real network calls and nobody notices except as unexplained slowness —
+    which is exactly what happened when long-form generation was added inside
+    packet generation, turning a three-second file into thirty-three seconds of
+    live API traffic and rate-limit failures elsewhere in the suite.
+    """
+    import helpers
+
+    def explode(*args, **kwargs):
+        raise AssertionError(
+            "This test reached the live Gemini API. Patch call_gemini at the "
+            "call site under test, or patch the function that wraps it.")
+
+    monkeypatch.setattr(helpers.genai, "Client", explode)
+
+
+@pytest.fixture(autouse=True)
 def reset_db_session(app):
     """Roll back any uncommitted DB changes after every test and clear Flask-Login's
     cached user from ``g`` so login state cannot leak between tests.

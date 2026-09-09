@@ -206,3 +206,37 @@ class TestIdempotence:
         assert first["emailed"] == 1
         assert second == {"generated": 0, "emailed": 0, "failed": 0}
         assert send.call_count == 1
+
+
+class TestLongformIsolation:
+    """Long-form generation runs inside packet generation but must not be able
+    to take the packet down with it — it is two extra model calls, and a model
+    call is the least reliable thing in the pipeline."""
+
+    def test_a_packet_survives_long_form_failing(self, app, church):
+        from datetime import datetime, timedelta
+        import json
+        from unittest.mock import patch
+        from models import db, Sermon, SermonSource
+        from packets import generate_packet
+
+        src = SermonSource(church_id=church.id, channel_url="https://y/@x",
+                           channel_id="UClf")
+        db.session.add(src); db.session.flush()
+        sermon = Sermon(source_id=src.id, church_id=church.id, video_id="lf1",
+                        title="A Message", status="ingested",
+                        transcript="Something worth quoting was said here.",
+                        published_at=datetime.utcnow() - timedelta(days=1))
+        db.session.add(sermon); db.session.commit()
+
+        packet_content = {"quotes": [{"text": "q"}], "social": [], "titles": []}
+        with patch("sermon_packet.build_packet", return_value=packet_content), \
+             patch("sermon_longform.build_blog", side_effect=RuntimeError("model down")), \
+             patch("sermon_longform.build_guide", side_effect=RuntimeError("model down")):
+            packet = generate_packet(sermon)
+
+        assert packet.status == "ready"
+        stored = json.loads(packet.content)
+        assert stored["quotes"], "the packet's own content must survive"
+        assert stored["blog"] is None and stored["guide"] is None
+        assert "model down" in stored["blog_error"]

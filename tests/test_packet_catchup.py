@@ -98,6 +98,7 @@ class TestEmailWindow:
         content = {"quotes": [{"text": "q"}], "social": [{"platform": "facebook",
                                                           "body": "b"}]}
         with patch("sermon_packet.build_packet", return_value=content), \
+             patch("sermon_longform.build_longform", return_value={}), \
              patch("packets.send_packet_email", return_value=1) as send:
             result = packets_mod.run_monday_packets()
         return result, send
