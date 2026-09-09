@@ -15,29 +15,66 @@ from models import db, Church, Sermon, SermonPacket, User
 
 log = logging.getLogger("wesley")
 
-# How far back to look for a sermon worth building a packet from. Wide enough
-# to survive a missed night or a Sunday that was ingested late, narrow enough
-# that connecting a channel does not email a church about a sermon from March.
-LOOKBACK_DAYS = 8
+# Two different windows, because generating and emailing carry different risks.
+#
+# LOOKBACK_DAYS bounds what is worth building content for at all. It used to be
+# 8, which quietly lost sermons: this job runs weekly, YouTube captions often
+# arrive days late, and the transcript backfill keeps trying for 120 days. A
+# sermon whose captions landed on day 9 was therefore never offered a packet and
+# never would be — the queue only ever looked at the last 8 days, so once a
+# sermon aged out of it, it was gone for good.
+#
+# EMAIL_WINDOW_DAYS bounds what is worth *mailing*. That is the constraint the
+# old 8 days was really expressing: nobody wants Monday's mail about a sermon
+# from March. Catch-ups still reach the dashboard; they just arrive quietly.
+LOOKBACK_DAYS = 45
+EMAIL_WINDOW_DAYS = 8
+
+# A newly connected channel ingests its whole back catalogue at once. Without a
+# cap the first run after connecting would spend a model call per sermon, so
+# take only the newest few per church per run and let the rest follow on later
+# runs — or on demand, from the dashboard.
+MAX_PER_CHURCH_PER_RUN = 3
 
 
-def sermons_needing_packets(church_id: int = None):
-    """Recently preached sermons with a transcript and no packet yet."""
-    cutoff = datetime.utcnow() - timedelta(days=LOOKBACK_DAYS)
+def sermons_awaiting_content(church_id: int = None, since_days: int = None):
+    """Ingested sermons that have a transcript but no packet, newest first.
+
+    The dashboard uses this to show what it *could* build content from, which is
+    what makes an empty Sunday Content panel explainable rather than mysterious.
+    """
     query = (
         Sermon.query
         .outerjoin(SermonPacket, SermonPacket.sermon_id == Sermon.id)
         .filter(
             Sermon.status == "ingested",
             Sermon.transcript.isnot(None),
-            Sermon.published_at >= cutoff,
             SermonPacket.id.is_(None),
         )
         .order_by(Sermon.published_at.desc())
     )
+    if since_days is not None:
+        query = query.filter(
+            Sermon.published_at >= datetime.utcnow() - timedelta(days=since_days))
     if church_id:
         query = query.filter(Sermon.church_id == church_id)
     return query.all()
+
+
+def sermons_needing_packets(church_id: int = None):
+    """What the weekly job should build, capped per church."""
+    sermons = sermons_awaiting_content(church_id, since_days=LOOKBACK_DAYS)
+    if church_id:
+        return sermons[:MAX_PER_CHURCH_PER_RUN]
+
+    per_church, out = {}, []
+    for sermon in sermons:                        # already newest-first
+        seen = per_church.get(sermon.church_id, 0)
+        if seen >= MAX_PER_CHURCH_PER_RUN:
+            continue
+        per_church[sermon.church_id] = seen + 1
+        out.append(sermon)
+    return out
 
 
 def generate_packet(sermon) -> SermonPacket:
@@ -119,6 +156,12 @@ def run_monday_packets() -> dict:
             content = {}
         if not (content.get("quotes") or content.get("social")):
             log.info("Packet for sermon_id=%s has nothing worth sending.", sermon.id)
+            continue
+        # A catch-up for an older sermon still belongs in the dashboard, but
+        # mailing it would be noise — it is not this week's news.
+        if sermon.published_at < datetime.utcnow() - timedelta(days=EMAIL_WINDOW_DAYS):
+            log.info("Packet for sermon_id=%s built as a catch-up; not emailing.",
+                     sermon.id)
             continue
         if send_packet_email(packet):
             emailed += 1

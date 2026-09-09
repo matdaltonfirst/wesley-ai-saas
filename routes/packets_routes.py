@@ -126,6 +126,65 @@ def update_packet(packet_id):
     return jsonify({"ok": True, "packet": _packet_dict(packet, sermon)})
 
 
+@packets_bp.route("/api/packets/pending")
+@login_required
+def pending_sermons():
+    """Sermons with a transcript that have no content built yet.
+
+    Surfaced so an empty Sunday Content panel can say which messages are waiting
+    rather than leaving staff to guess whether the feature is broken.
+    """
+    from packets import sermons_awaiting_content
+
+    sermons = sermons_awaiting_content(current_user.church_id)
+    return jsonify({"sermons": [{
+        "id": s.id,
+        "title": s.title,
+        "series": s.series or "",
+        "preached_at": iso_utc(s.published_at),
+        "video_url": s.video_url,
+    } for s in sermons[:25]]})
+
+
+@packets_bp.route("/api/packets/generate", methods=["POST"])
+@login_required
+def generate_for_sermon():
+    """Build content for one sermon on demand.
+
+    The weekly job is the normal path, but it can only ever look at a window.
+    Anything it missed — a transcript that arrived late, a run that failed —
+    was previously unrecoverable, because the only other entry point was
+    regenerating a packet that did not exist. This is that missing door.
+    """
+    err, status = validate_csrf_json()
+    if err:
+        return err, status
+
+    data = request.get_json(silent=True) or {}
+    sermon_id = data.get("sermon_id")
+    sermon = Sermon.query.filter_by(
+        id=sermon_id, church_id=current_user.church_id
+    ).first()
+    if not sermon:
+        return jsonify({"error": "Sermon not found."}), 404
+    if not sermon.transcript:
+        return jsonify({"error": "That sermon has no transcript to work from."}), 400
+
+    existing = SermonPacket.query.filter_by(sermon_id=sermon.id).first()
+    if existing and existing.status == "ready":
+        # Never silently overwrite content staff may have edited; regenerate is
+        # the explicit door for that.
+        return jsonify({"error": "This message already has content.",
+                        "packet_id": existing.id}), 409
+
+    from packets import generate_packet
+
+    packet = generate_packet(sermon)
+    if packet.status != "ready":
+        return jsonify({"error": packet.error or "Could not build content."}), 502
+    return jsonify({"ok": True, "packet": _packet_dict(packet, sermon)})
+
+
 @packets_bp.route("/api/packets/<int:packet_id>/regenerate", methods=["POST"])
 @login_required
 def regenerate_packet(packet_id):

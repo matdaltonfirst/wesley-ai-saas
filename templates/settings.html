@@ -1501,6 +1501,20 @@
           </div>
           <div id="pkList"><div class="an-empty">Loading&hellip;</div></div>
         </section>
+
+        <!-- Messages Wesley has a transcript for but has not built content from
+             yet. Without this the panel could only say "nothing yet", which is
+             indistinguishable from the feature being broken. -->
+        <section class="card settings-card" id="pkPendingCard" hidden>
+          <div class="settings-card-header">
+            <div class="settings-card-title">Ready to build</div>
+          </div>
+          <p class="db-panel-subtitle" style="margin:0 0 14px;">
+            These messages have a transcript but no content yet. Building takes
+            about a minute.
+          </p>
+          <div id="pkPendingList"></div>
+        </section>
       </div>
 
       <div class="db-panel" id="panel-chat-logs">

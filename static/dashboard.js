@@ -1739,16 +1739,76 @@ async function loadPackets() {
   if (!_packets.length) {
     if (count) count.textContent = "";
     list.innerHTML =
-      '<div class="an-empty">Nothing yet. Wesley builds this from your sermon recording ' +
-      'the Monday after it is preached &mdash; connect a sermon source under Data Sources ' +
-      'if you have not already.</div>';
-    return;
+      '<div class="an-empty">Nothing built yet. Wesley does this automatically the Monday ' +
+      'after a message is preached &mdash; if something was missed, any message with a ' +
+      'transcript can be built below.</div>';
+  } else {
+    if (count) {
+      count.textContent = _packets.length + (_packets.length === 1 ? " message" : " messages");
+    }
+    list.innerHTML = _packets.map(renderPacket).join("");
+    wirePacketCards();
   }
-  if (count) {
-    count.textContent = _packets.length + (_packets.length === 1 ? " message" : " messages");
+  loadPendingSermons();
+}
+
+// Messages with a transcript that have no content yet. These are what the
+// weekly job would pick up — showing them turns an empty panel into a list of
+// things you can act on.
+async function loadPendingSermons() {
+  const card = document.getElementById("pkPendingCard");
+  const list = document.getElementById("pkPendingList");
+  if (!card || !list) return;
+  let sermons = [];
+  try {
+    const res = await fetch("/api/packets/pending");
+    if (!res.ok) { card.hidden = true; return; }
+    sermons = (await res.json()).sermons || [];
+  } catch { card.hidden = true; return; }
+
+  if (!sermons.length) { card.hidden = true; return; }
+  card.hidden = false;
+  list.innerHTML = sermons.map(function (s) {
+    return '<div class="pk-row" style="justify-content:space-between;gap:12px;">' +
+      '<div style="min-width:0;">' +
+        '<div class="pk-title">' + esc(s.title || "Untitled") + "</div>" +
+        '<div class="pk-meta">' + esc(pkDate(s.preached_at)) +
+          (s.series ? " &middot; " + esc(s.series) : "") + "</div>" +
+      "</div>" +
+      '<button class="btn btn--primary btn--xs pk-build" data-sermon="' + s.id + '">' +
+        "Build content</button>" +
+    "</div>";
+  }).join("");
+
+  list.querySelectorAll(".pk-build").forEach(function (btn) {
+    btn.addEventListener("click", function () { buildForSermon(btn); });
+  });
+}
+
+async function buildForSermon(btn) {
+  const id = btn.getAttribute("data-sermon");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Building\u2026";
+  try {
+    const res = await fetch("/api/packets/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": pkCsrf() },
+      body: JSON.stringify({ sermon_id: Number(id) }),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) {
+      btn.disabled = false;
+      btn.textContent = original;
+      alert(data.error || "Could not build content for this message.");
+      return;
+    }
+    loadPackets();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = original;
+    alert("Could not build content for this message.");
   }
-  list.innerHTML = _packets.map(renderPacket).join("");
-  wirePacketCards();
 }
 
 function renderPacket(p) {
