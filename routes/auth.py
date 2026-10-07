@@ -25,14 +25,21 @@ auth_bp = Blueprint("auth", __name__)
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for("pages.chat_page"))
-    return render_template("auth.html", mode="login")
+    return render_template("auth.html", mode="login", signup_open=_signup_open())
+
+
+def _signup_open() -> bool:
+    """Public signup is off unless SIGNUP_ENABLED is set (see docs/AUDIT.md S-1)."""
+    return bool(current_app.config.get("SIGNUP_ENABLED"))
 
 
 @auth_bp.route("/signup")
 def signup_page():
+    if not _signup_open():
+        return redirect(url_for("auth.login_page"))
     if current_user.is_authenticated:
         return redirect(url_for("pages.chat_page"))
-    return render_template("auth.html", mode="signup")
+    return render_template("auth.html", mode="signup", signup_open=True)
 
 
 @auth_bp.route("/logout")
@@ -101,6 +108,8 @@ def _auth_rate_limited():
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
 def api_signup():
+    if not _signup_open():
+        return jsonify({"error": "Account creation is closed."}), 403
     limited = _auth_rate_limited()
     if limited:
         return limited

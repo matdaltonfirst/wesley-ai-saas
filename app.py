@@ -107,6 +107,7 @@ def create_app(testing: bool = False) -> Flask:
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SECRET_KEY": "testing-secret-key-not-for-production",
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            "SIGNUP_ENABLED": True,
             # StaticPool ensures all app contexts share the same in-memory
             # SQLite connection, so data seeded in fixture setup remains
             # visible inside test-client requests (which open their own context).
@@ -131,6 +132,9 @@ def create_app(testing: bool = False) -> Flask:
         log.info("Database: %s", "PostgreSQL" if is_postgres(_db_url) else "SQLite")
         _app.config.update({
             "SECRET_KEY": _secret,
+            # Closed by default: open signup lets anyone create a tenant and
+            # spend AI budget. Set SIGNUP_ENABLED=1 to reopen.
+            "SIGNUP_ENABLED": os.getenv("SIGNUP_ENABLED", "").lower() in ("1", "true", "yes"),
             "SQLALCHEMY_DATABASE_URI": _db_url,
             "SQLALCHEMY_ENGINE_OPTIONS": engine_options(_db_url),
             "SQLALCHEMY_TRACK_MODIFICATIONS": False,

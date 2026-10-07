@@ -210,7 +210,7 @@
 
     <div class="tabs">
       <button class="tab-btn {% if mode == 'login' %}active{% endif %}" data-tab="login">Sign In</button>
-      <button class="tab-btn {% if mode == 'signup' %}active{% endif %}" data-tab="signup">Create Account</button>
+      {% if signup_open %}<button class="tab-btn {% if mode == 'signup' %}active{% endif %}" data-tab="signup">Create Account</button>{% endif %}
     </div>
 
     <!-- Login -->
@@ -230,7 +230,7 @@
       </div>
       <div class="forgot-link"><a href="/forgot-password">Forgot password?</a></div>
       <button class="btn btn--primary btn--lg btn--block submit-btn" id="loginBtn">Sign In</button>
-      <div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>
+      {% if signup_open %}<div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>{% endif %}
     </div>
 
     <!-- Signup -->
