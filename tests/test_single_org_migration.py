@@ -33,6 +33,14 @@ def _load(name):
 def old_db():
     """A SQLite database at the last multi-tenant schema, plus the empty organization table."""
     engine = sa.create_engine("sqlite://", poolclass=sa.pool.StaticPool)
+
+    # SQLite ignores foreign keys unless asked. PostgreSQL does not, and the
+    # first rehearsal against production failed on a delete-order violation that
+    # this test could not see.
+    @sa.event.listens_for(engine, "connect")
+    def _fk_on(dbapi_conn, _):
+        dbapi_conn.execute("PRAGMA foreign_keys=ON")
+
     with engine.begin() as conn:
         ctx = MigrationContext.configure(conn)
         with Operations.context(ctx):
@@ -85,6 +93,13 @@ def tenants(old_db):
         _page(conn, 8, "https://ringgoldumc.org/a")
         _widget_convo(conn, 2, "ours")
         _widget_convo(conn, 8, "theirs")
+        # Feedback on the other church's answer: it references the widget message
+        # that the migration deletes, so it must be deleted first.
+        theirs = conn.execute(sa.text(
+            "SELECT m.id FROM widget_messages m JOIN widget_conversations c "
+            "ON c.id = m.widget_conversation_id WHERE c.session_id='theirs'")).scalar()
+        conn.execute(sa.text("INSERT INTO answer_feedback (church_id, widget_message_id, rating, status) "
+                             "VALUES (8, :m, 'not_helpful', 'open')"), {"m": theirs})
         conn.execute(sa.text(
             "INSERT INTO comms_requests (id, church_id, submitter_id, submitter_name, request_type, "
             "event_name, event_date, target_audience, timeline, deliverables) VALUES "

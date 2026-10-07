@@ -106,7 +106,9 @@ def collapse_data(bind, src, merge, confirmed, org_name="Dalton First United Met
         bind.execute(sa.text("UPDATE users SET church_id = :s, role = 'staff' "
                              "WHERE church_id = :m"), {"s": src, "m": cid})
 
-    # 3. delete every other church's rows (already archived)
+    # 3. delete every other church's rows (already archived). Feedback goes first:
+    # it points at the widget messages and Q&A pairs deleted below.
+    bind.execute(sa.text("DELETE FROM answer_feedback WHERE church_id <> :s"), {"s": src})
     bind.execute(sa.text(
         "DELETE FROM widget_messages WHERE widget_conversation_id IN "
         "(SELECT id FROM widget_conversations WHERE church_id <> :s)"), {"s": src})
