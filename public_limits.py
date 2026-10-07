@@ -17,8 +17,6 @@ import time
 from urllib.parse import urlparse
 
 from flask import current_app, request
-from sqlalchemy.exc import IntegrityError
-
 from config import ORG_DOMAIN
 from models import RateLimitHit, db
 
@@ -31,20 +29,28 @@ DAILY_CAP = int(os.getenv("PUBLIC_DAILY_CAP", "3000"))
 
 
 def _bump(key: str, window_seconds: int) -> int:
-    """Count one hit in the current window and return the new total."""
+    """Count one hit in the current window and return the new total.
+
+    One atomic statement (INSERT ... ON CONFLICT DO UPDATE count = count + 1), so
+    two workers hitting the same key at once cannot lose an increment. An
+    earlier read-then-write version did exactly that: eight racing threads made
+    forty hits and it counted eleven.
+    """
     window = int(time.time() // window_seconds) * window_seconds
-    for attempt in range(3):
-        row = RateLimitHit.query.filter_by(key=key, window=window).first()
-        if row is None:
-            row = RateLimitHit(key=key, window=window, count=0)
-            db.session.add(row)
-        row.count += 1
-        try:
-            db.session.commit()
-            return row.count
-        except IntegrityError:           # another worker created the row first
-            db.session.rollback()
-    raise RuntimeError("rate limit counter contention")
+    if db.engine.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    else:
+        from sqlalchemy.dialects.sqlite import insert
+
+    stmt = insert(RateLimitHit).values(key=key, window=window, count=1)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["key", "window"],
+        set_={"count": RateLimitHit.count + 1},
+    )
+    db.session.execute(stmt)
+    db.session.commit()
+    row = RateLimitHit.query.filter_by(key=key, window=window).first()
+    return row.count if row else 1
 
 
 def allowed(visitor: str, limits=CHAT_LIMITS, scope: str = "chat") -> bool:

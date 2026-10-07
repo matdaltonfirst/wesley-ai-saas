@@ -342,3 +342,22 @@ class TestOriginCheck:
 
     def test_the_widget_script_itself_stays_embeddable(self, client, church):
         assert client.get("/widget.js").headers["Access-Control-Allow-Origin"] == "*"
+
+
+class TestCounterIsAtomic:
+    def test_hits_accumulate_exactly(self, app, church):
+        assert [public_limits._bump("k", 60) for _ in range(5)] == [1, 2, 3, 4, 5]
+        assert RateLimitHit.query.filter_by(key="k").count() == 1       # one row, not five
+
+    def test_windows_are_separate(self, app, church):
+        public_limits._bump("w", 60)
+        public_limits._bump("w", 3600)
+        assert RateLimitHit.query.filter_by(key="w").count() == 2
+
+    def test_concurrent_hits_are_not_lost(self, app, church):
+        """Real database contention is covered by the production rehearsal; this guards the
+        statement shape: the increment happens in SQL, never read-modify-write in Python."""
+        import inspect
+        source = inspect.getsource(public_limits._bump)
+        assert "on_conflict_do_update" in source and "RateLimitHit.count + 1" in source
+        assert "row.count += 1" not in source

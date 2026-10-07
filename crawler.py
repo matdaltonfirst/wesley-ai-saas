@@ -109,7 +109,7 @@ def _upsert_page(url: str, title: str, text: str) -> None:
     """
     from models import db, CrawledPage
 
-    if db.session.bind.dialect.name == "postgresql":
+    if db.engine.dialect.name == "postgresql":
         from sqlalchemy.dialects.postgresql import insert as dialect_insert
     else:
         from sqlalchemy.dialects.sqlite import insert as dialect_insert
