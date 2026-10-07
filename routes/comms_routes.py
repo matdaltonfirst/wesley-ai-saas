@@ -5,9 +5,10 @@ from datetime import date, datetime
 
 from flask import (
     Blueprint, request, jsonify, render_template,
-    redirect, url_for, abort,
+    redirect, url_for,
 )
-from flask_login import login_required, current_user
+from flask_login import current_user
+from permissions import can, require
 
 from models import db, CommsRequest
 from comms_triage import determine_priority, determine_tier, generate_triage_explanation
@@ -85,10 +86,15 @@ def _run_triage(req: CommsRequest) -> None:
         req.triage_explanation = None
 
 
+def _role_label() -> str:
+    """"admin" for anyone who manages the queue, else "staff": what the templates branch on."""
+    return "admin" if can("requests.manage") else "staff"
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @comms_bp.route("/comms")
-@login_required
+@require("requests.submit")
 def comms_dashboard():
     _TERMINAL       = ("completed", "cancelled")
     _active_base    = CommsRequest.query.filter(
@@ -106,7 +112,7 @@ def comms_dashboard():
         "comms/dashboard.html",
         church_name=get_org().name,
         user_email=current_user.email,
-        user_role=current_user.role,
+        user_role=_role_label(),
         stats={
             "total":       total,
             "red":         red,
@@ -122,19 +128,19 @@ def comms_dashboard():
 # ── New request form ──────────────────────────────────────────────────────────
 
 @comms_bp.route("/comms/new", methods=["GET"])
-@login_required
+@require("requests.submit")
 def comms_new_get():
     return render_template(
         "comms/new_request.html",
         church_name=get_org().name,
         user_email=current_user.email,
-        user_role=current_user.role,
+        user_role=_role_label(),
         today=date.today().isoformat(),
     )
 
 
 @comms_bp.route("/comms/new", methods=["POST"])
-@login_required
+@require("requests.submit")
 def comms_new_post():
     f = request.form
 
@@ -183,7 +189,7 @@ def comms_new_post():
             "comms/new_request.html",
             church_name=get_org().name,
             user_email=current_user.email,
-            user_role=current_user.role,
+            user_role=_role_label(),
             today=date.today().isoformat(),
             errors=errors,
             form_data=f,
@@ -213,7 +219,7 @@ def comms_new_post():
 # ── My requests ───────────────────────────────────────────────────────────────
 
 @comms_bp.route("/comms/my-requests")
-@login_required
+@require("requests.submit")
 def comms_my_requests():
     requests = (
         CommsRequest.query
@@ -225,7 +231,7 @@ def comms_my_requests():
         "comms/my_requests.html",
         church_name=get_org().name,
         user_email=current_user.email,
-        user_role=current_user.role,
+        user_role=_role_label(),
         requests=requests,
         today=date.today(),
     )
@@ -234,11 +240,8 @@ def comms_my_requests():
 # ── Admin queue ───────────────────────────────────────────────────────────────
 
 @comms_bp.route("/comms/admin")
-@login_required
+@require("requests.manage")
 def comms_admin():
-    if current_user.role != "admin":
-        abort(403)
-
     sort_key = request.args.get("sort", "date_submitted")
     order_by = _SORT_MAP.get(sort_key, CommsRequest.created_at.desc())
 
@@ -268,7 +271,7 @@ def comms_admin():
         "comms/admin.html",
         church_name=get_org().name,
         user_email=current_user.email,
-        user_role=current_user.role,
+        user_role=_role_label(),
         active=active,
         completed=completed,
         today=date.today(),
@@ -285,11 +288,8 @@ def comms_admin():
 # ── Update status (admin only) ────────────────────────────────────────────────
 
 @comms_bp.route("/comms/<string:req_id>/status", methods=["POST"])
-@login_required
+@require("requests.manage")
 def comms_update_status(req_id):
-    if current_user.role != "admin":
-        return jsonify({"error": "Forbidden."}), 403
-
     req = CommsRequest.query.filter_by(
         id=req_id
     ).first_or_404()
@@ -313,14 +313,14 @@ def comms_update_status(req_id):
 # ── Re-evaluate triage ────────────────────────────────────────────────────────
 
 @comms_bp.route("/comms/<string:req_id>/re-evaluate", methods=["POST"])
-@login_required
+@require("requests.submit")
 def comms_re_evaluate(req_id):
     req = CommsRequest.query.filter_by(
         id=req_id
     ).first_or_404()
 
     # Staff can only re-evaluate their own requests; admins can re-evaluate any
-    if current_user.role != "admin" and req.submitter_id != current_user.id:
+    if not can("requests.manage") and req.submitter_id != current_user.id:
         return jsonify({"error": "Forbidden."}), 403
 
     _run_triage(req)
@@ -338,14 +338,14 @@ def comms_re_evaluate(req_id):
 # ── Detail modal (JSON) ───────────────────────────────────────────────────────
 
 @comms_bp.route("/comms/<string:req_id>/detail")
-@login_required
+@require("requests.submit")
 def comms_detail(req_id):
     req = CommsRequest.query.filter_by(
         id=req_id
     ).first_or_404()
 
     # Staff can only view their own requests; admins can view all
-    if current_user.role != "admin" and req.submitter_id != current_user.id:
+    if not can("requests.manage") and req.submitter_id != current_user.id:
         return jsonify({"error": "Forbidden."}), 403
 
     return jsonify({

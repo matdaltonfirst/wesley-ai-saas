@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from helpers import _record_gemini_usage
+from gemini_client import _record_gemini_usage
 from models import db, UsageDaily
 from usage import STAFF, WIDGET, record_usage, usage_totals
 
@@ -141,7 +141,7 @@ class TestMeteringThroughTheEndpoints:
         assert row.model == "gemini-2.5-flash-lite"
 
     def test_widget_chat_records_against_the_visited_church(self, client, church):
-        with patch("routes.widget.call_gemini", side_effect=_metered_gemini(prompt=50, response=25)):
+        with patch("routes.public_api.call_gemini", side_effect=_metered_gemini(prompt=50, response=25)):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id, "question": "What time is worship?",
             })
@@ -174,12 +174,7 @@ class TestAdminUsage:
         assert data["widget_calls"] == 1
         assert data["staff_calls"] == 1
 
-    def test_staff_cannot_see_usage(self, app, client, church):
-        from werkzeug.security import generate_password_hash
-        from models import User
-        db.session.add(User(email="staff@daltonfumc.com", role="staff",
-                            password_hash=generate_password_hash("SecureTestPass1!", method="pbkdf2:sha256")))
-        db.session.commit()
-        client.post("/api/auth/login", json={
-            "email": "staff@daltonfumc.com", "password": "SecureTestPass1!"})
+    def test_a_role_without_audit_access_cannot_see_usage(self, app, client, church):
+        from tests.conftest import login, make_user
+        login(client, make_user("staff@daltonfumc.com", ["music"]))
         assert client.get("/api/admin/usage").status_code == 403

@@ -1,7 +1,7 @@
 """Admin routes: the public chatbot's editable instructions and AI usage."""
 
 from flask import Blueprint, request, jsonify, render_template
-from flask_login import login_required
+from permissions import require
 
 from models import db, SystemPrompt
 from config import DEFAULT_SYSTEM_PROMPT
@@ -12,7 +12,7 @@ admin_bp = Blueprint("admin", __name__)
 
 
 @admin_bp.route("/admin")
-@login_required
+@require("instructions.write")
 def admin_panel():
     if not is_admin():
         return render_template("admin.html", forbidden=True), 403
@@ -27,7 +27,7 @@ def admin_panel():
 
 
 @admin_bp.route("/api/admin/system-prompt", methods=["POST"])
-@login_required
+@require("instructions.write")
 def update_system_prompt():
     if not is_admin():
         return jsonify({"error": "Forbidden."}), 403
@@ -45,7 +45,7 @@ def update_system_prompt():
 
 
 @admin_bp.route("/api/admin/usage")
-@login_required
+@require("audit.read")
 def admin_usage():
     """AI calls and tokens over the last 30 days, split by staff and widget."""
     if not is_admin():

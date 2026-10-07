@@ -5,7 +5,7 @@
 Safe by construction: refuses to run when DATABASE_URL is set (that is Postgres,
 i.e. a real deployment) or when DATA_DIR already holds a database with users.
 
-Creates one admin and one staff account on the church domain. Both use the
+Creates one account per role (plus one with no role) on the church domain. All use the
 password in SEED_PASSWORD, which defaults to the throwaway value below. It is
 for local use only and appears nowhere else.
 """
@@ -28,8 +28,8 @@ def main() -> int:
     from config import ORG_DOMAIN
     from models import (
         CalendarEvent, ChurchCalendar, CommsRequest, Document, GuestConnection,
-        QnAPair, Sermon, SermonSource, TextSnippet, User, WidgetConversation,
-        WidgetMessage, db,
+        QnAPair, Sermon, SermonSource, TextSnippet, User, UserRole,
+        WidgetConversation, WidgetMessage, db,
     )
     from organization import get_org
 
@@ -43,15 +43,27 @@ def main() -> int:
         org.website_url = "https://example.org"
         org.church_city = "Dalton, GA"
         pw = generate_password_hash(password, method="pbkdf2:sha256")
-        admin = User(email=f"dev-admin@{ORG_DOMAIN}", password_hash=pw, role="admin")
-        staff = User(email=f"dev-staff@{ORG_DOMAIN}", password_hash=pw, role="staff")
-        db.session.add_all([admin, staff])
+        people = {
+            "dev-admin": ["admin"], "dev-comms": ["comms"], "dev-assistant": ["admin_assistant"],
+            "dev-family": ["family"], "dev-music": ["music"], "dev-pastor": ["pastoral"],
+            "dev-norole": [],
+        }
+        admin = None
+        for local, roles in people.items():
+            u = User(email=f"{local}@{ORG_DOMAIN}", password_hash=pw)
+            db.session.add(u)
+            db.session.flush()
+            for r in roles:
+                db.session.add(UserRole(user_id=u.id, role=r))
+            admin = admin or u
 
         db.session.add_all([
             TextSnippet(title="Service times", category="Service & Worship",
                         content="Modern worship is Sundays at 9:30 AM. Traditional worship is Sundays at 11:00 AM."),
             TextSnippet(title="Nursery", category="Practical Info",
                         content="The nursery is open for infants through age 3 during both services."),
+            TextSnippet(title="Staff door code (fake)", category="Practical Info", audience="staff",
+                        content="The staff entrance code is 0000. Staff only: never shown to the chatbot."),
             QnAPair(question="Do you baptize infants?",
                     answer="Yes. Contact the church office to schedule a baptism with one of our pastors."),
         ])
@@ -92,7 +104,8 @@ def main() -> int:
         ])
         db.session.commit()
 
-    print(f"Seeded. Sign in as dev-admin@{ORG_DOMAIN} or dev-staff@{ORG_DOMAIN}.")
+    print(f"Seeded. Sign in as dev-admin, dev-comms, dev-assistant, dev-family, dev-music, "
+          f"dev-pastor or dev-norole at @{ORG_DOMAIN}.")
     print("The password is SEED_PASSWORD, or the default in scripts/seed_dev.py.")
     return 0
 

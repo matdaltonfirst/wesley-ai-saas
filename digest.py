@@ -29,7 +29,8 @@ def send_weekly_digests() -> int:
     stats = build_weekly_digest(now - timedelta(days=7))
     if not stats:
         return 0
-    admins = User.query.filter_by(role="admin").all()
+    from permissions import people_with
+    admins = people_with("chatlogs.write")
     if not admins:
         return 0
     for admin in admins:
@@ -48,7 +49,7 @@ def build_weekly_digest(since: datetime):
     conversations, no new guest connections, and nothing awaiting review), so a
     quiet week is not nagged about.
     """
-    from routes.widget import _categorize  # shared topic rules, avoids drift
+    from routes.staff_widget import _categorize  # shared topic rules, avoids drift
 
     convs = (
         WidgetConversation.query

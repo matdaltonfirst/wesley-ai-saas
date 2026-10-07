@@ -437,3 +437,25 @@ Demo thought for the Senior Pastor: the fastest convincing demo is probably the 
 
 ## Questions needing an answer to start Phase 1
 Q1 (which church row and embed id), Q2 (disable signup now?), Q3/Q9 (production cookie and uploads volume), Q4 (other tenants' data). Q5 to Q8 can wait for Phase 1b.
+
+---
+
+## Status of findings after Phase 1b (7 Oct 2026)
+
+| Finding | Status |
+|---|---|
+| S-1 Open public signup | Fixed in Phase 0 and removed in Phase 1 |
+| S-2 CSRF on only 8 endpoints | Fixed: one check on every signed-in state change, token added by `static/csrf.js` |
+| S-3 Passwords only, no MFA | Google Workspace sign-in (MFA is whatever Workspace enforces); passwords off once configured |
+| S-4 Super admin by email string | Removed in Phase 1; admin is a role with a last-admin guard |
+| S-5 Two flat roles, any staff user could change public content | Six roles, named permissions, default deny, enforced by a test on every route |
+| S-6 Cookie `Secure` flag depended on `FLASK_ENV` | Secure by default; only the local dev server turns it off |
+| S-8 Retention inconsistent | Partly: staff chats 14 days and owned by their person; audit log kept. Guest data retention still to decide |
+| S-9 AI horizon longer than log retention | Fixed: the audit log is separate and never pruned |
+| S-10 Public endpoint cost and abuse controls | Shared database rate limits, daily circuit breaker, origin check |
+| Section 5 weakness 1: public/staff separation by a filter on shared tables | Separate public code path with its own queries, import allowlist and canary tests |
+| Section 5 weakness 2: Q&A and snippets had no audience | `audience` column on Q&A, snippets and calendars, with a visible choice |
+| Section 5 weakness 4: calendar feed public by assumption | Calendars have an audience; the public chatbot only reads public ones |
+| Section 5 weakness 5: no audit trail | `audit_log` |
+| Staff chat history readable by all staff | Chats belong to their owner |
+| Still open | Giving and other data connectors (Phase 2); retention policy for guest data; prompt-injection exposure becomes relevant when the staff AI gets tools (Phase 5); unpinned CDN scripts; the comms triage text still needs the `anthropic` package |

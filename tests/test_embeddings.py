@@ -297,10 +297,10 @@ class TestSemanticRetrievalThroughTheWidget:
         ]
         warm_chunks(web_pages)
 
-        with patch("routes.widget.load_chatbot_documents", return_value=[]), \
-             patch("routes.widget.load_curated_content", return_value=[]), \
-             patch("routes.widget.load_church_web_content", return_value=web_pages), \
-             patch("routes.widget.call_gemini") as gemini:
+        with patch("public_knowledge.public_documents", return_value=[]), \
+             patch("public_knowledge.public_curated", return_value=[]), \
+             patch("public_knowledge.public_web_pages", return_value=web_pages), \
+             patch("routes.public_api.call_gemini") as gemini:
             gemini.return_value = "Yes, we have a nursery. [1]"
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id, "question": "Do you have childcare?",

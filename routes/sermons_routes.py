@@ -4,7 +4,7 @@ import logging
 import threading
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required
+from permissions import require, require_any
 
 import sermons as sermon_lib
 from models import db, SermonSource, Sermon
@@ -32,7 +32,7 @@ def _sermon_dict(s):
 
 
 @sermons_bp.route("/api/sermons/status")
-@login_required
+@require_any("sunday.read", "sources.write")
 def sermons_status():
     if not sermon_lib.is_configured():
         return jsonify({"configured": False, "connected": False})
@@ -103,7 +103,7 @@ def _backfill_source(source_id):
 
 
 @sermons_bp.route("/api/sermons/source", methods=["POST"])
-@login_required
+@require("sources.write")
 def connect_channel():
     if not sermon_lib.is_configured():
         return jsonify({"error": "Sermon ingestion is not enabled on this server."}), 400
@@ -136,7 +136,7 @@ def connect_channel():
 
 
 @sermons_bp.route("/api/sermons/source", methods=["DELETE"])
-@login_required
+@require("sources.write")
 def disconnect_channel():
     source = SermonSource.query.first()
     if source:
@@ -146,7 +146,7 @@ def disconnect_channel():
 
 
 @sermons_bp.route("/api/sermons/check", methods=["POST"])
-@login_required
+@require("sources.write")
 def check_now():
     source = SermonSource.query.first()
     if not source:
@@ -158,7 +158,7 @@ def check_now():
 
 
 @sermons_bp.route("/api/sermons/reingest-all", methods=["POST"])
-@login_required
+@require("sources.write")
 def reingest_all():
     """Regenerate every sermon's summary (e.g. after a distillation improvement)."""
     sermon_rows = Sermon.query.filter(Sermon.status != "excluded").all()
@@ -182,7 +182,7 @@ def reingest_all():
 
 
 @sermons_bp.route("/api/sermons/<int:sermon_id>/reingest", methods=["POST"])
-@login_required
+@require("sources.write")
 def reingest(sermon_id):
     sermon = Sermon.query.filter_by(
         id=sermon_id
@@ -202,7 +202,7 @@ def reingest(sermon_id):
 
 
 @sermons_bp.route("/api/sermons/<int:sermon_id>", methods=["PATCH"])
-@login_required
+@require("sources.write")
 def paste_transcript(sermon_id):
     """Manual escape hatch: staff paste a transcript and we distill from it."""
     sermon = Sermon.query.filter_by(
@@ -222,7 +222,7 @@ def paste_transcript(sermon_id):
 
 
 @sermons_bp.route("/api/sermons/<int:sermon_id>", methods=["DELETE"])
-@login_required
+@require("sources.write")
 def exclude_sermon(sermon_id):
     """Remove a video from Wesley's knowledge. The row is kept (status
     "excluded") so the daily channel check never re-ingests it."""

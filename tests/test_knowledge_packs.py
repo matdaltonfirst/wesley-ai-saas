@@ -55,16 +55,18 @@ def test_public_document_updates_readiness(auth_client, church):
     assert pack["items"][0]["source"]["label"] == "Visitor Guide.pdf"
 
 
-def test_staff_cannot_modify_packs(auth_client, church):
-    staff = User(email="knowledge-staff@example.org", password_hash=generate_password_hash("password", method="pbkdf2:sha256"), role="staff")
-    db.session.add(staff)
-    db.session.commit()
-    with auth_client.session_transaction() as session:
-        session["_user_id"] = str(staff.id)
-        session["_fresh"] = True
-    from flask import g
-    g.pop("_login_user", None)
-    assert auth_client.post("/api/knowledge-packs/visitor-essentials/activate", json={"active": True}).status_code == 403
-    assert auth_client.post("/api/knowledge-checklist/visitor-service-times", json={"status": "not_applicable"}).status_code == 403
-    assert auth_client.get("/api/knowledge-packs").get_json()["can_manage"] is False
+def test_a_role_without_kb_write_cannot_modify_packs(client, church):
+    from tests.conftest import login, make_user
+    login(client, make_user("music@daltonfumc.com", ["music"]))
+    assert client.post("/api/knowledge-packs/visitor-essentials/activate", json={"active": True}).status_code == 403
+    assert client.post("/api/knowledge-checklist/visitor-service-times", json={"status": "not_applicable"}).status_code == 403
+    assert client.get("/api/knowledge-packs").status_code == 403      # music cannot even read the knowledge base
 
+
+def test_a_role_that_can_read_but_not_change_sees_can_manage_false(client, church):
+    from tests.conftest import login, make_user
+    from permissions import ASSISTANT, DEFAULTS
+    assert "kb.read" in DEFAULTS[ASSISTANT] and "kb.write" not in DEFAULTS[ASSISTANT]
+    login(client, make_user("assistant@daltonfumc.com", ["admin_assistant"]))
+    assert client.get("/api/knowledge-packs").get_json()["can_manage"] is False
+    assert client.post("/api/knowledge-packs/visitor-essentials/activate", json={"active": True}).status_code == 403

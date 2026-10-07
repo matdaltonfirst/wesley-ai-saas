@@ -72,7 +72,7 @@ class TestStreamGemini:
             generate_content_stream=lambda **kw: iter(chunks)))
         usage = {}
 
-        with patch("helpers._build_request",
+        with patch("gemini_client._build_request",
                    return_value=(client, [], None, ["gemini-2.5-flash-lite"])):
             pieces = list(stream_gemini("q", "", [], "sys", usage=usage))
 
@@ -89,7 +89,7 @@ class TestStreamGemini:
             return iter([SimpleNamespace(text="from fallback", usage_metadata=None)])
 
         client = SimpleNamespace(models=SimpleNamespace(generate_content_stream=generate))
-        with patch("helpers._build_request",
+        with patch("gemini_client._build_request",
                    return_value=(client, [], None, ["primary", "fallback"])):
             pieces = list(stream_gemini("q", "", [], "sys"))
 
@@ -101,13 +101,13 @@ class TestStreamGemini:
 
 class TestWidgetStreaming:
     def test_deltas_then_done_with_sources(self, client, church):
-        with patch("routes.widget.stream_gemini",
+        with patch("routes.public_api.stream_gemini",
                    side_effect=_streamer("Worship ", "is at 10am. [1]")), \
-             patch("routes.widget.load_church_web_content", return_value=[
+             patch("public_knowledge.public_web_pages", return_value=[
                  {"content": "Worship is at 10am.", "source": "Times",
                   "location": "https://church.org/times"}]), \
-             patch("routes.widget.load_chatbot_documents", return_value=[]), \
-             patch("routes.widget.load_curated_content", return_value=[]):
+             patch("public_knowledge.public_documents", return_value=[]), \
+             patch("public_knowledge.public_curated", return_value=[]):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "What time is worship?",
             })
@@ -124,7 +124,7 @@ class TestWidgetStreaming:
         assert final["session_id"]
 
     def test_the_answer_is_persisted(self, client, church):
-        with patch("routes.widget.stream_gemini", side_effect=_streamer("Hello.")):
+        with patch("routes.public_api.stream_gemini", side_effect=_streamer("Hello.")):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "Hi?",
             })
@@ -136,7 +136,7 @@ class TestWidgetStreaming:
     def test_proxy_buffering_is_disabled(self, client, church):
         """Without this header a buffering proxy holds the whole response and
         the visitor sees nothing until the end — the thing being fixed."""
-        with patch("routes.widget.stream_gemini", side_effect=_streamer("Hi.")):
+        with patch("routes.public_api.stream_gemini", side_effect=_streamer("Hi.")):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "Hi?",
             })
@@ -144,7 +144,7 @@ class TestWidgetStreaming:
         assert res.headers["Access-Control-Allow-Origin"] == "*"
 
     def test_failure_mid_stream_emits_an_error_event(self, client, church):
-        with patch("routes.widget.stream_gemini",
+        with patch("routes.public_api.stream_gemini",
                    side_effect=_streamer("Partial ", fail_after=1)):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "Hi?",
@@ -157,7 +157,7 @@ class TestWidgetStreaming:
         assert WidgetMessage.query.filter_by(role="assistant").count() == 0
 
     def test_an_empty_answer_is_reported_rather_than_saved(self, client, church):
-        with patch("routes.widget.stream_gemini", side_effect=_streamer("", "  ")):
+        with patch("routes.public_api.stream_gemini", side_effect=_streamer("", "  ")):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "Hi?",
             })
@@ -176,7 +176,7 @@ class TestWidgetStreaming:
             "model": "gemini-2.5-flash-lite", "prompt_tokens": 30,
             "response_tokens": 5, "total_tokens": 35,
         })
-        with patch("routes.widget.stream_gemini", side_effect=streamer):
+        with patch("routes.public_api.stream_gemini", side_effect=streamer):
             res = client.post("/api/widget/chat/stream", json={
                 "church_id": church.id, "question": "Hi?",
             })
@@ -240,7 +240,7 @@ class TestTurnCarriesNoOrmInstances:
             )
 
     def test_widget_turn_is_plain_data(self, app, church):
-        from routes.widget import _prepare_widget_turn
+        from routes.public_api import _prepare_widget_turn
         with app.test_request_context():
             turn = _prepare_widget_turn({
                 "church_id": church.id, "question": "What time is worship?",
@@ -259,7 +259,7 @@ class TestTurnCarriesNoOrmInstances:
 
     def test_the_user_message_is_committed_before_streaming_begins(self, app, church):
         """Nothing may be left pending in a session the generator cannot reach."""
-        from routes.widget import _prepare_widget_turn
+        from routes.public_api import _prepare_widget_turn
         with app.test_request_context():
             _prepare_widget_turn({"church_id": church.id, "question": "Hi?"})
             assert not db.session.new
@@ -275,15 +275,15 @@ class TestBlockingAndStreamingAgree:
                 "location": "https://church.org/times"}]
         answer = "Worship is at 10am. [1]"
         loaders = {
-            "routes.widget.load_church_web_content": web,
-            "routes.widget.load_chatbot_documents": [],
-            "routes.widget.load_curated_content": [],
+            "public_knowledge.public_web_pages": web,
+            "public_knowledge.public_documents": [],
+            "public_knowledge.public_curated": [],
         }
         with patch(list(loaders)[0], return_value=web), \
              patch(list(loaders)[1], return_value=[]), \
              patch(list(loaders)[2], return_value=[]), \
-             patch("routes.widget.call_gemini", return_value=answer), \
-             patch("routes.widget.stream_gemini", side_effect=_streamer(answer)):
+             patch("routes.public_api.call_gemini", return_value=answer), \
+             patch("routes.public_api.stream_gemini", side_effect=_streamer(answer)):
             blocking = client.post("/api/widget/chat", json={
                 "church_id": church.id, "question": "What time is worship?"}).get_json()
             streamed = _events(client.post("/api/widget/chat/stream", json={

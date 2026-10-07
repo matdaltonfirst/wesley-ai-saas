@@ -68,7 +68,7 @@ class TestWidgetChat:
         assert res.status_code == 404
 
     def test_legacy_embed_id_chats(self, client, church):
-        with patch("routes.widget.call_gemini", return_value="Sundays at 9:30 and 11."):
+        with patch("routes.public_api.call_gemini", return_value="Sundays at 9:30 and 11."):
             res = client.post("/api/widget/chat", json={
                 "church_id": 2, "question": "When is church?"})
         assert res.status_code == 200
@@ -91,7 +91,7 @@ class TestWidgetChat:
 
     def test_chat_success_mocked(self, client, church):
         """Happy-path chat — Gemini is mocked to avoid real API calls."""
-        with patch("routes.widget.call_gemini", return_value="Hello! How can I help?"):
+        with patch("routes.public_api.call_gemini", return_value="Hello! How can I help?"):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "What time is Sunday service?",
@@ -122,10 +122,10 @@ class TestWidgetChat:
             "source": "Children's Ministry",
             "location": "https://grace.example/children",
         }]
-        with patch("routes.widget.load_chatbot_documents", return_value=public_docs), \
-             patch("routes.widget.load_curated_content", return_value=[]), \
-             patch("routes.widget.load_church_web_content", return_value=web_pages), \
-             patch("routes.widget.call_gemini", return_value="Children meet at 9 AM. [1][2]"):
+        with patch("public_knowledge.public_documents", return_value=public_docs), \
+             patch("public_knowledge.public_curated", return_value=[]), \
+             patch("public_knowledge.public_web_pages", return_value=web_pages), \
+             patch("routes.public_api.call_gemini", return_value="Children meet at 9 AM. [1][2]"):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "When do children meet on Sunday?",
@@ -156,9 +156,9 @@ class TestWidgetChat:
         db.session.add(pair)
         db.session.commit()
 
-        with patch("routes.widget.load_chatbot_documents", return_value=[]), \
-             patch("routes.widget.load_church_web_content", return_value=[]), \
-             patch("routes.widget.call_gemini", return_value="Worship begins at 10 AM. [1]"):
+        with patch("public_knowledge.public_documents", return_value=[]), \
+             patch("public_knowledge.public_web_pages", return_value=[]), \
+             patch("routes.public_api.call_gemini", return_value="Worship begins at 10 AM. [1]"):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "What time is worship?",
@@ -179,7 +179,7 @@ class TestWidgetChat:
 
     def test_chat_continues_existing_session(self, client, church):
         """Subsequent messages with the same session_id reuse the conversation."""
-        with patch("routes.widget.call_gemini", return_value="First response."):
+        with patch("routes.public_api.call_gemini", return_value="First response."):
             res1 = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "First question",
@@ -187,7 +187,7 @@ class TestWidgetChat:
         assert res1.status_code == 200
         session_id = res1.get_json()["session_id"]
 
-        with patch("routes.widget.call_gemini", return_value="Second response."):
+        with patch("routes.public_api.call_gemini", return_value="Second response."):
             res2 = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "Second question",
@@ -208,7 +208,7 @@ class TestWidgetChat:
 
     def test_chat_gemini_error_returns_clean_message(self, client, church):
         """An exception from Gemini should return a user-friendly error, not a 500."""
-        with patch("routes.widget.call_gemini", side_effect=Exception("429 quota exceeded")):
+        with patch("routes.public_api.call_gemini", side_effect=Exception("429 quota exceeded")):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "Will this blow up?",
@@ -226,7 +226,7 @@ class TestWidgetChat:
 
 class TestAnswerFeedback:
     def _create_answer(self, client, church):
-        with patch("routes.widget.call_gemini", return_value="The office is open Friday."):
+        with patch("routes.public_api.call_gemini", return_value="The office is open Friday."):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "Is the office open Friday?",
@@ -356,7 +356,7 @@ class TestWidgetConversationList:
 
 class TestAutoFlaggedFeedback:
     def _chat(self, client, church, reply):
-        with patch("routes.widget.call_gemini", return_value=reply):
+        with patch("routes.public_api.call_gemini", return_value=reply):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "When is the fall festival?",

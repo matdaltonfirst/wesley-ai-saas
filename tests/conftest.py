@@ -111,14 +111,14 @@ def no_live_model_calls(monkeypatch):
     packet generation, turning a three-second file into thirty-three seconds of
     live API traffic and rate-limit failures elsewhere in the suite.
     """
-    import helpers
+    import gemini_client
 
     def explode(*args, **kwargs):
         raise AssertionError(
             "This test reached the live Gemini API. Patch call_gemini at the "
             "call site under test, or patch the function that wraps it.")
 
-    monkeypatch.setattr(helpers.genai, "Client", explode)
+    monkeypatch.setattr(gemini_client.genai, "Client", explode)
 
 
 @pytest.fixture(autouse=True)
@@ -137,22 +137,37 @@ def reset_db_session(app):
     from flask import g
     g.pop("_login_user", None)
     g.pop("org", None)
+    g.pop("_perm_cache", None)
     _db.session.rollback()
+
+
+def make_user(email, roles=(), password=_TEST_PASSWORD, active=True):
+    """Create a person with the given roles (a list of role keys)."""
+    from models import UserRole
+    u = User(email=email, active=active,
+             password_hash=generate_password_hash(password, method="pbkdf2:sha256"))
+    _db.session.add(u)
+    _db.session.flush()
+    for r in roles:
+        _db.session.add(UserRole(user_id=u.id, role=r))
+    _db.session.commit()
+    _db.session.refresh(u)
+    u._plaintext_password = password
+    return u
+
+
+def login(client, user):
+    """Sign *user* in through the real password endpoint."""
+    res = client.post("/api/auth/login", json={
+        "email": user.email, "password": user._plaintext_password})
+    assert res.status_code == 200, f"Login failed in fixture: {res.get_json()}"
+    return client
 
 
 @pytest.fixture
 def admin_user(app, church):
-    """An admin user belonging to the test church."""
-    u = User(
-        email="admin@daltonfumc.com",
-        password_hash=generate_password_hash(_TEST_PASSWORD, method="pbkdf2:sha256"),
-        role="admin",
-    )
-    _db.session.add(u)
-    _db.session.commit()
-    _db.session.refresh(u)
-    # Stash the plaintext password so tests can use it without knowing the constant
-    u._plaintext_password = _TEST_PASSWORD
+    """An admin (all permissions except giving)."""
+    u = make_user("admin@daltonfumc.com", ["admin"])
     yield u
     User.query.filter_by(id=u.id).delete()
     _db.session.commit()

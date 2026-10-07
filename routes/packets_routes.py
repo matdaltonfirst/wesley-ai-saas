@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_login import login_required
+from permissions import require
 
 from helpers import iso_utc, validate_csrf_json
 from models import db, Sermon, SermonPacket
@@ -58,7 +58,7 @@ def _packet_dict(packet, sermon) -> dict:
 
 
 @packets_bp.route("/api/packets")
-@login_required
+@require("sunday.read")
 def list_packets():
     rows = (
         db.session.query(SermonPacket, Sermon)
@@ -71,7 +71,7 @@ def list_packets():
 
 
 @packets_bp.route("/api/packets/<int:packet_id>")
-@login_required
+@require("sunday.read")
 def get_packet(packet_id):
     packet = SermonPacket.query.filter_by(
         id=packet_id
@@ -83,7 +83,7 @@ def get_packet(packet_id):
 
 
 @packets_bp.route("/api/packets/<int:packet_id>", methods=["PATCH"])
-@login_required
+@require("sunday.write")
 def update_packet(packet_id):
     err, status = validate_csrf_json()
     if err:
@@ -165,7 +165,7 @@ def update_packet(packet_id):
 
 
 @packets_bp.route("/api/packets/pending")
-@login_required
+@require("sunday.read")
 def pending_sermons():
     """Sermons with a transcript that have no content built yet.
 
@@ -185,7 +185,7 @@ def pending_sermons():
 
 
 @packets_bp.route("/api/packets/generate", methods=["POST"])
-@login_required
+@require("sunday.write")
 def generate_for_sermon():
     """Build content for one sermon on demand.
 
@@ -224,7 +224,7 @@ def generate_for_sermon():
 
 
 @packets_bp.route("/api/packets/<int:packet_id>/regenerate", methods=["POST"])
-@login_required
+@require("sunday.write")
 def regenerate_packet(packet_id):
     """Rebuild a packet from its sermon, discarding edits.
 

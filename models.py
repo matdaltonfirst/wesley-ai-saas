@@ -9,6 +9,8 @@ db = SQLAlchemy()
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.Integer, primary_key=True)
+    # Whose chat this is. Only that person can read it back.
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     title = db.Column(db.String(100), nullable=False, default="New Conversation")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -81,18 +83,89 @@ class Organization(db.Model):
 
 
 class User(UserMixin, db.Model):
+    """A member of staff. Signs in with Google Workspace (see routes/auth.py).
+
+    What a person may do comes from their roles (``UserRole``) and the permission
+    matrix (``permissions.py``), never from a flag on this row.
+    """
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
-    password_hash = db.Column(db.String(300), nullable=False)
+    display_name = db.Column(db.String(200), nullable=True)
+    # Google's stable account id, recorded on first sign-in. Email can change;
+    # this does not.
+    google_sub = db.Column(db.String(100), unique=True, nullable=True)
+    # Only used while password sign-in is still enabled (Google not configured).
+    password_hash = db.Column(db.String(300), nullable=True)
+    # Deactivated people keep their history but cannot sign in.
+    active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime, nullable=True)
 
-    # Role: "admin" (church owner) or "staff" (invited member)
-    role = db.Column(db.String(20), nullable=False, default="admin")
-
-    # Password reset
+    # Password reset (password mode only)
     reset_token         = db.Column(db.String(100), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
+
+    role_rows = db.relationship("UserRole", backref="user", cascade="all, delete-orphan",
+                                lazy="selectin")
+
+    @property
+    def is_active(self):  # Flask-Login: inactive users cannot stay signed in
+        return bool(self.active)
+
+    @property
+    def roles(self) -> set:
+        return {r.role for r in self.role_rows}
+
+    def has_role(self, role: str) -> bool:
+        return role in self.roles
+
+
+class UserRole(db.Model):
+    """One role held by one person. A person may hold several."""
+    __tablename__ = "user_roles"
+    id      = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    role    = db.Column(db.String(40), nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "role", name="uq_user_role"),)
+
+
+class RolePermission(db.Model):
+    """An admin override of the default permission matrix for one role."""
+    __tablename__ = "role_permissions"
+    id         = db.Column(db.Integer, primary_key=True)
+    role       = db.Column(db.String(40), nullable=False)
+    permission = db.Column(db.String(60), nullable=False)
+    allowed    = db.Column(db.Boolean, nullable=False)
+    updated_by = db.Column(db.String(200), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("role", "permission", name="uq_role_permission"),)
+
+
+class AuditLog(db.Model):
+    """Who did or accessed what, and when. Append-only: nothing edits or prunes it."""
+    __tablename__ = "audit_log"
+    id      = db.Column(db.Integer, primary_key=True)
+    at      = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=True)            # not an FK: the log outlives users
+    email   = db.Column(db.String(200), nullable=True)
+    action  = db.Column(db.String(60), nullable=False, index=True)   # e.g. ai.chat, auth.login
+    source  = db.Column(db.String(200), nullable=True)        # which data source or object
+    detail  = db.Column(db.Text, nullable=True)               # JSON, no message text
+    ip      = db.Column(db.String(60), nullable=True)
+
+
+class RateLimitHit(db.Model):
+    """Shared request counters, so limits hold across workers and restarts."""
+    __tablename__ = "rate_limit_hits"
+    id     = db.Column(db.Integer, primary_key=True)
+    key    = db.Column(db.String(120), nullable=False)
+    window = db.Column(db.BigInteger, nullable=False)          # start of the window, epoch seconds
+    count  = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (db.UniqueConstraint("key", "window", name="uq_rate_limit_window"),)
 
 
 class Document(db.Model):
@@ -229,6 +302,8 @@ class TextSnippet(db.Model):
     title      = db.Column(db.String(200), nullable=False)
     content    = db.Column(db.Text, nullable=False)
     category   = db.Column(db.String(100), nullable=True)
+    # "public" content may be given to the website chatbot; "staff" never is.
+    audience   = db.Column(db.String(10), nullable=False, default="public")
     is_active  = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -240,6 +315,7 @@ class QnAPair(db.Model):
     id         = db.Column(db.Integer, primary_key=True)
     question   = db.Column(db.String(500), nullable=False)
     answer     = db.Column(db.Text, nullable=False)
+    audience   = db.Column(db.String(10), nullable=False, default="public")
     is_active  = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -367,22 +443,14 @@ class UsageDaily(db.Model):
     )
 
 
-class Invite(db.Model):
-    """A pending invitation for a staff member to join a church account."""
-    __tablename__ = "invites"
-    id         = db.Column(db.Integer, primary_key=True)
-    email      = db.Column(db.String(200), nullable=False)
-    token      = db.Column(db.String(100), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    accepted   = db.Column(db.Boolean, nullable=False, default=False)
-
-
 class ChurchCalendar(db.Model):
     """A public ICS calendar feed (Google Calendar, Planning Center, etc.)."""
     __tablename__ = "church_calendars"
     id              = db.Column(db.Integer, primary_key=True)
     url             = db.Column(db.String(1000), nullable=False)
     label           = db.Column(db.String(200), nullable=False, default="Church calendar")
+    # A "staff" calendar feeds staff tools only; the website chatbot never sees it.
+    audience        = db.Column(db.String(10), nullable=False, default="public")
     last_fetched_at = db.Column(db.DateTime, nullable=True)
     last_error      = db.Column(db.String(500), nullable=True)
     event_count     = db.Column(db.Integer, nullable=False, default=0)

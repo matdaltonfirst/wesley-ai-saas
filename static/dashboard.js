@@ -1204,6 +1204,13 @@ function renderCalendarItem(cal) {
         <div>
           <div class="cal-item-title" title="${esc(cal.url)}">${esc(cal.label)}</div>
           <div class="cal-item-meta">${esc(meta)}</div>
+          <label style="font-size:.78rem;display:flex;gap:6px;align-items:center;margin-top:4px;">
+            Who can see it
+            <select class="cal-audience-sel" data-id="${cal.id}">
+              <option value="public"${cal.audience !== "staff" ? " selected" : ""}>Staff and the website chatbot</option>
+              <option value="staff"${cal.audience === "staff" ? " selected" : ""}>Staff only</option>
+            </select>
+          </label>
         </div>
         <div class="cal-item-actions">
           <button class="cal-icon-btn cal-refresh-btn" data-id="${cal.id}" title="Refresh now">
@@ -1225,6 +1232,15 @@ function renderCalendarItem(cal) {
 }
 
 function bindCalendarButtons() {
+  calendarListEl.querySelectorAll(".cal-audience-sel").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const res = await fetch(`/api/calendars/${sel.dataset.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audience: sel.value }),
+      });
+      if (!res.ok) { alert("Could not change that."); loadCalendars(); }
+    });
+  });
   calendarListEl.querySelectorAll(".cal-delete-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       if (!confirm("Disconnect this calendar? Wesley will forget its events.")) return;
@@ -1458,6 +1474,7 @@ function renderSnippetGrid() {
     <div class="sn-card${s.is_active ? "" : " sn-inactive"}" data-id="${s.id}">
       <div class="sn-card-title">${esc(s.title)}</div>
       ${s.category ? `<div><span class="sn-cat-badge">${esc(s.category)}</span></div>` : ""}
+      <div><span class="doc-visibility-badge ${s.audience === "staff" ? "staff-only" : "staff-chatbot"}">${s.audience === "staff" ? "Staff only" : "Staff + Chatbot"}</span></div>
       <div class="sn-preview">${esc(s.content.length > 100 ? s.content.substring(0, 100) + "…" : s.content)}</div>
       <div class="sn-footer">
         <span class="sn-status ${s.is_active ? "sn-status-active" : "sn-status-inactive"}">${s.is_active ? "Active" : "Inactive"}</span>
@@ -1477,6 +1494,7 @@ function snippetShowForm(editId) {
   const cat   = document.getElementById("snippetCategory");
   const txt   = document.getElementById("snippetContent");
   const active= document.getElementById("snippetActive");
+  const aud   = document.getElementById("snippetAudience");
   const msg   = document.getElementById("snippetFormMsg");
   if (msg) msg.textContent = "";
 
@@ -1488,6 +1506,7 @@ function snippetShowForm(editId) {
     inp.value   = s.title;
     cat.value   = s.category || "";
     txt.value   = s.content;
+    if (aud) aud.value = s.audience || "public";
     active.checked = s.is_active;
   } else {
     title.textContent = "New Snippet";
@@ -1495,6 +1514,7 @@ function snippetShowForm(editId) {
     inp.value   = "";
     cat.value   = "";
     txt.value   = "";
+    if (aud) aud.value = "public";
     active.checked = true;
   }
   updateSnippetCharCount();
@@ -1544,7 +1564,8 @@ async function snippetDelete(id) {
       msg.style.color = "#c8472f";
       return;
     }
-    const body = { title, content, category: category || null, is_active: active };
+    const audience = (document.getElementById("snippetAudience") || {}).value || "public";
+    const body = { title, content, category: category || null, audience, is_active: active };
     const url    = idVal ? `/api/snippets/${idVal}` : "/api/snippets";
     const method = idVal ? "PATCH" : "POST";
     const res = await fetch(url, {
@@ -1600,6 +1621,7 @@ function renderQnaList() {
       <div class="qna-header" onclick="qnaToggle(this)">
         <span class="qna-question">${esc(p.question)}</span>
         <div class="qna-header-right">
+          <span class="doc-visibility-badge ${p.audience === "staff" ? "staff-only" : "staff-chatbot"}">${p.audience === "staff" ? "Staff only" : "Staff + Chatbot"}</span>
           <span class="qna-status ${p.is_active ? "qna-status-active" : "qna-status-inactive"}">${p.is_active ? "Active" : "Inactive"}</span>
           <svg class="qna-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"/>
@@ -1627,6 +1649,7 @@ function qnaShowForm(editId) {
   const q     = document.getElementById("qnaQuestion");
   const a     = document.getElementById("qnaAnswer");
   const active= document.getElementById("qnaActive");
+  const aud   = document.getElementById("qnaAudience");
   const msg   = document.getElementById("qnaFormMsg");
   if (msg) msg.textContent = "";
 
@@ -1637,12 +1660,14 @@ function qnaShowForm(editId) {
     idInp.value   = p.id;
     q.value       = p.question;
     a.value       = p.answer;
+    if (aud) aud.value = p.audience || "public";
     active.checked = p.is_active;
   } else {
     title.textContent = "New Q&A";
     idInp.value = "";
     q.value = "";
     a.value = "";
+    if (aud) aud.value = "public";
     active.checked = true;
   }
   card.style.display = "";
@@ -1682,7 +1707,8 @@ async function qnaDelete(id) {
       msg.style.color = "#c8472f";
       return;
     }
-    const body   = { question, answer, is_active: active };
+    const audience = (document.getElementById("qnaAudience") || {}).value || "public";
+    const body   = { question, answer, audience, is_active: active };
     const url    = idVal ? `/api/qna/${idVal}` : "/api/qna";
     const method = idVal ? "PATCH" : "POST";
     const res = await fetch(url, {

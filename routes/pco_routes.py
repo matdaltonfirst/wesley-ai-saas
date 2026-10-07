@@ -5,7 +5,8 @@ import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, redirect, session
-from flask_login import login_required, current_user
+from flask_login import current_user
+from permissions import can, require
 
 import pco
 from models import db, PcoConnection, GuestConnection
@@ -17,18 +18,18 @@ pco_bp = Blueprint("pco", __name__)
 
 
 @pco_bp.route("/api/pco/status")
-@login_required
+@require("integrations.read")
 def pco_status():
     if not pco.is_configured():
         return jsonify({
             "configured": False, "connected": False,
-            "can_manage": current_user.role == "admin",
+            "can_manage": can("integrations.manage"),
         })
     conn = PcoConnection.query.first()
     if not conn:
         return jsonify({
             "configured": True, "connected": False,
-            "can_manage": current_user.role == "admin",
+            "can_manage": can("integrations.manage"),
         })
     return jsonify({
         "configured": True,
@@ -37,17 +38,15 @@ def pco_status():
         "auto_sync": conn.auto_sync,
         "workflow_id": conn.workflow_id or "",
         "workflow_name": conn.workflow_name or "",
-        "can_manage": current_user.role == "admin",
+        "can_manage": can("integrations.manage"),
     })
 
 
 @pco_bp.route("/pco/connect")
-@login_required
+@require("integrations.manage")
 def pco_connect():
     if not pco.is_configured():
         return "Planning Center integration is not enabled on this server.", 400
-    if current_user.role != "admin":
-        return "Only admins can connect Planning Center.", 403
     state = secrets.token_urlsafe(24)
     session["pco_oauth_state"] = state
     # Remember where to land after the OAuth round-trip (dashboard or wizard)
@@ -58,7 +57,7 @@ def pco_connect():
 
 
 @pco_bp.route("/pco/callback")
-@login_required
+@require("integrations.manage")
 def pco_callback():
     state = request.args.get("state", "")
     saved = session.pop("pco_oauth_state", None)
@@ -102,10 +101,8 @@ def pco_callback():
 
 
 @pco_bp.route("/api/pco/disconnect", methods=["POST"])
-@login_required
+@require("integrations.manage")
 def pco_disconnect():
-    if current_user.role != "admin":
-        return jsonify({"error": "Only admins can disconnect."}), 403
     conn = PcoConnection.query.first()
     if conn:
         db.session.delete(conn)
@@ -114,7 +111,7 @@ def pco_disconnect():
 
 
 @pco_bp.route("/api/pco/workflows")
-@login_required
+@require("integrations.read")
 def pco_workflows():
     conn = PcoConnection.query.first()
     if not conn:
@@ -126,10 +123,8 @@ def pco_workflows():
 
 
 @pco_bp.route("/api/pco/settings", methods=["POST"])
-@login_required
+@require("integrations.manage")
 def pco_settings():
-    if current_user.role != "admin":
-        return jsonify({"error": "Only admins can change integration settings."}), 403
     conn = PcoConnection.query.first()
     if not conn:
         return jsonify({"error": "Planning Center is not connected."}), 400
@@ -144,7 +139,7 @@ def pco_settings():
 
 
 @pco_bp.route("/api/guest-connection/<int:gc_id>/sync-pco", methods=["POST"])
-@login_required
+@require("guests.write")
 def sync_guest_to_pco(gc_id):
     gc = GuestConnection.query.get(gc_id)
     if not gc:

@@ -3,7 +3,8 @@
 import logging
 
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
+from audit import log_event
+from permissions import require
 
 from models import db, ChurchCalendar, CalendarEvent
 from calendar_feed import refresh_calendar, event_dict, CalendarFeedError
@@ -22,6 +23,7 @@ def _calendar_dict(cal, with_preview=False):
         "id": cal.id,
         "url": cal.url,
         "label": cal.label,
+        "audience": cal.audience,
         "event_count": cal.event_count,
         "last_fetched_at": iso_utc(cal.last_fetched_at),
         "last_error": cal.last_error,
@@ -39,7 +41,7 @@ def _calendar_dict(cal, with_preview=False):
 
 
 @calendars_bp.route("/api/calendars")
-@login_required
+@require("sources.write")
 def list_calendars():
     cals = (
         ChurchCalendar.query
@@ -51,7 +53,7 @@ def list_calendars():
 
 
 @calendars_bp.route("/api/calendars", methods=["POST"])
-@login_required
+@require("sources.write")
 def add_calendar():
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
@@ -79,7 +81,8 @@ def add_calendar():
     if existing.count() >= MAX_CALENDARS_PER_CHURCH:
         return jsonify({"error": f"You can connect up to {MAX_CALENDARS_PER_CHURCH} calendars."}), 400
 
-    cal = ChurchCalendar(url=url, label=label)
+    audience = "staff" if data.get("audience") == "staff" else "public"
+    cal = ChurchCalendar(url=url, label=label, audience=audience)
     db.session.add(cal)
     db.session.flush()
 
@@ -95,7 +98,7 @@ def add_calendar():
 
 
 @calendars_bp.route("/api/calendars/<int:cal_id>/refresh", methods=["POST"])
-@login_required
+@require("sources.write")
 def refresh_calendar_now(cal_id):
     cal = ChurchCalendar.query.filter_by(
         id=cal_id
@@ -108,7 +111,7 @@ def refresh_calendar_now(cal_id):
 
 
 @calendars_bp.route("/api/calendars/<int:cal_id>", methods=["DELETE"])
-@login_required
+@require("sources.write")
 def delete_calendar(cal_id):
     cal = ChurchCalendar.query.filter_by(
         id=cal_id
@@ -118,3 +121,19 @@ def delete_calendar(cal_id):
     db.session.delete(cal)
     db.session.commit()
     return jsonify({"ok": True})
+
+
+@calendars_bp.route("/api/calendars/<int:cal_id>", methods=["PATCH"])
+@require("sources.write")
+def update_calendar(cal_id):
+    """Choose who may see a calendar: staff only, or staff and the website chatbot."""
+    cal = ChurchCalendar.query.get(cal_id)
+    if not cal:
+        return jsonify({"error": "Calendar not found."}), 404
+    data = request.get_json(silent=True) or {}
+    if data.get("audience") not in ("public", "staff"):
+        return jsonify({"error": "Audience must be public or staff."}), 400
+    cal.audience = data["audience"]
+    db.session.commit()
+    log_event("calendar.audience", source=cal.label, detail={"audience": cal.audience})
+    return jsonify({"ok": True, "calendar": _calendar_dict(cal)})

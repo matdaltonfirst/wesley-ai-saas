@@ -20,10 +20,10 @@ from sqlalchemy.pool import StaticPool
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from models import db, User, SystemPrompt, Conversation, WidgetConversation, Invite
+from models import db, User, SystemPrompt, Conversation, WidgetConversation
 from config import (
-    DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB, database_url, engine_options,
-    is_postgres,
+    DEFAULT_SYSTEM_PROMPT, MAX_UPLOAD_MB, SESSION_ABSOLUTE_HOURS, SESSION_IDLE_HOURS,
+    database_url, engine_options, is_postgres,
 )
 from helpers import csrf_token
 
@@ -114,6 +114,7 @@ def create_app(testing: bool = False) -> Flask:
             },
             "MAX_CONTENT_LENGTH": MAX_UPLOAD_MB * 1024 * 1024,
             "UPLOADS_DIR": UPLOADS_DIR,
+            "PUBLIC_LIMITS_DISABLED": True,
             "CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=10000, window_seconds=1),
@@ -139,7 +140,12 @@ def create_app(testing: bool = False) -> Flask:
             "UPLOADS_DIR": UPLOADS_DIR,
             "SESSION_COOKIE_HTTPONLY": True,
             "SESSION_COOKIE_SAMESITE": "Lax",
-            "SESSION_COOKIE_SECURE": os.getenv("SESSION_COOKIE_SECURE", "1" if os.getenv("FLASK_ENV") == "production" else "0").lower() in ("1", "true", "yes"),
+            # Secure unless running the local dev server (which is plain http).
+            "SESSION_COOKIE_SECURE": os.getenv(
+                "SESSION_COOKIE_SECURE",
+                "0" if os.getenv("FLASK_DEBUG", "").lower() in ("1", "true") else "1",
+            ).lower() in ("1", "true", "yes"),
+            "PERMANENT_SESSION_LIFETIME": timedelta(hours=SESSION_IDLE_HOURS),
             "CHAT_LIMITER": _RateLimiter(max_requests=120, window_seconds=60),
             "WIDGET_CHAT_LIMITER": _RateLimiter(max_requests=30, window_seconds=60),
             "WIDGET_BRANDING_LIMITER": _RateLimiter(max_requests=60, window_seconds=60),
@@ -179,7 +185,9 @@ def create_app(testing: bool = False) -> Flask:
     from routes.pages import pages_bp
     from routes.chat import chat_bp
     from routes.documents_routes import documents_bp
-    from routes.widget import widget_bp
+    from routes.public_api import public_bp
+    from routes.staff_widget import staff_widget_bp
+    from routes.team import team_bp
     from routes.settings import settings_bp
     from routes.admin import admin_bp
     from routes.comms_routes import comms_bp
@@ -193,7 +201,9 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(pages_bp)
     _app.register_blueprint(chat_bp)
     _app.register_blueprint(documents_bp)
-    _app.register_blueprint(widget_bp)
+    _app.register_blueprint(public_bp)
+    _app.register_blueprint(staff_widget_bp)
+    _app.register_blueprint(team_bp)
     _app.register_blueprint(settings_bp)
     _app.register_blueprint(admin_bp)
     _app.register_blueprint(comms_bp)
@@ -202,6 +212,48 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(sermons_bp)
     _app.register_blueprint(packets_bp)
     _app.register_blueprint(knowledge_bp)
+
+    # ── Session cap and CSRF ─────────────────────────────────────────────────
+
+    # Visitors to the public chatbot have no session, so there is nothing to
+    # forge and the check below does not apply to them (it only runs for a signed-in
+    # person); they are protected by rate limits instead. The sign-in endpoints
+    # run their own check.
+    _CSRF_EXEMPT_PREFIXES = ("/api/auth/",)
+
+    @_app.before_request
+    def enforce_session_and_csrf():
+        from flask import session as flask_session
+        from flask_login import current_user, logout_user
+
+        if current_user.is_authenticated:
+            # Absolute cap, on top of the rolling idle timeout.
+            started = flask_session.get("login_at")
+            expired = True
+            if started:
+                try:
+                    expired = datetime.utcnow() - datetime.fromisoformat(started) > timedelta(hours=SESSION_ABSOLUTE_HOURS)
+                except ValueError:
+                    expired = True
+            if expired and not _app.config.get("TESTING"):
+                logout_user()
+                flask_session.clear()
+                if request.path.startswith("/api/"):
+                    return jsonify({"error": "Your session has expired. Please sign in again."}), 401
+                return redirect(url_for("auth.login_page"))
+
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if request.path.startswith(_CSRF_EXEMPT_PREFIXES):
+                return None
+            if _app.config.get("TESTING") and not _app.config.get("FORCE_CSRF"):
+                return None
+            if not current_user.is_authenticated:
+                return None          # the route's own auth answers (401)
+            sent = request.headers.get("X-CSRFToken") or request.form.get("csrf_token", "")
+            expected = flask_session.get("csrf_token", "")
+            if not sent or not expected or not secrets.compare_digest(sent, expected):
+                return jsonify({"error": "CSRF validation failed. Reload the page and try again."}), 403
+        return None
 
     # ── Security headers ─────────────────────────────────────────────────────
 
@@ -356,21 +408,8 @@ def nightly_widget_cleanup_job():
             db.session.delete(wconv)
         db.session.commit()
         log.info("Nightly widget cleanup: deleted %d widget conversation(s) older than 30 days.", count)
-
-
-def invite_cleanup_job():
-    """Daily 4 AM job: delete unaccepted invites older than 7 days."""
-    with app.app_context():
-        cutoff = datetime.utcnow() - timedelta(days=7)
-        old = Invite.query.filter(
-            Invite.accepted == False,  # noqa: E712
-            Invite.created_at < cutoff,
-        ).all()
-        count = len(old)
-        for invite in old:
-            db.session.delete(invite)
-        db.session.commit()
-        log.info("Invite cleanup: deleted %d expired invite(s).", count)
+        import public_limits
+        log.info("Rate-limit counters pruned: %d.", public_limits.prune())
 
 
 def calendar_refresh_job():
@@ -444,7 +483,6 @@ _SCHEDULED_JOBS = [
     ("embedding_warm",        embedding_warm_job,        CronTrigger(hour=2, minute=45)),
     ("nightly_cleanup",       nightly_cleanup_job,       CronTrigger(hour=3, minute=0)),
     ("nightly_widget_cleanup", nightly_widget_cleanup_job, CronTrigger(hour=3, minute=30)),
-    ("invite_cleanup",        invite_cleanup_job,        CronTrigger(hour=4, minute=0)),
     ("monday_packet",         monday_packet_job,         CronTrigger(day_of_week="mon", hour=11, minute=0)),
     ("weekly_digest",         weekly_digest_job,         CronTrigger(day_of_week="mon", hour=13, minute=0)),
     ("calendar_refresh",      calendar_refresh_job,      CronTrigger(hour=1, minute=30)),

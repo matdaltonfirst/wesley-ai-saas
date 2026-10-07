@@ -1,92 +1,94 @@
-# Roles and permissions (DRAFT for review)
+# Roles and permissions
 
-Status: proposal. Nothing here is built. Mark it up, then it becomes the spec for the
-permission code and the admin screen.
+This is the permission matrix as built. The tables below are generated from
+`permissions.py`, so they are always what the code does. Admins can change any box
+on the Roles and permissions screen; those changes are saved as overrides and written
+to the audit log. A box that differs from the table below was changed by an admin.
 
 ## Rules that do not depend on role
 
-1. **Default deny.** A role can do only what its column below says. A missing cell means no.
-2. **Sign-in** is Google Workspace, `daltonfumc.com` only, verified on the server from the
-   signed token (not from the browser's domain hint). One person, one account, no shared logins.
+1. **Default deny.** A person can do only what one of their roles grants. A person with no
+   role can sign in but sees nothing. A test fails if any route is added without a
+   permission check.
+2. **Sign-in** is Google Workspace, `daltonfumc.com` only. The server verifies the Google
+   token (signature, audience, expiry), requires a verified email on the church domain and
+   Google's own Workspace domain claim, and requires an existing active person. The browser's
+   domain hint is never trusted. One person, one account; no shared logins. Sessions end
+   after 8 idle hours or 24 hours in total.
 3. **Excluded from the AI and the dashboard entirely, for every role including Admin:**
-   pastoral care notes and background check data. They are never loaded, indexed or shown.
-4. **Children's check-in:** aggregate counts only, never names, unless you decide otherwise.
-5. **Giving:** read-only, aggregate by default, behind its own explicit permission. Not part of
-   any role until you grant it to a named person.
-6. **Every AI data access by a staff user is written to an audit log** (who, what, when, which
-   source). Retention for the log is separate from, and longer than, chat history.
-7. **Writes** (create an event, send a text, publish a post, send an email) are drafts that a
-   person with the right role approves. Nothing is sent or published automatically.
-8. **The public chatbot** has no role. It runs on its own data set and can reach no staff data.
+   pastoral care notes, background check data, children's names, and giving by donor. They
+   are not permissions at all, so no role and no admin screen can grant them. A test fails
+   if any such permission is ever added.
+4. **Giving, aggregate and read-only,** exists as one permission (`data.giving_aggregate`) that
+   **no role has**, Admin included. It does nothing until an admin turns it on for a role by
+   name. Nothing reads giving data yet.
+5. **Children's check-in:** aggregate counts only.
+6. **Every AI use by a staff member is written to the audit log:** who, when, and which kinds
+   of source and which titles were given to the AI. The question text is never stored.
+   Sign-ins, role and permission changes, and denied requests are logged too. The log is
+   append-only and the cleanup jobs never touch it.
+7. **Writes** (create an event, send a text, publish a post, send an email) will be drafts that
+   a person with the right role approves. Nothing sends or publishes automatically.
+8. **The public chatbot has no role.** It runs on its own code path with its own data and can
+   reach no staff data (see ARCHITECTURE.md).
+9. The AI chat draws on the shared staff knowledge base for everyone who may chat. Seeing the
+   knowledge-base screens is a separate permission.
+10. Each person sees only their own AI chat history.
 
-## Roles
+## Who holds which role (set 7 Oct 2026)
 
-| Role | Who (to confirm) | Home screen leads with |
-|---|---|---|
-| Admin | Mat | Integration health, who has which role, attention alerts |
-| Communications and Production | Mat's day job | Review queue (Sunday Content), event checklists, requests |
-| Administrative Assistant | (name?) | Weekly streaming numbers, guests awaiting follow-up, calendar |
-| Family Ministries | (name?) | Their events and checklists, children's attendance aggregates, registrations |
-| Music and Worship | (name?) | Service plans, team schedule, songs |
-| Pastoral | Senior Pastor and clergy | This week's guests and care follow-ups (no notes), sermon content, attendance trends |
+| Role | Person |
+|---|---|
+| Admin and Communications and Production | Mat (mat@daltonfumc.com) |
+| Administrative Assistant | Carrie Ashcraft (carey@daltonfumc.com, to confirm) |
+| Family Ministries | Aaron Smith (kids@daltonfumc.com) |
+| Music and Worship | Matthew Dean (matthew@daltonfumc.com) |
+| Pastoral | Don Landon (no address yet; added by an admin when he has one) |
+| No role yet | merideth@daltonfumc.com |
 
-A person can hold more than one role. Permissions are the union.
+## Modules
 
-## Matrix: modules
-
-`R` read, `W` read and change, `A` approve drafts, `-` none.
-
-| Module | Admin | Comms | Admin Asst | Family | Music | Pastoral |
+| What | Admin | Communications and Production | Administrative Assistant | Family Ministries | Music and Worship | Pastoral |
 |---|---|---|---|---|---|---|
-| Staff AI chat (command bar) | W | W | W | W | W | W |
-| Sunday Content review queue | W, A | W, A | R | - | - | R, A |
-| Event checklists and timeline | W | W | R | R (own events) | R (own events) | R |
-| Communications requests: submit | W | W | W | W | W | W |
-| Communications requests: queue and triage | W | W | R | - | - | - |
-| Streaming numbers pane | W | W | W | R | - | R |
-| Streaming numbers: manual entry and edit history | W | W | W | - | - | - |
-| Guest connections (website form) | W | R | W | - | - | R |
-| Public chatbot: chat logs and corrections | W | W | R | - | - | R |
-| Knowledge base: documents, snippets, Q&A | W | W | R | - | - | - |
-| Website crawl, calendar feed, sermon source | W | W | - | - | - | - |
-| Integrations status page | W | R | R | - | - | - |
-| Roles and team | W | - | - | - | - | - |
-| Public chatbot instructions, local practice | W | - | - | - | - | R |
-| Audit log | R | - | - | - | - | - |
+| Use the staff AI chat (`chat.use`) | yes | yes | yes | yes | yes | yes |
+| See Sunday Content drafts (`sunday.read`) | yes | yes | yes | - | - | yes |
+| Edit and regenerate Sunday Content (`sunday.write`) | yes | yes | - | - | - | - |
+| Approve Sunday Content (`sunday.approve`) | yes | yes | - | - | - | yes |
+| See event checklists and the timeline (`events.read`) | yes | yes | yes | yes | yes | yes |
+| Change event checklists (`events.write`) | yes | yes | - | - | - | - |
+| Submit communications requests (`requests.submit`) | yes | yes | yes | yes | yes | yes |
+| See and triage the communications queue (`requests.manage`) | yes | yes | yes | - | - | - |
+| See the weekly streaming numbers (`streaming.read`) | yes | yes | yes | yes | - | yes |
+| Enter and correct streaming numbers (`streaming.write`) | yes | yes | yes | - | - | - |
+| See guest connections (`guests.read`) | yes | yes | yes | - | - | yes |
+| Update and sync guest connections (`guests.write`) | yes | - | yes | - | - | - |
+| Read public chatbot conversations and analytics (`chatlogs.read`) | yes | yes | yes | - | - | yes |
+| Correct public chatbot answers (`chatlogs.write`) | yes | yes | - | - | - | - |
+| See the knowledge base (documents, snippets, Q&A) (`kb.read`) | yes | yes | yes | - | - | - |
+| Change the knowledge base (`kb.write`) | yes | yes | - | - | - | - |
+| Manage the website crawl, calendar feeds and sermon source (`sources.write`) | yes | yes | - | - | - | - |
+| See the integrations status page (`integrations.read`) | yes | yes | yes | - | - | - |
+| Connect and disconnect integrations (`integrations.manage`) | yes | - | - | - | - | - |
+| Manage people, roles and permissions (`team.manage`) | yes | - | - | - | - | - |
+| See the public chatbot instructions and local practice (`instructions.read`) | yes | - | - | - | - | yes |
+| Change the public chatbot instructions and local practice (`instructions.write`) | yes | - | - | - | - | - |
+| Read the audit log (`audit.read`) | yes | - | - | - | - | - |
 
-## Matrix: data domains the staff AI and dashboards may read
+## Data the AI and dashboards may read
 
-| Data domain (source) | Admin | Comms | Admin Asst | Family | Music | Pastoral |
+| What | Admin | Communications and Production | Administrative Assistant | Family Ministries | Music and Worship | Pastoral |
 |---|---|---|---|---|---|---|
-| Calendar and events (Planning Center Calendar) | R | R | R | R | R | R |
-| Service plans, songs, team schedules (Services) | R | R | R | - | R | R |
-| Groups and memberships (Groups) | R | R | R | R | - | R |
-| Registrations (event sign-ups) | R | R | R | R | - | R |
-| People: name, email, phone only (People) | R | R | R | R (family households) | R (own team) | R |
-| Check-in attendance, aggregate counts (Check-Ins) | R | R | R | R | - | R |
-| Check-in names of children | - | - | - | - | - | - |
-| Sermons and podcast episodes (Publishing, YouTube) | R | R | R | - | R | R |
-| Stream and platform numbers (YouTube, Facebook, Subsplash) | R | R | R | R | - | R |
-| Email campaign stats (Constant Contact) | R | R | R | - | - | R |
-| Text In Church contacts and conversations | R | R | R | - | - | R |
-| Giving, aggregate (Giving) | grant by name | - | - | - | - | grant by name |
-| Giving, by donor | - | - | - | - | - | - |
-| Pastoral care notes | - | - | - | - | - | - |
-| Background checks | - | - | - | - | - | - |
+| Calendar and events (`data.calendar`) | yes | yes | yes | yes | yes | yes |
+| Service plans, songs and team schedules (`data.services`) | yes | yes | yes | - | yes | yes |
+| Groups and memberships (`data.groups`) | yes | yes | yes | yes | - | yes |
+| Event registrations (`data.registrations`) | yes | yes | yes | yes | - | yes |
+| People: name, email and phone only (`data.people_basic`) | yes | yes | yes | yes | yes | yes |
+| Check-in attendance, aggregate counts only (`data.checkins_counts`) | yes | yes | yes | yes | - | yes |
+| Sermons and episodes (`data.sermons`) | yes | yes | yes | - | yes | yes |
+| Stream and platform numbers (`data.streams`) | yes | yes | yes | yes | - | yes |
+| Email campaign statistics (`data.email_stats`) | yes | yes | yes | - | - | yes |
+| Text In Church contacts and conversations (`data.text_in_church`) | yes | yes | yes | - | - | yes |
+| Giving, aggregate and read-only (`data.giving_aggregate`) | - | - | - | - | - | - |
 
-## Questions for you
-
-1. **Who** holds each role today? Please give the Google Workspace address for each person.
-2. Should the **Senior Pastor** also be Admin, or Pastoral only? (Admin lets them change roles
-   and settings; I suggest Pastoral only until they ask for more.)
-3. **Text In Church conversations** contain people's messages. Is it right that the
-   Administrative Assistant and Pastoral can read them through the AI, and Family Ministries
-   cannot? Do you want the AI limited to counts and "awaiting follow-up" lists instead of
-   message text?
-4. **Family Ministries**: should they see children's names for their own classes in Planning
-   Center directly (outside the AI)? That is Planning Center's own permission, not ours.
-5. **Giving**: who, if anyone, should hold the giving-aggregate permission? I recommend nobody
-   at first, and we build the permission and the audit log before it is used.
-6. **Guest connections** hold names, emails and phone numbers. I gave write access to Admin and
-   the Administrative Assistant and read to Comms and Pastoral. Correct?
-7. The **audit log** is Admin-only. Should the Senior Pastor be able to read it too?
+"yes" means granted by default. Data connectors for most of these arrive in Phase 2; the
+permissions exist now so each connector is born gated.

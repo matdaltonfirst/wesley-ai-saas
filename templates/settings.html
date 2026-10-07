@@ -1291,20 +1291,25 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="sermon-packets">
+            {% if 'sunday.read' in perms %}
+<button class="db-nav-item" data-panel="sermon-packets">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
               </svg>
               Sunday Content
             </button>
-            <button class="db-nav-item" data-panel="chat-logs">
+{% endif %}
+            {% if 'chatlogs.read' in perms %}
+<button class="db-nav-item" data-panel="chat-logs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
               Chat Logs
             </button>
-            <button class="db-nav-item" data-panel="guest-connections">
+{% endif %}
+            {% if 'guests.read' in perms %}
+<button class="db-nav-item" data-panel="guest-connections">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
@@ -1313,12 +1318,15 @@
               </svg>
               Guest Connections
             </button>
-            <button class="db-nav-item" data-panel="feedback">
+{% endif %}
+            {% if 'chatlogs.read' in perms %}
+<button class="db-nav-item" data-panel="feedback">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
               </svg>
               Feedback &amp; Corrections
             </button>
+{% endif %}
           </div>
         </div>
 
@@ -1331,7 +1339,8 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="analytics-chats">
+            {% if 'chatlogs.read' in perms %}
+<button class="db-nav-item" data-panel="analytics-chats">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10"/>
                 <line x1="12" y1="20" x2="12" y2="4"/>
@@ -1339,7 +1348,9 @@
               </svg>
               Chats
             </button>
-            <button class="db-nav-item" data-panel="analytics-topics">
+{% endif %}
+            {% if 'chatlogs.read' in perms %}
+<button class="db-nav-item" data-panel="analytics-topics">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
@@ -1347,7 +1358,9 @@
               </svg>
               Topics
             </button>
-            <button class="db-nav-item" data-panel="analytics-sentiment">
+{% endif %}
+            {% if 'chatlogs.read' in perms %}
+<button class="db-nav-item" data-panel="analytics-sentiment">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
@@ -1356,6 +1369,7 @@
               </svg>
               Sentiment
             </button>
+{% endif %}
           </div>
         </div>
 
@@ -1368,20 +1382,25 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="knowledge-guide">
+            {% if 'kb.read' in perms %}
+<button class="db-nav-item" data-panel="knowledge-guide">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
               </svg>
               Knowledge Guide
             </button>
-            <button class="db-nav-item" data-panel="files">
+{% endif %}
+            {% if 'kb.read' in perms %}
+<button class="db-nav-item" data-panel="files">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
               </svg>
               Files
             </button>
-            <button class="db-nav-item" data-panel="website">
+{% endif %}
+            {% if 'sources.write' in perms %}
+<button class="db-nav-item" data-panel="website">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="2" y1="12" x2="22" y2="12"/>
@@ -1389,7 +1408,9 @@
               </svg>
               Website
             </button>
-            <button class="db-nav-item" data-panel="calendars">
+{% endif %}
+            {% if 'sources.write' in perms %}
+<button class="db-nav-item" data-panel="calendars">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/>
@@ -1398,14 +1419,18 @@
               </svg>
               Calendars
             </button>
-            <button class="db-nav-item" data-panel="sermons">
+{% endif %}
+            {% if 'sources.write' in perms %}
+<button class="db-nav-item" data-panel="sermons">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="23 7 16 12 23 17 23 7"/>
                 <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
               </svg>
               Sermons
             </button>
-            <button class="db-nav-item" data-panel="snippets">
+{% endif %}
+            {% if 'kb.read' in perms %}
+<button class="db-nav-item" data-panel="snippets">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="17" y1="10" x2="3" y2="10"/>
                 <line x1="21" y1="6"  x2="3" y2="6"/>
@@ -1414,7 +1439,9 @@
               </svg>
               Text Snippets
             </button>
-            <button class="db-nav-item" data-panel="qna">
+{% endif %}
+            {% if 'kb.read' in perms %}
+<button class="db-nav-item" data-panel="qna">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -1422,6 +1449,7 @@
               </svg>
               Q&amp;A
             </button>
+{% endif %}
           </div>
         </div>
 
@@ -1434,13 +1462,15 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="embed">
+            {% if 'instructions.read' in perms %}
+<button class="db-nav-item" data-panel="embed">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="16 18 22 12 16 6"/>
                 <polyline points="8 6 2 12 8 18"/>
               </svg>
               Embed Code
             </button>
+{% endif %}
           </div>
         </div>
 
@@ -1453,7 +1483,8 @@
             </svg>
           </button>
           <div class="db-section-items">
-            <button class="db-nav-item" data-panel="playground">
+            {% if 'instructions.read' in perms %}
+<button class="db-nav-item" data-panel="playground">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
                 <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
@@ -1463,30 +1494,45 @@
               </svg>
               Playground
             </button>
-            {% if user_role == 'admin' %}
-            <button class="db-nav-item" data-panel="theology">
+{% endif %}
+                        {% if 'instructions.read' in perms %}
+<button class="db-nav-item" data-panel="theology">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3v18"/><path d="M5 8h14"/><path d="M7 21h10"/>
               </svg>
               Theology
             </button>
-            <button class="db-nav-item" data-panel="team">
+{% endif %}
+            {% if 'team.manage' in perms %}
+<button class="db-nav-item" data-panel="team">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
-              Team
+              People
             </button>
-            <button class="db-nav-item" data-panel="integrations">
+            <button class="db-nav-item" data-panel="permissions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Roles and permissions
+            </button>
+{% endif %}
+{% if 'audit.read' in perms %}
+            <button class="db-nav-item" data-panel="audit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+              Audit log
+            </button>
+{% endif %}
+            {% if 'integrations.read' in perms %}
+<button class="db-nav-item" data-panel="integrations">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
               Integrations
             </button>
-            {% endif %}
+{% endif %}
           </div>
         </div>
 
@@ -1740,6 +1786,13 @@
               </label>
               <textarea id="snippetContent" class="ds-field-input" rows="5" maxlength="1000" placeholder="Write the information the bot should know…"></textarea>
             </div>
+            <div>
+              <label class="ds-field-label" for="snippetAudience">Who can use this</label>
+              <select id="snippetAudience" class="ds-field-input">
+                <option value="public">Staff and the website chatbot</option>
+                <option value="staff">Staff only (never shown to the public chatbot)</option>
+              </select>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;">
               <label class="ds-toggle-wrap">
                 <input type="checkbox" id="snippetActive" checked>
@@ -1785,6 +1838,13 @@
             <div>
               <label class="ds-field-label">Answer <span style="color:#ef4444">*</span></label>
               <textarea id="qnaAnswer" class="ds-field-input" rows="5" placeholder="Write the exact answer you want visitors to receive…"></textarea>
+            </div>
+            <div>
+              <label class="ds-field-label" for="qnaAudience">Who can use this</label>
+              <select id="qnaAudience" class="ds-field-input">
+                <option value="public">Staff and the website chatbot</option>
+                <option value="staff">Staff only (never shown to the public chatbot)</option>
+              </select>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
               <label class="ds-toggle-wrap">
@@ -2016,8 +2076,8 @@
         </div><!-- /.pg-layout -->
       </div><!-- /#panel-playground -->
 
-      <!-- ── Theology (admin only) ── -->
-      {% if user_role == 'admin' %}
+      <!-- ── Theology ── -->
+      {% if 'instructions.read' in perms %}
       <div class="db-panel" id="panel-theology">
         <div class="db-panel-header">
           <h1 class="db-panel-title">Theology</h1>
@@ -2088,32 +2148,53 @@
         </section>
       </div>
 
-      <!-- ── Team (admin only) ── -->
-      {% if user_role == 'admin' %}
+      <!-- ── People, roles, permissions, audit ── -->
+      {% if 'team.manage' in perms %}
       <div class="db-panel" id="panel-team">
         <div class="db-panel-header">
-          <h1 class="db-panel-title">Team</h1>
-          <p class="db-panel-subtitle">Invite staff members to access the dashboard.</p>
+          <h1 class="db-panel-title">People</h1>
+          <p class="db-panel-subtitle">Everyone who can sign in, and what they can do. People sign in with their church Google account; adding someone here is what lets them in.</p>
         </div>
         <section class="card settings-card">
-          <div class="settings-card-header">
-            <h2 class="settings-card-title">Team Members</h2>
-            <button class="btn btn--ghost btn--xs refresh-btn-sm" id="staffRefreshBtn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
-              Refresh
-            </button>
+          <div class="settings-card-header"><h2 class="settings-card-title">Team</h2></div>
+          <div id="teamList"><div class="an-empty">Loading…</div></div>
+        </section>
+        <section class="card settings-card" style="margin-top:16px;">
+          <div class="settings-card-header"><h2 class="settings-card-title">Add a person</h2></div>
+          <div style="display:grid;gap:10px;max-width:520px;">
+            <label class="ds-field-label" for="teamAddEmail">Church email</label>
+            <input type="email" id="teamAddEmail" class="website-url-input" placeholder="name@daltonfumc.com" autocomplete="off" spellcheck="false"/>
+            <label class="ds-field-label" for="teamAddName">Name (optional)</label>
+            <input type="text" id="teamAddName" class="website-url-input" autocomplete="off"/>
+            <fieldset style="border:0;padding:0;margin:0;"><legend class="ds-field-label">Roles</legend><div id="teamAddRoles"></div></fieldset>
+            <div><button class="btn btn--primary btn--sm teal-btn" id="teamAddBtn">Add person</button></div>
+            <div class="website-status" id="teamAddStatus" role="status"></div>
           </div>
-          <div class="staff-list" id="staffList">
-            <div class="staff-empty">Loading…</div>
+        </section>
+      </div>
+      <div class="db-panel" id="panel-permissions">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Roles and permissions</h1>
+          <p class="db-panel-subtitle">What each role can do. Nothing is allowed unless a box is ticked. Pastoral care notes, background checks and children's names are not listed because no role can ever have them.</p>
+        </div>
+        <section class="card settings-card"><div id="permMatrix"><div class="an-empty">Loading…</div></div></section>
+      </div>
+      {% endif %}
+      {% if 'audit.read' in perms %}
+      <div class="db-panel" id="panel-audit">
+        <div class="db-panel-header">
+          <h1 class="db-panel-title">Audit log</h1>
+          <p class="db-panel-subtitle">Sign-ins, role changes, denied requests, and which sources the AI used for each staff question. Question text is never recorded.</p>
+        </div>
+        <section class="card settings-card">
+          <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+            <label class="ds-field-label" for="auditFilter" style="align-self:center;">Show</label>
+            <select id="auditFilter" class="website-url-input" style="max-width:220px;">
+              <option value="">Everything</option><option value="ai.">AI access</option><option value="auth.">Sign-ins</option>
+              <option value="team.">People changes</option><option value="permissions.">Permission changes</option><option value="access.denied">Denied requests</option>
+            </select>
           </div>
-          <div class="staff-invite-row">
-            <input type="email" id="staffInviteEmail" class="website-url-input" placeholder="colleague@church.org" autocomplete="off" spellcheck="false"/>
-            <button class="btn btn--primary btn--sm website-save-btn" id="staffInviteBtn">Send Invite</button>
-          </div>
-          <div class="website-status" id="staffInviteStatus"></div>
+          <div id="auditList"><div class="an-empty">Loading…</div></div>
         </section>
       </div>
       {% endif %}
@@ -2124,145 +2205,12 @@
 
   <script>window.CHURCH_ID = {{ church_id }};</script>
 
-  <!-- ── Team management (unchanged IIFE) ── -->
-  <script>
-  (function () {
-    const staffList    = document.getElementById('staffList');
-    const refreshBtn   = document.getElementById('staffRefreshBtn');
-    const inviteEmail  = document.getElementById('staffInviteEmail');
-    const inviteBtn    = document.getElementById('staffInviteBtn');
-    const inviteStatus = document.getElementById('staffInviteStatus');
-    if (!staffList) return;
-
-    function initials(email) { return email.slice(0, 2).toUpperCase(); }
-
-    function renderStaff(staff, pendingInvites) {
-      staffList.innerHTML = '';
-      if (!staff.length && !pendingInvites.length) {
-        staffList.innerHTML = '<div class="staff-empty">No team members yet. Invite someone below.</div>';
-        return;
-      }
-      staff.forEach(function (u) {
-        const div = document.createElement('div');
-        div.className = 'staff-item';
-        div.innerHTML =
-          '<div class="staff-avatar">' + initials(u.email) + '</div>' +
-          '<div class="staff-info">' +
-            '<div class="staff-email">' + u.email + '</div>' +
-            '<div class="staff-meta">Joined ' + new Date(u.created_at).toLocaleDateString() + '</div>' +
-          '</div>' +
-          '<span class="pill pill--sm staff-role-badge ' + u.role + '">' + u.role + '</span>' +
-          (u.role === 'staff'
-            ? '<button class="staff-remove-btn" data-id="' + u.id + '" title="Remove staff member">' +
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-              '</button>'
-            : '<div style="width:24px;flex-shrink:0;"></div>');
-        staffList.appendChild(div);
-      });
-      pendingInvites.forEach(function (inv) {
-        const div = document.createElement('div');
-        div.className = 'staff-item';
-        div.innerHTML =
-          '<div class="staff-avatar pending-avatar">' + initials(inv.email) + '</div>' +
-          '<div class="staff-info">' +
-            '<div class="staff-email">' + inv.email + '</div>' +
-            '<div class="staff-meta">Invite sent ' + new Date(inv.created_at).toLocaleDateString() + '</div>' +
-          '</div>' +
-          '<span class="pill pill--sm staff-role-badge pending">Pending</span>' +
-          '<button class="btn btn--ghost btn--xs staff-resend-btn" data-id="' + inv.id + '">Resend</button>' +
-          '<button class="staff-remove-btn staff-cancel-btn" data-id="' + inv.id + '" title="Cancel invite">' +
-            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-          '</button>';
-        staffList.appendChild(div);
-      });
-      staffList.querySelectorAll('.staff-cancel-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          if (!confirm('Cancel this invitation?')) return;
-          fetch('/api/staff/invite/' + btn.dataset.id, { method: 'DELETE' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) { if (d.ok) loadStaff(); else alert(d.error || 'Could not cancel invite.'); });
-        });
-      });
-      staffList.querySelectorAll('.staff-resend-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          btn.disabled = true;
-          btn.textContent = 'Sending…';
-          fetch('/api/staff/invite/' + btn.dataset.id + '/resend', { method: 'POST' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-              if (d.ok) {
-                btn.textContent = 'Sent!';
-                setTimeout(function () { btn.disabled = false; btn.textContent = 'Resend'; }, 3000);
-              } else {
-                btn.textContent = 'Resend';
-                btn.disabled = false;
-                alert(d.error || 'Could not resend invite.');
-              }
-            })
-            .catch(function () { btn.textContent = 'Resend'; btn.disabled = false; });
-        });
-      });
-      staffList.querySelectorAll('.staff-remove-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          if (!confirm('Remove this staff member?')) return;
-          fetch('/api/staff/' + btn.dataset.id, { method: 'DELETE' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) { if (d.ok) loadStaff(); else alert(d.error || 'Could not remove staff member.'); });
-        });
-      });
-    }
-
-    function loadStaff() {
-      staffList.innerHTML = '<div class="staff-empty">Loading…</div>';
-      fetch('/api/staff')
-        .then(function (r) { return r.json(); })
-        .then(function (d) { renderStaff(d.staff || [], d.pending_invites || []); })
-        .catch(function () { staffList.innerHTML = '<div class="staff-empty">Could not load team.</div>'; });
-    }
-
-    if (refreshBtn) refreshBtn.addEventListener('click', loadStaff);
-
-    if (inviteBtn) {
-      inviteBtn.addEventListener('click', function () {
-        const email = inviteEmail.value.trim();
-        if (!email) { inviteStatus.textContent = 'Please enter an email address.'; inviteStatus.className = 'website-status err'; return; }
-        inviteBtn.disabled = true;
-        inviteStatus.textContent = 'Sending…';
-        inviteStatus.className = 'website-status';
-        fetch('/api/staff/invite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email }),
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            inviteBtn.disabled = false;
-            if (d.ok) {
-              inviteStatus.textContent = 'Invitation sent to ' + email + '.';
-              inviteStatus.className = 'website-status ok';
-              inviteEmail.value = '';
-              loadStaff();
-            } else {
-              inviteStatus.textContent = d.error || 'Could not send invitation.';
-              inviteStatus.className = 'website-status err';
-            }
-          })
-          .catch(function () {
-            inviteBtn.disabled = false;
-            inviteStatus.textContent = 'Network error. Please try again.';
-            inviteStatus.className = 'website-status err';
-          });
-      });
-    }
-
-    loadStaff();
-  })();
-  </script>
+  <script src="/static/team.js"></script>
 
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['sermon-packets','chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations'];
+    const VALID_PANELS = ['sermon-packets','chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','permissions','audit','integrations'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');

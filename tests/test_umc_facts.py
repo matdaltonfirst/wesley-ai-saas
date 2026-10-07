@@ -35,7 +35,7 @@ class TestDenominationChunks:
             captured["context"] = context
             return "United Methodists practice an open table [1]."
 
-        with patch("routes.widget.call_gemini", side_effect=fake_gemini):
+        with patch("routes.public_api.call_gemini", side_effect=fake_gemini):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "Who is allowed to receive communion?",

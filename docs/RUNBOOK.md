@@ -83,3 +83,41 @@ Before step 3 completes nothing changes. After it:
 This restore was tested on 7 October against a scratch schema built by the old code: all 26
 tables matched, sequences advanced, a second run refused. Anything written between the
 backup and the rollback is lost, which is why step 1 of the deploy is a fresh backup.
+
+
+## Turning on Google sign-in
+
+Until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, password sign-in stays available
+so nobody is locked out. Setting them switches passwords off.
+
+1. In Google Cloud Console (a project owned by the church's Workspace), open APIs and Services,
+   OAuth consent screen. Choose **Internal** so only `daltonfumc.com` accounts can use it.
+   Scopes: `openid`, `email`, `profile`.
+2. Credentials, Create credentials, OAuth client ID, type **Web application**. Authorized
+   redirect URI: `https://app.wesleyai.co/auth/google/callback` (it is `APP_URL` plus
+   `/auth/google/callback`).
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the Railway web service.
+4. Before switching, make sure every person who needs access is in the People screen with a
+   role, and that **you** have signed in once with Google from a second browser while
+   passwords were still on. If something goes wrong, remove the two variables and passwords
+   come back.
+5. Sign in. A Google account that is on the church domain but not on the People screen is
+   refused and the refusal is in the audit log.
+
+## What to do when someone cannot sign in
+
+Check the audit log (Audit log screen, "Denied requests" and "Sign-ins"). Common causes: the
+person is not on the People screen, is deactivated, or used a personal Google account. Adding
+or reactivating them is enough; no email is sent.
+
+## The public chatbot misbehaves
+
+1. **Too many requests or a bill spike:** the daily cap (`PUBLIC_DAILY_CAP`, default 3000 AI
+   calls) makes the chat rest until midnight UTC and logs `PUBLIC CHATBOT DAILY CAP`. Lower it
+   in Railway to throttle harder, or raise it for a busy event.
+2. **The site's chat stopped working in browsers:** the origin check allows `daltonfumc.com` and
+   its subdomains. If the website moves to another domain, set `PUBLIC_ALLOWED_ORIGINS`
+   (comma separated) before moving.
+3. **It says something wrong:** correct it from Feedback and Corrections (becomes approved Q&A).
+4. **It revealed something it should not:** mark the source staff-only (Q&A, snippet, calendar,
+   or document visibility) and tell Mat; add a canary for it in `tests/test_public_boundary.py`.

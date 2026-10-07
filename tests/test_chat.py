@@ -200,8 +200,8 @@ class TestListConversations:
         assert res.status_code == 200
         assert res.get_json()["conversations"] == []
 
-    def test_list_shows_own_conversations(self, auth_client, church):
-        conv = Conversation(title="Sunday Service")
+    def test_list_shows_own_conversations(self, auth_client, admin_user, church):
+        conv = Conversation(title="Sunday Service", user_id=admin_user.id)
         db.session.add(conv)
         db.session.commit()
 
@@ -213,8 +213,19 @@ class TestListConversations:
         db.session.delete(conv)
         db.session.commit()
 
-    def test_list_response_shape(self, auth_client, church):
-        conv = Conversation(title="Test Conv")
+    def test_a_colleagues_conversation_is_invisible(self, auth_client, admin_user, church):
+        from tests.conftest import make_user
+        other = make_user("colleague@daltonfumc.com", ["comms"])
+        theirs = Conversation(title="Their private question", user_id=other.id)
+        db.session.add(theirs); db.session.commit()
+        titles = [c["title"] for c in auth_client.get("/api/conversations").get_json()["conversations"]]
+        assert "Their private question" not in titles
+        assert auth_client.get(f"/api/conversations/{theirs.id}/messages").status_code == 404
+        res = auth_client.post("/api/chat", json={"question": "hi", "conversation_id": theirs.id})
+        assert res.status_code == 404
+
+    def test_list_response_shape(self, auth_client, admin_user, church):
+        conv = Conversation(title="Test Conv", user_id=admin_user.id)
         db.session.add(conv)
         db.session.commit()
 
@@ -231,8 +242,8 @@ class TestListConversations:
 # ── /api/conversations/<id>/messages ─────────────────────────────────────────
 
 class TestGetConversationMessages:
-    def test_get_messages_requires_auth(self, client, church):
-        conv = Conversation(title="Temp")
+    def test_get_messages_requires_auth(self, client, church, admin_user):
+        conv = Conversation(title="Temp", user_id=admin_user.id)
         db.session.add(conv)
         db.session.commit()
 
@@ -246,8 +257,8 @@ class TestGetConversationMessages:
         res = auth_client.get("/api/conversations/999999/messages")
         assert res.status_code == 404
 
-    def test_get_messages_returns_correct_shape(self, auth_client, church):
-        conv = Conversation(title="Shape Test")
+    def test_get_messages_returns_correct_shape(self, auth_client, admin_user, church):
+        conv = Conversation(title="Shape Test", user_id=admin_user.id)
         db.session.add(conv)
         db.session.flush()
         db.session.add(Message(conversation_id=conv.id, role="user", content="Hello"))

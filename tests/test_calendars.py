@@ -200,7 +200,7 @@ class TestCalendarChat:
             captured["context"] = context
             return "The Community Picnic is this week on the Front Lawn [1]."
 
-        with patch("routes.widget.call_gemini", side_effect=fake_gemini):
+        with patch("routes.public_api.call_gemini", side_effect=fake_gemini):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "What events are coming up?",

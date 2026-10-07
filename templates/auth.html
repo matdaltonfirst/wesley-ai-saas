@@ -208,6 +208,16 @@
   </div>
   <div class="auth-card">
 
+    {% if error == 'denied' %}
+    <div class="error-msg" style="display:block" role="alert">
+      That Google account can't sign in here. Use your @{{ domain }} account, and ask an
+      admin to add you if you still can't get in.
+    </div>
+    {% endif %}
+    {% if google %}
+    <a class="btn btn--primary btn--lg btn--block" href="/auth/google" id="googleBtn">Sign in with Google</a>
+    <p style="text-align:center;font-size:.8rem;margin-top:14px;opacity:.7">Use your @{{ domain }} account.</p>
+    {% else %}
     <!-- Login -->
     <div class="form-panel active" id="panelLogin">
       <div class="success-banner" id="resetBanner">
@@ -227,6 +237,7 @@
       <button class="btn btn--primary btn--lg btn--block submit-btn" id="loginBtn">Sign In</button>
     </div>
 
+    {% endif %}
   </div>
   <p class="auth-foot">Wesley AI — the AI layer for church communications.</p>
  </div>
@@ -234,7 +245,7 @@
   <script>
     // ── Show success banner after password reset ───────────────────────────────
     if (new URLSearchParams(window.location.search).get("reset") === "1") {
-      document.getElementById("resetBanner").classList.add("visible");
+      var rb = document.getElementById("resetBanner"); if (rb) rb.classList.add("visible");
       history.replaceState(null, "", "/login");
     }
 
@@ -252,7 +263,7 @@
     const _csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
     // ── Login ─────────────────────────────────────────────────────────────────
-    document.getElementById("loginBtn").addEventListener("click", async () => {
+    if (document.getElementById("loginBtn")) document.getElementById("loginBtn").addEventListener("click", async () => {
       clearError("loginError");
       const email    = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPassword").value;
@@ -269,7 +280,7 @@
           body: JSON.stringify({ email, password }),
         });
         const data = await res.json();
-        if (res.ok) { window.location.href = "/"; }
+        if (res.ok) { window.location.href = "/home"; }
         else { showError("loginError", data.error || "Login failed."); }
       } catch {
         showError("loginError", "Network error. Please try again.");
@@ -280,7 +291,7 @@
 
     // Enter submits the form
     document.addEventListener("keydown", e => {
-      if (e.key === "Enter") document.getElementById("loginBtn").click();
+      if (e.key === "Enter" && document.getElementById("loginBtn")) document.getElementById("loginBtn").click();
     });
   </script>
 </body>

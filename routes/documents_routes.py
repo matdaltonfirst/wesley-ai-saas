@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required
+from permissions import require
 from werkzeug.utils import secure_filename
 
 from models import db, Document
@@ -28,7 +28,7 @@ def _valid_mime(content: bytes, suffix: str) -> bool:
 
 
 @documents_bp.route("/api/documents")
-@login_required
+@require("kb.read")
 def list_documents():
     docs = (
         Document.query
@@ -51,7 +51,7 @@ def list_documents():
 
 
 @documents_bp.route("/api/documents/upload", methods=["POST"])
-@login_required
+@require("kb.write")
 def upload_document():
     if "file" not in request.files:
         return jsonify({"error": "No file provided."}), 400
@@ -101,7 +101,7 @@ def upload_document():
 
 
 @documents_bp.route("/api/documents/<int:doc_id>", methods=["DELETE"])
-@login_required
+@require("kb.write")
 def delete_document(doc_id):
     doc = Document.query.filter_by(id=doc_id).first()
     if not doc:
@@ -119,7 +119,7 @@ def delete_document(doc_id):
 
 
 @documents_bp.route("/api/documents/<int:doc_id>", methods=["PATCH"])
-@login_required
+@require("kb.write")
 def update_document_visibility(doc_id):
     doc = Document.query.filter_by(id=doc_id).first()
     if not doc:

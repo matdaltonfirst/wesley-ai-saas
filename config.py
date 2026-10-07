@@ -66,6 +66,18 @@ PCO_API_BASE      = "https://api.planningcenteronline.com"
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
+# ── Google Workspace sign-in (OAuth client from Google Cloud Console) ─────────
+# Redirect URI to register: <APP_URL>/auth/google/callback
+# While GOOGLE_CLIENT_ID is unset, password sign-in stays available so nobody is
+# locked out. Once it is set, password sign-in is switched off.
+
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+# Session limits: rolling idle timeout, and an absolute cap since sign-in.
+SESSION_IDLE_HOURS     = int(os.getenv("SESSION_IDLE_HOURS", "8"))
+SESSION_ABSOLUTE_HOURS = int(os.getenv("SESSION_ABSOLUTE_HOURS", "24"))
+
 # ── Default timezone for church-facing dates (Organization.timezone overrides) ─
 
 DEFAULT_TIMEZONE = os.getenv("DEFAULT_TIMEZONE", "America/New_York")

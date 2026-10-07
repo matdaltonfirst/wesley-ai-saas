@@ -14,6 +14,7 @@ import pytest
 
 import packets
 from models import db, Sermon, SermonPacket, SermonSource, User
+from tests.conftest import make_user
 
 
 TRANSCRIPT = (
@@ -114,8 +115,8 @@ class TestGeneration:
 class TestDelivery:
     def test_every_admin_is_emailed(self, church, source):
         for n in range(3):
-            db.session.add(User(email=f"admin{n}@x.org", password_hash="x", role="admin"))
-        db.session.add(User(email="staff@x.org", password_hash="x", role="staff"))
+            make_user(f"admin{n}@x.org", ["admin"])
+        make_user("staff@x.org", [])
         db.session.commit()
         s = _sermon(church, source)
         packet = SermonPacket(sermon_id=s.id, status="ready",
@@ -131,7 +132,7 @@ class TestDelivery:
 
     def test_an_empty_packet_is_not_emailed(self, church, source):
         """An empty Monday email teaches staff it is not worth opening."""
-        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
+        make_user("a@x.org", ["admin"])
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet",
@@ -143,7 +144,7 @@ class TestDelivery:
         send.assert_not_called()
 
     def test_a_failed_packet_is_never_emailed(self, church, source):
-        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
+        make_user("a@x.org", ["admin"])
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet", side_effect=RuntimeError("boom")), \
@@ -163,7 +164,7 @@ class TestIdempotence:
     def test_running_twice_sends_one_email(self, church, source):
         """The job may run again after a restart; a church must not receive
         Sunday's packet twice."""
-        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
+        make_user("a@x.org", ["admin"])
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet", return_value=_content()), \

@@ -115,7 +115,8 @@ def send_packet_email(packet) -> int:
 
     sermon = Sermon.query.get(packet.sermon_id)
     church = get_org()
-    admins = User.query.filter_by(role="admin").all()
+    from permissions import people_with
+    admins = people_with("sunday.write")
     if not admins or not sermon or not church:
         return 0
 

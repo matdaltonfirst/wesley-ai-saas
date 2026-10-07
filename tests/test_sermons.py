@@ -170,7 +170,7 @@ class TestSermonChunks:
             captured["context"] = context
             return "Sunday's message was about God's grace [1]."
 
-        with patch("routes.widget.call_gemini", side_effect=fake_gemini):
+        with patch("routes.public_api.call_gemini", side_effect=fake_gemini):
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,
                 "question": "What was the sermon about this week?",

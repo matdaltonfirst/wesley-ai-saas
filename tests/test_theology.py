@@ -57,18 +57,18 @@ class TestTheologyApi:
         assert client.get("/api/church/theology").status_code == 401
         assert client.post("/api/church/theology/local-practices", json={}).status_code == 401
 
-    def test_staff_role_cannot_change_local_practices(self, client, church):
-        from werkzeug.security import generate_password_hash
-        from models import User
-        db.session.add(User(email="staff@daltonfumc.com", role="staff",
-                            password_hash=generate_password_hash("SecureTestPass1!", method="pbkdf2:sha256")))
-        db.session.commit()
-        client.post("/api/auth/login", json={
-            "email": "staff@daltonfumc.com", "password": "SecureTestPass1!"})
+    def test_pastoral_can_read_but_not_change_local_practices(self, client, church):
+        from tests.conftest import login, make_user
+        login(client, make_user("pastor@daltonfumc.com", ["pastoral"]))
         assert client.get("/api/church/theology").status_code == 200
         res = client.post("/api/church/theology/local-practices",
                           json={"local_practices": {"preferred_clergy_title": "Pastor"}})
         assert res.status_code == 403
+
+    def test_music_cannot_read_theology_settings(self, client, church):
+        from tests.conftest import login, make_user
+        login(client, make_user("music@daltonfumc.com", ["music"]))
+        assert client.get("/api/church/theology").status_code == 403
 
 
 # ── Prompts and retrieval ─────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ def _widget_prompt(client, church, question="What does the church teach?",
         captured["prompt"] = system_instruction
         return answer
 
-    with patch("routes.widget.call_gemini", side_effect=fake):
+    with patch("routes.public_api.call_gemini", side_effect=fake):
         res = client.post("/api/widget/chat", json={
             "church_id": church.id, "question": question,
         })

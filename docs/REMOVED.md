@@ -20,3 +20,14 @@ Other tenants' data was archived, not lost: see the archive in `docs/RUNBOOK.md`
 
 Not removed on purpose: password login and staff invitations. They stay until Google
 Workspace sign-in replaces them in Phase 1b.
+
+## Phase 1b removals
+
+| Removed | Why |
+|---|---|
+| Staff invitations (`invites` table, invitation email, accept page, `/api/staff/*`) | Admins add people on the People screen and people sign in with Google. |
+| `users.role` (`admin` or `staff`) | Replaced by `user_roles` and the permission matrix. |
+| `routes/widget.py` | Split into `routes/public_api.py` (the public chatbot) and `routes/staff_widget.py` (staff views of chat logs, guests, Q&A and snippets). |
+| The `widget=True` branch of `helpers.build_system_prompt` and the shared loaders on the public path | The public path has its own prompt builder and its own queries in `public_knowledge.py`. |
+| The in-memory public rate limiter | Replaced by shared counters in the database. |
+| `Access-Control-Allow-Origin: *` on public data endpoints | Replaced by the origin check. The widget script itself stays embeddable. |

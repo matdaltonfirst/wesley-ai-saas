@@ -1,7 +1,7 @@
 """Built-in knowledge packs and checklist API."""
 
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from permissions import can, require
 
 from models import (
     db, ChurchCalendar, CrawledPage, Document, KnowledgeChecklistState,
@@ -102,7 +102,7 @@ def _state_map():
 
 
 @knowledge_bp.route("/api/knowledge-packs")
-@login_required
+@require("kb.read")
 def list_knowledge_packs():
     active = {row.pack_key for row in KnowledgePackState.query.filter_by(is_active=True).all()}
     states = _state_map()
@@ -120,14 +120,12 @@ def list_knowledge_packs():
             items.append({**item, "status": status, "source": source})
         complete = sum(i["status"] in ("linked", "not_applicable") for i in items)
         packs.append({**definition, "active": definition["key"] in active, "readiness": round(100 * complete / len(items)), "items": items})
-    return jsonify({"packs": packs, "sources": options, "can_manage": current_user.role == "admin"})
+    return jsonify({"packs": packs, "sources": options, "can_manage": can("kb.write")})
 
 
 @knowledge_bp.route("/api/knowledge-packs/<pack_key>/activate", methods=["POST"])
-@login_required
+@require("kb.write")
 def activate_pack(pack_key):
-    if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can manage knowledge packs."}), 403
     if pack_key not in PACK_BY_KEY:
         return jsonify({"error": "Knowledge pack not found."}), 404
     row = KnowledgePackState.query.filter_by(pack_key=pack_key).first()
@@ -140,10 +138,8 @@ def activate_pack(pack_key):
 
 
 @knowledge_bp.route("/api/knowledge-checklist/<item_key>", methods=["POST"])
-@login_required
+@require("kb.write")
 def update_checklist_item(item_key):
-    if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can manage the knowledge checklist."}), 403
     if item_key not in ITEMS:
         return jsonify({"error": "Checklist item not found."}), 404
     data = request.get_json(silent=True) or {}

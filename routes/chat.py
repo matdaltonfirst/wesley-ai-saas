@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required, current_user
+from flask_login import current_user
+from permissions import require
 
 from models import db, Conversation, Message
 from helpers import (
@@ -20,6 +21,7 @@ from documents import (
 from calendar_feed import load_calendar_chunks, score_calendar_chunks
 from sermons import load_sermon_chunks, score_sermon_chunks
 from denominations import score_denomination_chunks
+from audit import log_ai_access
 from usage import STAFF, record_usage
 
 log = logging.getLogger("wesley")
@@ -50,11 +52,11 @@ def _prepare_chat_turn(data):
 
     conversation_id = data.get("conversation_id")
     if conversation_id:
-        conv = Conversation.query.get(conversation_id)
+        conv = Conversation.query.filter_by(id=conversation_id, user_id=current_user.id).first()
         if not conv:
             raise _ChatTurnError("Conversation not found.", 404)
     else:
-        conv = Conversation(title=question[:40])
+        conv = Conversation(title=question[:40], user_id=current_user.id)
         db.session.add(conv)
         db.session.flush()
 
@@ -81,6 +83,7 @@ def _prepare_chat_turn(data):
 
     # Ids, never ORM instances: the streaming generator runs outside this
     # request's session, where a live object would be detached.
+    log_ai_access("staff_chat", candidate_sources, len(question))
     return {
         "question": question,
         "conv_id": conv.id,
@@ -109,7 +112,7 @@ def _save_chat_answer(turn, answer):
 
 
 @chat_bp.route("/api/chat", methods=["POST"])
-@login_required
+@require("chat.use")
 def chat():
     limiter = current_app.config.get("CHAT_LIMITER")
     if limiter and limiter.is_limited(str(current_user.id)):
@@ -144,7 +147,7 @@ def chat():
 
 
 @chat_bp.route("/api/chat/stream", methods=["POST"])
-@login_required
+@require("chat.use")
 def chat_stream():
     """Server-sent events version of staff chat.
 
@@ -212,10 +215,11 @@ def chat_stream():
 
 
 @chat_bp.route("/api/conversations")
-@login_required
+@require("chat.use")
 def list_conversations():
     convs = (
         Conversation.query
+        .filter_by(user_id=current_user.id)
         .order_by(Conversation.updated_at.desc())
         .all()
     )
@@ -228,9 +232,9 @@ def list_conversations():
 
 
 @chat_bp.route("/api/conversations/<int:conv_id>/messages")
-@login_required
+@require("chat.use")
 def get_conversation_messages(conv_id):
-    conv = Conversation.query.get(conv_id)
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first()
     if not conv:
         return jsonify({"error": "Conversation not found."}), 404
     return jsonify({

@@ -1,35 +1,33 @@
 # Architecture
 
-Status after Phase 1 (single organization). Later phases add connectors, roles and the
+Status after Phase 1b (roles, Google sign-in, public/staff boundary). Later phases add connectors, roles and the
 streaming pane; this file is updated with each.
 
 ```mermaid
 flowchart LR
-  subgraph Public["Public (no login)"]
-    Visitor["Website visitor"] --> Widget["widget.js embed<br/>data-church-id=2"]
-    Widget --> PubAPI["/api/widget/*<br/>CORS open, rate limited"]
+  subgraph Public["Public path (no login): routes/public_api.py"]
+    Visitor["Website visitor"] --> Widget["widget.js on daltonfumc.com"]
+    Widget --> Gate["Origin check, shared rate limits,<br/>daily cap (public_limits.py)"]
+    Gate --> PubK["public_knowledge.py<br/>public documents, website pages,<br/>public Q&A and snippets,<br/>public calendars, sermons, UMC profile"]
   end
-  subgraph Staff["Staff (daltonfumc.com sign-in)"]
-    Person["Church staff"] --> UI["Dashboard and chat"]
-    UI --> StaffAPI["/api/chat, /api/*<br/>login required"]
+  subgraph Staff["Staff path (Google sign-in + permissions)"]
+    Person["Church staff"] --> Auth["Google token verified server side<br/>active person + roles"]
+    Auth --> Perm["permissions.require(...) on every route<br/>default deny"]
+    Perm --> StaffK["Staff loaders: all documents, all Q&A,<br/>all calendars, sermons, UMC profile"]
+    Perm --> Audit[("audit_log<br/>append only")]
+    StaffK -. "sources used" .-> Audit
   end
-
-  PubAPI --> PubLoad["Public loaders<br/>public documents, website pages,<br/>approved Q&A, calendar, sermons"]
-  StaffAPI --> StaffLoad["Staff loaders<br/>all documents plus the same sources"]
-  PubLoad --> Prompt["Prompt builder<br/>core rules + UMC profile + local practice"]
-  StaffLoad --> Prompt
-  Prompt --> Gemini["Google Gemini<br/>no tools, no function calling"]
-
-  Sched["APScheduler jobs<br/>(one worker wins a Postgres lock)"] --> YT["YouTube Data API"]
-  Sched --> ICS["ICS calendar feed"]
-  Sched --> Crawl["Website crawl"]
-  Sched --> Gemini
-  PubAPI -->|"guest form"| PCO["Planning Center People"]
-
-  PubLoad --> DB[("PostgreSQL<br/>one Organization row")]
-  StaffLoad --> DB
-  Sched --> DB
-  StaffLoad --> Files[("Uploaded files<br/>Railway volume")]
+  PubK --> Prompt["Prompt builders<br/>public: public_knowledge.build_public_prompt<br/>staff: helpers.build_system_prompt"]
+  StaffK --> Prompt
+  Prompt --> Gemini["Google Gemini (gemini_client.py)<br/>no tools, no function calling"]
+  PubK --> DB[("PostgreSQL")]
+  StaffK --> DB
+  Gate --> DB
+  Widget -. "guest form" .-> Intake["guest_intake.py<br/>write only"] --> DB
+  Intake --> PCO["Planning Center People"]
+  Sched["APScheduler jobs (Postgres lock)"] --> DB
+  Sched --> YT["YouTube Data API"]
+  Sched --> ICS["ICS calendar feeds"]
 ```
 
 ## Pieces
@@ -41,10 +39,20 @@ flowchart LR
 - **Theology.** Exactly one profile, Wesleyan United Methodist, in `denominations/umc.py`,
   versioned and reviewed separately. There is no selector. The church's own approved practice
   and Q&A outrank the profile in the prompt's authority order.
-- **Public and staff paths** share the prompt builder and source loaders but differ in what
-  they load: the public path calls `load_chatbot_documents` (documents marked
-  `staff_and_chatbot`) and never the unfiltered loader. A test fails if the widget module
-  ever imports the unfiltered loader. Phase 1b replaces this filter with separate storage.
+- **Public and staff paths are separate code, enforced by tests.** The public chatbot is
+  `routes/public_api.py` plus `public_knowledge.py`, `public_limits.py` and `gemini_client.py`.
+  `public_knowledge.py` has its own queries: it selects `audience="public"` Q&A, snippets and
+  calendars and `visibility="staff_and_chatbot"` documents explicitly, so missing data means
+  nothing is returned, not everything. `tests/test_public_boundary.py` parses the public
+  modules and fails if they import anything outside an allowlist (no staff loader, user model,
+  permission or audit code), then plants a secret in every staff store and asks hostile
+  questions through the real endpoints. The one write the public path can make into staff
+  records is a guest form, through `guest_intake.record_guest`, which returns nothing.
+- **Who may do what.** `permissions.py` defines roles, permissions and the default matrix.
+  Every non-public route carries `@require(...)`; a test fails if one does not. Admin
+  overrides live in `role_permissions`. Sensitive domains are not permissions at all.
+- **Audit.** `audit.log_event` writes `audit_log` rows for sign-ins, denied access, role and
+  permission changes and each staff AI question (source kinds and titles only).
 - **No tools anywhere.** The model is called with function calling disabled. It cannot read a
   table or call an API; it only sees the text the loaders hand it.
 - **Scheduler.** Jobs run inside each web worker, wrapped in a Postgres advisory lock so one

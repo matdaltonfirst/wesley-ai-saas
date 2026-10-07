@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Home</title>
+  {% include 'partials/head.html' %}
+  <style>
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font); }
+    header { display:flex; justify-content:space-between; align-items:center; padding:14px 24px; background:#0e1a2b; color:#fff; }
+    header a { color:#fff; margin-left:16px; font-size:.9rem; }
+    main { max-width:880px; margin:0 auto; padding:32px 20px 64px; }
+    h1 { font-size:1.5rem; margin:0 0 4px; }
+    .sub { opacity:.7; margin:0 0 28px; font-size:.92rem; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
+    .card { display:block; background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:18px; text-decoration:none; color:inherit; }
+    .card:hover, .card:focus-visible { border-color:var(--teal, #2aadb5); outline:none; box-shadow:0 0 0 3px rgba(42,173,181,.25); }
+    .count { font-size:2rem; font-weight:800; line-height:1; margin-bottom:6px; }
+    .title { font-weight:700; }
+    .note { font-size:.82rem; opacity:.7; margin-top:2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>{{ church_name }}</strong>
+    <span>{{ user_email }} <a href="/logout">Sign out</a></span>
+  </header>
+  <main>
+    <h1>Hello, {{ name }}</h1>
+    <p class="sub">{% if role_labels %}{{ role_labels | join(' and ') }}{% else %}No role assigned yet. Ask an admin.{% endif %}</p>
+    <div class="grid">
+      {% for c in cards %}
+      <a class="card" href="{{ c.link }}">
+        {% if c.count is not none %}<div class="count">{{ c.count }}</div>{% endif %}
+        <div class="title">{{ c.title }}</div>
+        <div class="note">{{ c.note }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% if not cards %}<p>Nothing is available to you yet. An admin can give you a role.</p>{% endif %}
+  </main>
+</body>
+</html>

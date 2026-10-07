@@ -154,10 +154,10 @@ class TestEndToEndThroughTheWidget:
             _web("New Here", "https://church.org/new", "Baptism classes meet in room 4."),
             _web("Contact", "https://church.org/contact", "Ask us about baptism."),
         ]
-        with patch("routes.widget.load_chatbot_documents", return_value=[]), \
-             patch("routes.widget.load_curated_content", return_value=[]), \
-             patch("routes.widget.load_church_web_content", return_value=web_pages), \
-             patch("routes.widget.call_gemini") as gemini:
+        with patch("public_knowledge.public_documents", return_value=[]), \
+             patch("public_knowledge.public_curated", return_value=[]), \
+             patch("public_knowledge.public_web_pages", return_value=web_pages), \
+             patch("routes.public_api.call_gemini") as gemini:
             gemini.return_value = "We baptize people of all ages. [5]"
             res = client.post("/api/widget/chat", json={
                 "church_id": church.id,

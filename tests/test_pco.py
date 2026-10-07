@@ -104,25 +104,13 @@ class TestStatusAndSettings:
         assert conn.workflow_id == "7"
         _cleanup(church)
 
-    def test_staff_cannot_update_settings(self, client, church, app):
-        from models import User
-        from werkzeug.security import generate_password_hash
+    def test_a_role_without_integration_rights_cannot_update_settings(self, client, church, app):
+        from tests.conftest import login, make_user
 
         _connect_church(church)
-        staff = User(
-            email="staff-pco@daltonfumc.com",
-            password_hash=generate_password_hash("password123", method="pbkdf2:sha256"),
-            role="staff",
-        )
-        db.session.add(staff)
-        db.session.commit()
-        client.post("/api/auth/login", json={
-            "email": staff.email, "password": "password123",
-        })
-        res = client.post("/api/pco/settings", json={"auto_sync": False})
-        assert res.status_code == 403
-
-        db.session.delete(staff)
+        login(client, make_user("staff-pco@daltonfumc.com", ["family"]))
+        assert client.post("/api/pco/settings", json={"auto_sync": False}).status_code == 403
+        assert client.get("/api/pco/status").status_code == 403       # family cannot see integrations
         _cleanup(church)
 
     def test_disconnect(self, auth_client, church):
@@ -258,7 +246,7 @@ class TestDurableSync:
 
     def test_guest_is_durably_queued_before_background_thread(self, client, church):
         _connect_church(church)
-        with patch("routes.widget.threading.Thread.start"):
+        with patch("guest_intake.threading.Thread.start"):
             res = client.post("/api/guest-connection", json={
                 "church_id": church.id,
                 "name": "Queued Visitor",

@@ -55,27 +55,6 @@ def send_guest_connection_email(
         log.error("Guest connection email failed for %s: %s", to_email, exc)
 
 
-def send_invite_email(to_email: str, church_name: str, invite_url: str, from_email: str, support_email: str) -> None:
-    """Send a branded staff invitation email via Resend."""
-    html = render_template(
-        "emails/invite.html",
-        church_name=church_name,
-        invite_url=invite_url,
-        support_email=support_email,
-    )
-    try:
-        resend.Emails.send({
-            "from": from_email,
-            "to": [to_email],
-            "subject": f"You've been invited to join {church_name} on Wesley AI",
-            "html": html,
-        })
-    except Exception as exc:
-        log.error("Invite email failed for %s: %s", to_email, exc)
-
-
-# ── Manual billing emails ─────────────────────────────────────────────────────
-
 def send_weekly_digest_email(
     to_email: str, church_name: str, stats: dict,
     from_email: str, app_url: str, support_email: str,
