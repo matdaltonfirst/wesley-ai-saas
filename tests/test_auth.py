@@ -1,4 +1,4 @@
-"""Tests for auth routes: signup, login, logout, forgot/reset password, invite."""
+"""Tests for auth routes: login, logout, forgot/reset password, invite."""
 
 import secrets
 from datetime import datetime, timedelta
@@ -6,87 +6,18 @@ from datetime import datetime, timedelta
 import pytest
 from werkzeug.security import generate_password_hash
 
-from models import db, User, Church, Invite
+from models import db, User, Invite
 
 
-# ── Signup ────────────────────────────────────────────────────────────────────
+# ── Signup is gone ────────────────────────────────────────────────────────────
 
-class TestSignup:
-    def test_signup_success(self, client):
+class TestNoSignup:
+    def test_signup_route_does_not_exist(self, client):
         res = client.post("/api/auth/signup", json={
-            "email": "newchurch@example.com",
-            "password": "strongpass1",
-            "church_name": "New Life Church",
-        })
-        assert res.status_code == 201
-        assert res.get_json()["ok"] is True
-
-        # Cleanup
-        u = User.query.filter_by(email="newchurch@example.com").first()
-        if u:
-            Church.query.filter_by(id=u.church_id).delete()
-            db.session.delete(u)
-            db.session.commit()
-
-    def test_signup_missing_email(self, client):
-        res = client.post("/api/auth/signup", json={
-            "password": "strongpass1",
-            "church_name": "Missing Email Church",
-        })
-        assert res.status_code == 400
-        assert "required" in res.get_json()["error"].lower()
-
-    def test_signup_missing_church_name(self, client):
-        res = client.post("/api/auth/signup", json={
-            "email": "nochurch@example.com",
-            "password": "strongpass1",
-        })
-        assert res.status_code == 400
-
-    def test_signup_password_too_short(self, client):
-        res = client.post("/api/auth/signup", json={
-            "email": "short@example.com",
-            "password": "abc",
-            "church_name": "Short Pass Church",
-        })
-        assert res.status_code == 400
-        assert "8 characters" in res.get_json()["error"]
-
-    def test_signup_password_too_long(self, client):
-        res = client.post("/api/auth/signup", json={
-            "email": "longpass@example.com",
-            "password": "x" * 129,
-            "church_name": "Long Pass Church",
-        })
-        assert res.status_code == 400
-        assert "128" in res.get_json()["error"]
-
-    def test_signup_email_too_long(self, client):
-        res = client.post("/api/auth/signup", json={
-            "email": "a" * 250 + "@example.com",
-            "password": "strongpass1",
-            "church_name": "Long Email Church",
-        })
-        assert res.status_code == 400
-        assert "too long" in res.get_json()["error"].lower()
-
-    def test_signup_church_name_too_long(self, client):
-        res = client.post("/api/auth/signup", json={
-            "email": "longname@example.com",
-            "password": "strongpass1",
-            "church_name": "C" * 201,
-        })
-        assert res.status_code == 400
-        assert "200" in res.get_json()["error"]
-
-    def test_signup_duplicate_email(self, client, admin_user):
-        res = client.post("/api/auth/signup", json={
-            "email": admin_user.email,
-            "password": "strongpass1",
-            "church_name": "Duplicate Church",
-        })
-        assert res.status_code == 400
-        assert "already exists" in res.get_json()["error"].lower()
+            "email": "newchurch@daltonfumc.com", "password": "strongpass1",
+            "church_name": "New Life Church"})
+        assert res.status_code == 404
+        assert client.get("/signup").status_code == 404
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
@@ -113,6 +44,15 @@ class TestLogin:
             "email": "nobody@nowhere.com",
             "password": "somepassword",
         })
+        assert res.status_code == 401
+
+    def test_login_rejects_an_email_outside_the_church_domain(self, client, church):
+        user = User(email="someone@example.com",
+                    password_hash=generate_password_hash("SecureTestPass1!", method="pbkdf2:sha256"),
+                    role="admin")
+        db.session.add(user); db.session.commit()
+        res = client.post("/api/auth/login", json={
+            "email": "someone@example.com", "password": "SecureTestPass1!"})
         assert res.status_code == 401
 
     def test_login_missing_fields(self, client):
@@ -166,9 +106,8 @@ class TestResetPassword:
         """Helper: create a user with a valid reset token."""
         token = secrets.token_urlsafe(32)
         u = User(
-            email="resetme@example.com",
+            email="resetme@daltonfumc.com",
             password_hash=generate_password_hash("oldpassword1", method="pbkdf2:sha256"),
-            church_id=church.id,
             reset_token=token,
             reset_token_expires=datetime.utcnow() + timedelta(hours=1),
         )
@@ -204,9 +143,8 @@ class TestResetPassword:
     def test_reset_expired_token(self, client, church):
         token = secrets.token_urlsafe(32)
         u = User(
-            email="expired@example.com",
+            email="expired@daltonfumc.com",
             password_hash=generate_password_hash("oldpassword1", method="pbkdf2:sha256"),
-            church_id=church.id,
             reset_token=token,
             reset_token_expires=datetime.utcnow() - timedelta(hours=2),  # expired
         )
@@ -255,8 +193,7 @@ class TestInviteAccept:
     def _create_invite(self, church):
         token = secrets.token_urlsafe(32)
         invite = Invite(
-            church_id=church.id,
-            email="invitee@example.com",
+            email="invitee@daltonfumc.com",
             token=token,
         )
         db.session.add(invite)
@@ -274,7 +211,7 @@ class TestInviteAccept:
         assert res.get_json()["ok"] is True
 
         # New user should exist with staff role
-        u = User.query.filter_by(email="invitee@example.com").first()
+        u = User.query.filter_by(email="invitee@daltonfumc.com").first()
         assert u is not None
         assert u.role == "staff"
 
@@ -293,8 +230,7 @@ class TestInviteAccept:
     def test_accept_invite_expired(self, client, church):
         token = secrets.token_urlsafe(32)
         invite = Invite(
-            church_id=church.id,
-            email="expired_invite@example.com",
+            email="expired_invite@daltonfumc.com",
             token=token,
             created_at=datetime.utcnow() - timedelta(days=8),  # older than 7 days
         )

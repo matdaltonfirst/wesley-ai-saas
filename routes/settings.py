@@ -1,22 +1,21 @@
-"""Church settings routes: branding, website URL, crawl, staff management."""
+"""Settings routes: branding, website URL, crawl, theology, staff management."""
 
 import re
 import json
 import secrets
 import threading
 import logging
-from datetime import datetime
 
 from flask import Blueprint, request, jsonify, url_for, current_app
 from flask_login import login_required, current_user
 
-from models import db, User, Church, CrawledPage, Invite
-from config import DEFAULT_COLOR, FROM_EMAIL, SUPPORT_EMAIL
+from models import db, User, CrawledPage, Invite
+from config import DEFAULT_COLOR, FROM_EMAIL, ORG_DOMAIN, SUPPORT_EMAIL
 from denominations import (
-    LocalPracticeError, church_profile, denomination_options,
-    get_denomination_profile, is_valid_denomination, load_local_practices,
+    PROFILE, LocalPracticeError, load_local_practices,
     local_practice_schema, validate_local_practices, validate_statement_of_faith,
 )
+from organization import get_org
 from helpers import build_branding_dict, iso_utc, is_safe_url
 from emails import send_invite_email
 
@@ -31,14 +30,14 @@ _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 @settings_bp.route("/api/church/branding", methods=["GET"])
 @login_required
 def get_church_branding():
-    return jsonify(build_branding_dict(current_user.church))
+    return jsonify(build_branding_dict())
 
 
 @settings_bp.route("/api/church/branding", methods=["POST"])
 @login_required
 def save_church_branding():
     data = request.get_json(silent=True) or {}
-    church = current_user.church
+    church = get_org()
 
     bot_name = (data.get("bot_name") or "").strip()
     bot_subtitle = (data.get("bot_subtitle") or "").strip()
@@ -71,13 +70,14 @@ def save_church_branding():
 @settings_bp.route("/api/church/settings", methods=["GET"])
 @login_required
 def get_church_settings():
-    church = current_user.church
-    page_count = CrawledPage.query.filter_by(church_id=church.id).count()
+    church = get_org()
+    page_count = CrawledPage.query.count()
     return jsonify({
         "website_url": church.website_url or "",
         "last_crawled_at": iso_utc(church.last_crawled_at),
         "page_count": page_count,
-        "church_id": church.id,
+        # The id the website embed passes as data-church-id.
+        "church_id": church.legacy_widget_id or church.id,
     })
 
 
@@ -92,29 +92,19 @@ def save_church_settings():
         return jsonify({"error": "URL must be 500 characters or fewer."}), 400
     if url and not is_safe_url(url):
         return jsonify({"error": "URL must not point to a private or internal network address."}), 400
-    current_user.church.website_url = url or None
+    get_org().website_url = url or None
     db.session.commit()
     return jsonify({"ok": True})
 
 
-# ── Theology & Affiliation API ───────────────────────────────────────────────
+# ── Theology API ─────────────────────────────────────────────────────────────
 #
-# Read is open to any signed-in staff member of the church; every write requires
-# the church-admin role. Every query is scoped by current_user.church_id, so one
-# tenant can never read or write another's theological settings.
+# The denomination is fixed (Wesleyan United Methodist), so there is nothing to
+# select. Read is open to any signed-in staff member; writes need the admin role.
 
 def _theology_payload(church) -> dict:
-    profile = church_profile(church)
     return {
-        "denomination": profile.key,
-        "profile": profile.to_dict(),
-        "selected_profile_version": church.denomination_profile_version or "",
-        "profile_version_current": (
-            not church.denomination_profile_version
-            or church.denomination_profile_version == profile.version
-        ),
-        "denomination_updated_at": iso_utc(church.denomination_updated_at),
-        "options": denomination_options(),
+        "profile": PROFILE.to_dict(),
         "local_practices": load_local_practices(church),
         "local_practice_schema": local_practice_schema(),
         "statement_of_faith": church.statement_of_faith or "",
@@ -125,42 +115,7 @@ def _theology_payload(church) -> dict:
 @settings_bp.route("/api/church/theology", methods=["GET"])
 @login_required
 def get_church_theology():
-    return jsonify(_theology_payload(current_user.church))
-
-
-@settings_bp.route("/api/church/theology/denomination", methods=["POST"])
-@login_required
-def save_church_denomination():
-    """Change the church's denominational affiliation (admin only).
-
-    Local content — approved Q&A, snippets, documents, local practices, and the
-    statement of faith — is deliberately preserved. It may need review under the
-    new profile, which the UI warns about, but destroying it would be worse.
-    """
-    if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can change denominational settings."}), 403
-
-    data = request.get_json(silent=True) or {}
-    key = data.get("denomination")
-    if not is_valid_denomination(key):
-        return jsonify({"error": "Unknown denomination."}), 400
-
-    church = current_user.church
-    changed = church.denomination != key
-    if changed and not data.get("confirm"):
-        return jsonify({
-            "error": "Changing denomination requires explicit confirmation.",
-            "confirmation_required": True,
-        }), 400
-
-    profile = get_denomination_profile(key)
-    church.denomination = profile.key
-    church.denomination_profile_version = profile.version
-    church.denomination_updated_at = datetime.utcnow()
-    db.session.commit()
-    log.info("[DENOM] church_id=%d denomination set to %s (changed=%s) by user_id=%d",
-             church.id, profile.key, changed, current_user.id)
-    return jsonify({"ok": True, "changed": changed, **_theology_payload(church)})
+    return jsonify(_theology_payload(get_org()))
 
 
 @settings_bp.route("/api/church/theology/local-practices", methods=["POST"])
@@ -168,10 +123,10 @@ def save_church_denomination():
 def save_church_local_practices():
     """Save validated structured local practices and statement of faith (admin only)."""
     if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can change denominational settings."}), 403
+        return jsonify({"error": "Only admins can change local practice settings."}), 403
 
     data = request.get_json(silent=True) or {}
-    church = current_user.church
+    church = get_org()
     try:
         if "local_practices" in data:
             cleaned = validate_local_practices(data.get("local_practices"))
@@ -195,22 +150,21 @@ def trigger_crawl():
     import logging
     log = logging.getLogger("wesley")
 
-    church = current_user.church
+    church = get_org()
     if not church.website_url:
         return jsonify({"error": "No website URL configured. Save a URL first."}), 400
 
     crawl_url  = church.website_url
-    church_id  = church.id
     app = current_app._get_current_object()
 
     def run_crawl():
         try:
             with app.app_context():
                 from crawler import crawl_church_website
-                result = crawl_church_website(church_id, crawl_url)
-                log.info("Manual crawl church_id=%d: %s", church_id, result)
+                result = crawl_church_website(crawl_url)
+                log.info("Manual crawl: %s", result)
         except Exception:
-            log.exception("Background crawl failed for church_id=%d", church_id)
+            log.exception("Background crawl failed")
 
     t = threading.Thread(target=run_crawl, daemon=True)
     t.start()
@@ -223,18 +177,18 @@ def trigger_crawl():
 @settings_bp.route("/api/staff")
 @login_required
 def list_staff():
-    """Return all users belonging to the current church (admin only)."""
+    """Return all users (admin only)."""
     if current_user.role != "admin":
         return jsonify({"error": "Forbidden."}), 403
     users = (
         User.query
-        .filter_by(church_id=current_user.church_id)
+        
         .order_by(User.created_at)
         .all()
     )
     pending = (
         Invite.query
-        .filter_by(church_id=current_user.church_id, accepted=False)
+        .filter_by(accepted=False)
         .order_by(Invite.created_at)
         .all()
     )
@@ -262,20 +216,21 @@ def invite_staff():
 
     if not email:
         return jsonify({"error": "Email is required."}), 400
+    if not email.endswith("@" + ORG_DOMAIN):
+        return jsonify({"error": f"Staff accounts must use an @{ORG_DOMAIN} email address."}), 400
 
-    existing = User.query.filter_by(email=email, church_id=current_user.church_id).first()
+    existing = User.query.filter_by(email=email).first()
     if existing:
         return jsonify({"error": "A user with that email already exists on your team."}), 400
 
     dup = Invite.query.filter_by(
-        email=email, church_id=current_user.church_id, accepted=False
+        email=email, accepted=False
     ).first()
     if dup:
         return jsonify({"error": "An invitation has already been sent to that email."}), 400
 
     token  = secrets.token_urlsafe(32)
     invite = Invite(
-        church_id=current_user.church_id,
         email=email,
         token=token,
     )
@@ -283,7 +238,7 @@ def invite_staff():
     db.session.commit()
 
     invite_url = url_for("auth.accept_invite_page", token=token, _external=True)
-    church_name = current_user.church.name
+    church_name = get_org().name
     _app = current_app._get_current_object()
 
     def _send_invite():
@@ -306,13 +261,13 @@ def resend_invite(invite_id):
         return jsonify({"error": "Forbidden."}), 403
 
     invite = Invite.query.filter_by(
-        id=invite_id, church_id=current_user.church_id, accepted=False
+        id=invite_id, accepted=False
     ).first()
     if not invite:
         return jsonify({"error": "Invite not found."}), 404
 
     invite_url = url_for("auth.accept_invite_page", token=invite.token, _external=True)
-    church_name = current_user.church.name
+    church_name = get_org().name
     _app = current_app._get_current_object()
 
     def _resend():
@@ -334,7 +289,7 @@ def cancel_invite(invite_id):
         return jsonify({"error": "Forbidden."}), 403
 
     invite = Invite.query.filter_by(
-        id=invite_id, church_id=current_user.church_id, accepted=False
+        id=invite_id, accepted=False
     ).first()
     if not invite:
         return jsonify({"error": "Invite not found."}), 404
@@ -347,14 +302,14 @@ def cancel_invite(invite_id):
 @settings_bp.route("/api/staff/<int:user_id>", methods=["DELETE"])
 @login_required
 def remove_staff(user_id):
-    """Remove a staff user from the church (admin only; cannot remove admins or self)."""
+    """Remove a staff user (admin only; cannot remove admins or self)."""
     if current_user.role != "admin":
         return jsonify({"error": "Forbidden."}), 403
 
     if user_id == current_user.id:
         return jsonify({"error": "You cannot remove yourself."}), 400
 
-    user = User.query.filter_by(id=user_id, church_id=current_user.church_id).first()
+    user = User.query.filter_by(id=user_id).first()
     if not user:
         return jsonify({"error": "User not found."}), 404
 

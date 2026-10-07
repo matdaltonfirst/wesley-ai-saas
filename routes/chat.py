@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 
 from models import db, Conversation, Message
 from helpers import (
-    build_system_prompt, call_gemini, friendly_gemini_error, has_active_access,
+    build_system_prompt, call_gemini, friendly_gemini_error,
     iso_utc, sse_event, stream_gemini,
 )
 from documents import (
@@ -38,7 +38,7 @@ def _prepare_chat_turn(data):
     """Validate a staff request and build everything the model call needs.
 
     Shared by the blocking and streaming endpoints so neither can drift on
-    validation, billing, or retrieval.
+    validation or retrieval.
     """
     if not data or not data.get("question", "").strip():
         raise _ChatTurnError("No question provided")
@@ -48,23 +48,13 @@ def _prepare_chat_turn(data):
         raise _ChatTurnError(
             "Message is too long. Please keep questions under 2,000 characters.")
 
-    # The dashboard page redirects lapsed churches to /subscribe, but this
-    # endpoint is what actually spends money — gate it too.
-    if not has_active_access(current_user.church, current_user.email):
-        raise _ChatTurnError(
-            "Your subscription has ended. Reactivate under Settings → Billing to keep using Wesley.",
-            402,
-        )
-
     conversation_id = data.get("conversation_id")
     if conversation_id:
-        conv = Conversation.query.filter_by(
-            id=conversation_id, church_id=current_user.church_id
-        ).first()
+        conv = Conversation.query.get(conversation_id)
         if not conv:
             raise _ChatTurnError("Conversation not found.", 404)
     else:
-        conv = Conversation(church_id=current_user.church_id, title=question[:40])
+        conv = Conversation(title=question[:40])
         db.session.add(conv)
         db.session.flush()
 
@@ -76,24 +66,14 @@ def _prepare_chat_turn(data):
     db.session.commit()
 
     uploads_dir = current_app.config["UPLOADS_DIR"]
-    chunks = (
-        load_church_documents(current_user.church_id, uploads_dir)
-        + load_curated_content(current_user.church_id)
-    )
+    chunks = load_church_documents(uploads_dir) + load_curated_content()
     context = ""
     candidate_sources = []
 
     scored = find_relevant_chunks(question, chunks) if chunks else []
-    scored_cal = score_calendar_chunks(
-        question, load_calendar_chunks(current_user.church_id)
-    )
-    scored_ser = score_sermon_chunks(
-        question, load_sermon_chunks(current_user.church_id)
-    )
-    # Only this church's own denomination is ever a retrieval candidate.
-    scored_denom = score_denomination_chunks(
-        question, current_user.church.denomination
-    )
+    scored_cal = score_calendar_chunks(question, load_calendar_chunks())
+    scored_ser = score_sermon_chunks(question, load_sermon_chunks())
+    scored_denom = score_denomination_chunks(question)
     if scored or scored_cal or scored_ser or scored_denom:
         context, candidate_sources = build_cited_context(
             [scored, scored_cal, scored_ser, scored_denom]
@@ -107,7 +87,7 @@ def _prepare_chat_turn(data):
         "history": history,
         "context": context,
         "candidate_sources": candidate_sources,
-        "system_instruction": build_system_prompt(current_user.church, staff=True),
+        "system_instruction": build_system_prompt(staff=True),
     }
 
 
@@ -132,7 +112,7 @@ def _save_chat_answer(turn, answer):
 @login_required
 def chat():
     limiter = current_app.config.get("CHAT_LIMITER")
-    if limiter and limiter.is_limited(str(current_user.church_id)):
+    if limiter and limiter.is_limited(str(current_user.id)):
         return jsonify({"error": "Too many requests. Please slow down and try again."}), 429
 
     try:
@@ -156,7 +136,7 @@ def chat():
         return jsonify({"error": user_msg}), status
 
     sources = _save_chat_answer(turn, answer)
-    record_usage(current_user.church_id, STAFF, call_usage)
+    record_usage(STAFF, call_usage)
 
     return jsonify({
         "answer": answer, "sources": sources, "conversation_id": turn["conv_id"],
@@ -173,7 +153,7 @@ def chat_stream():
     endpoint, not the best.
     """
     limiter = current_app.config.get("CHAT_LIMITER")
-    if limiter and limiter.is_limited(str(current_user.church_id)):
+    if limiter and limiter.is_limited(str(current_user.id)):
         return jsonify({"error": "Too many requests. Please slow down and try again."}), 429
 
     try:
@@ -182,7 +162,6 @@ def chat_stream():
         db.session.rollback()
         return jsonify({"error": e.message}), e.status
 
-    church_id = current_user.church_id
     conversation_id = turn["conv_id"]
     call_usage: dict = {}
     # Captured now: the generator below runs after this request context has
@@ -222,7 +201,7 @@ def chat_stream():
                                  "conversation_id": conversation_id, "saved": False})
                 return
 
-            record_usage(church_id, STAFF, call_usage)
+            record_usage(STAFF, call_usage)
             yield sse_event({"type": "done", "sources": sources,
                              "conversation_id": conversation_id, "saved": True})
 
@@ -237,7 +216,6 @@ def chat_stream():
 def list_conversations():
     convs = (
         Conversation.query
-        .filter_by(church_id=current_user.church_id)
         .order_by(Conversation.updated_at.desc())
         .all()
     )
@@ -252,9 +230,7 @@ def list_conversations():
 @chat_bp.route("/api/conversations/<int:conv_id>/messages")
 @login_required
 def get_conversation_messages(conv_id):
-    conv = Conversation.query.filter_by(
-        id=conv_id, church_id=current_user.church_id
-    ).first()
+    conv = Conversation.query.get(conv_id)
     if not conv:
         return jsonify({"error": "Conversation not found."}), 404
     return jsonify({

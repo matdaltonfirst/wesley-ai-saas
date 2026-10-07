@@ -5,7 +5,7 @@ Usage: python scripts/restore_check.py <backup-dir>   (the extracted bk/db folde
 Builds the schema from the app's own models, loads every JSONL table, then checks
 row counts against MANIFEST.json and that every restored row equals the dumped row. A backup that has not passed this is a hope, not a backup.
 """
-import base64, datetime, decimal, hashlib, json, os, sys, tempfile
+import base64, datetime, decimal, json, os, sys, tempfile
 os.environ.pop("DATABASE_URL", None)
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="restore_check_")
 import sqlalchemy as sa

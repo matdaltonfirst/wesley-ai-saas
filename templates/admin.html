@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wesley AI — Admin</title>
+  <title>Admin: public chatbot instructions</title>
   {% include 'partials/head.html' %}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -458,11 +458,10 @@
   <header class="admin-header">
     <div class="header-left">
       <img src="/static/WesleyAI.png" alt="Wesley AI" class="admin-logo" />
-      <span class="admin-badge">Super Admin</span>
+      <span class="admin-badge">Admin</span>
     </div>
     <nav class="admin-nav">
       <a href="/admin" class="admin-nav-tab active">Dashboard</a>
-      <a href="/admin/billing" class="admin-nav-tab">Billing</a>
     </nav>
     <a href="/" class="back-link">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -484,48 +483,14 @@
 
     {% else %}
 
-    <!-- ── Stats bar ── -->
-    <div class="card admin-card">
-      <div class="card-title">Usage Overview</div>
-      <div class="card-desc" style="margin-bottom:18px">Live stats across all churches.</div>
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-tile"><div class="stat-value" id="statChurches">—</div><div class="stat-label">Total Churches</div></div>
-        <div class="stat-tile"><div class="stat-value" id="statMessages">—</div><div class="stat-label">Total Messages</div></div>
-        <div class="stat-tile"><div class="stat-value" id="statActive">—</div><div class="stat-label">Active Subs</div></div>
-        <div class="stat-tile"><div class="stat-value" id="statTrialing">—</div><div class="stat-label">Trialing</div></div>
-        <div class="stat-tile"><div class="stat-value" id="statTokens">—</div><div class="stat-label">Tokens (30d)</div></div>
-      </div>
-    </div>
-
-    <!-- ── All Churches ── -->
-    <div class="card admin-card">
-      <div class="card-title">All Churches</div>
-      <div class="card-desc">Click "Edit" to open the church editor.</div>
-      <div class="table-controls">
-        <input class="search-input" id="churchSearch" type="text" placeholder="Search by name or email…" />
-        <button class="btn btn--primary btn--sm" id="refreshChurchesBtn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          Refresh
-        </button>
-      </div>
-      <div id="churchTableWrap">
-        <div class="table-empty">Loading…</div>
-      </div>
-    </div>
-
     <!-- ── System Prompt ── -->
     <div class="card admin-card">
-      <div class="card-title">Master System Prompt</div>
+      <div class="card-title">Public chatbot instructions</div>
       <div class="card-desc">
-        This prompt is sent to the AI before every conversation, across all churches.
-        Changes take effect immediately for all new messages.
-        <br /><strong>Keep it denominationally neutral.</strong> Each church's
-        theology comes from the denominational profile it selected. Text naming one
-        denomination's terminology is automatically withheld from churches of other
-        denominations, so it would silently stop applying to part of the platform.
+        These instructions are sent to the AI before every conversation on the
+        public website chatbot. Changes take effect immediately for new messages.
+        <br /><strong>Leave theology out of this.</strong> The church's Wesleyan
+        United Methodist teaching is supplied separately and reviewed on its own.
       </div>
       <label class="field-label" for="promptArea">System prompt</label>
       <textarea id="promptArea" spellcheck="true">{{ current_prompt }}</textarea>
@@ -538,68 +503,6 @@
     </div>
 
     {% endif %}
-  </div>
-
-  <!-- ── Edit Modal ── -->
-  <div class="modal-overlay" id="editModal">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title" id="modalTitle">Edit Church</div>
-        <button class="modal-close" id="modalCloseBtn" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      </div>
-      <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="editName">Church Name</label>
-            <input class="form-input" id="editName" type="text" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="editCity">City</label>
-            <input class="form-input" id="editCity" type="text" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="editPlan">Plan</label>
-            <select class="form-select" id="editPlan">
-              <option value="founders">Founders</option>
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="editTrialEnds">Trial Ends At</label>
-            <input class="form-input" id="editTrialEnds" type="date" />
-          </div>
-        </div>
-        <div class="form-group full">
-          <label class="form-label" for="editStripeId">Stripe Subscription ID</label>
-          <input class="form-input" id="editStripeId" type="text" readonly />
-        </div>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">Billing Exempt</div>
-            <div class="toggle-desc">Bypass all billing checks for this church.</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="editBillingExempt" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="temp-pw-box" id="tempPwBox">
-          Temporary password for <strong id="tempPwEmail"></strong>:
-          <span class="temp-pw-value" id="tempPwValue"></span>
-          <small style="display:block;margin-top:6px;color:#92400e">Share this once — it won't be shown again.</small>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn--primary btn--sm" id="modalSaveBtn">Save changes</button>
-        <button class="btn btn--quiet btn--sm" id="modalCancelBtn">Cancel</button>
-        <div class="modal-status" id="modalStatus"></div>
-        <button class="btn btn--danger-ghost btn--sm" id="resetPwBtn">Reset Password</button>
-      </div>
-    </div>
   </div>
 
   {% if not forbidden %}
@@ -644,194 +547,6 @@
       finally { saveBtn.disabled = false; saveBtn.textContent = "Save changes"; }
     });
 
-    // ─── Churches table ───────────────────────────────────────────────────────
-    let allChurches = [];
-
-    function fmtDate(iso) {
-      if (!iso) return "—";
-      return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    }
-    function fmtNum(n) { return Number(n).toLocaleString(); }
-
-    function renderTable(churches) {
-      const wrap = document.getElementById("churchTableWrap");
-      if (!churches.length) {
-        wrap.innerHTML = '<div class="table-empty">No churches found.</div>';
-        return;
-      }
-      wrap.innerHTML = `
-        <table class="churches-table">
-          <thead>
-            <tr>
-              <th>Church Name</th>
-              <th>Admin Email</th>
-              <th>City</th>
-              <th>Signed Up</th>
-              <th>Trial Ends</th>
-              <th>Plan</th>
-              <th>Status</th>
-              <th style="text-align:right">Msgs</th>
-              <th style="text-align:right">Docs</th>
-              <th style="text-align:right" title="Gemini calls in the last 30 days">AI 30d</th>
-              <th style="text-align:right" title="Total tokens in the last 30 days — what this church costs to serve">Tokens 30d</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${churches.map(c => `
-              <tr>
-                <td title="${esc(c.name)}">${esc(c.name)}</td>
-                <td title="${esc(c.admin_email)}">${esc(c.admin_email)}</td>
-                <td>${esc(c.church_city || "—")}</td>
-                <td>${esc(fmtDate(c.created_at))}</td>
-                <td>${esc(fmtDate(c.trial_ends_at))}</td>
-                <td>${esc(c.plan)}</td>
-                <td><span class="pill pill--sm status-badge ${esc(c.status)}">${esc(c.status)}</span></td>
-                <td style="text-align:right">${fmtNum(c.message_count + c.widget_message_count)}</td>
-                <td style="text-align:right">${fmtNum(c.doc_count)}</td>
-                <td style="text-align:right">${fmtNum(c.ai_calls_30d)}</td>
-                <td style="text-align:right">${fmtNum(c.ai_tokens_30d)}</td>
-                <td><button class="btn btn--ghost btn--xs" data-id="${c.id}">Edit</button></td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>`;
-
-      wrap.querySelectorAll(".edit-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const ch = allChurches.find(c => c.id === parseInt(btn.dataset.id));
-          if (ch) openModal(ch);
-        });
-      });
-    }
-
-    async function loadChurches() {
-      document.getElementById("churchTableWrap").innerHTML = '<div class="table-empty">Loading…</div>';
-      try {
-        const res  = await fetch("/api/admin/churches");
-        if (res.status === 401) { window.location.href = "/login"; return; }
-        const data = await res.json();
-
-        // Update stats
-        document.getElementById("statChurches").textContent = fmtNum(data.stats.total_churches);
-        document.getElementById("statMessages").textContent = fmtNum(data.stats.total_messages);
-        document.getElementById("statActive").textContent   = fmtNum(data.stats.active_subscriptions);
-        document.getElementById("statTrialing").textContent = fmtNum(data.stats.trialing);
-        document.getElementById("statTokens").textContent = fmtNum(data.stats.ai_tokens_30d || 0);
-
-        allChurches = data.churches || [];
-        applySearch();
-      } catch {
-        document.getElementById("churchTableWrap").innerHTML = '<div class="table-empty">Could not load churches.</div>';
-      }
-    }
-
-    function applySearch() {
-      const q = document.getElementById("churchSearch").value.trim().toLowerCase();
-      const filtered = q
-        ? allChurches.filter(c =>
-            c.name.toLowerCase().includes(q) || c.admin_email.toLowerCase().includes(q)
-          )
-        : allChurches;
-      renderTable(filtered);
-    }
-
-    document.getElementById("churchSearch").addEventListener("input", applySearch);
-    document.getElementById("refreshChurchesBtn").addEventListener("click", loadChurches);
-
-    // ─── Edit Modal ───────────────────────────────────────────────────────────
-    let currentChurchId = null;
-
-    function openModal(ch) {
-      currentChurchId = ch.id;
-      document.getElementById("modalTitle").textContent = "Edit — " + ch.name;
-      document.getElementById("editName").value    = ch.name;
-      document.getElementById("editCity").value    = ch.church_city || "";
-      document.getElementById("editPlan").value    = ch.plan || "founders";
-      document.getElementById("editTrialEnds").value = ch.trial_ends_at ? ch.trial_ends_at.slice(0,10) : "";
-      document.getElementById("editStripeId").value = ch.stripe_subscription_id || "";
-      document.getElementById("editBillingExempt").checked = !!ch.billing_exempt;
-      document.getElementById("modalStatus").textContent = "";
-      document.getElementById("modalStatus").className   = "modal-status";
-      document.getElementById("tempPwBox").classList.remove("visible");
-      document.getElementById("editModal").classList.add("open");
-    }
-
-    function closeModal() {
-      document.getElementById("editModal").classList.remove("open");
-      currentChurchId = null;
-    }
-
-    document.getElementById("modalCloseBtn").addEventListener("click", closeModal);
-    document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
-    document.getElementById("editModal").addEventListener("click", e => {
-      if (e.target === document.getElementById("editModal")) closeModal();
-    });
-
-    document.getElementById("modalSaveBtn").addEventListener("click", async () => {
-      if (!currentChurchId) return;
-      const btn = document.getElementById("modalSaveBtn");
-      const statusEl = document.getElementById("modalStatus");
-      btn.disabled = true; btn.textContent = "Saving…";
-      statusEl.textContent = ""; statusEl.className = "modal-status";
-      try {
-        const trialRaw = document.getElementById("editTrialEnds").value;
-        const body = {
-          name:           document.getElementById("editName").value.trim(),
-          church_city:    document.getElementById("editCity").value.trim(),
-          plan:           document.getElementById("editPlan").value,
-          trial_ends_at:  trialRaw || "",
-          billing_exempt: document.getElementById("editBillingExempt").checked,
-        };
-        const res  = await fetch(`/api/admin/churches/${currentChurchId}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          statusEl.textContent = "Saved!"; statusEl.className = "modal-status ok";
-          await loadChurches();
-        } else {
-          statusEl.textContent = data.error || "Save failed."; statusEl.className = "modal-status err";
-        }
-      } catch {
-        statusEl.textContent = "Network error."; statusEl.className = "modal-status err";
-      } finally {
-        btn.disabled = false; btn.textContent = "Save changes";
-      }
-    });
-
-    document.getElementById("resetPwBtn").addEventListener("click", async () => {
-      if (!currentChurchId) return;
-      if (!confirm("Generate a new temporary password for this church's admin? Their current password will be replaced.")) return;
-      const btn = document.getElementById("resetPwBtn");
-      btn.disabled = true; btn.textContent = "Generating…";
-      try {
-        const res  = await fetch(`/api/admin/churches/${currentChurchId}/reset-password`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok) {
-          document.getElementById("tempPwEmail").textContent = data.email;
-          document.getElementById("tempPwValue").textContent = data.temp_password;
-          document.getElementById("tempPwBox").classList.add("visible");
-        } else {
-          alert(data.error || "Password reset failed.");
-        }
-      } catch {
-        alert("Network error.");
-      } finally {
-        btn.disabled = false; btn.textContent = "Reset Password";
-      }
-    });
-
-    // ─── Escape helper ────────────────────────────────────────────────────────
-    function esc(str) {
-      return String(str)
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    }
-
-    // ─── Init ─────────────────────────────────────────────────────────────────
-    loadChurches();
   </script>
   {% endif %}
 

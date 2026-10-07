@@ -10,51 +10,48 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from datetime import datetime
-from flask import redirect, url_for, session, request, abort
+from flask import session, request, abort
 from flask_login import current_user
 from google import genai
 from google.genai import types
 
 from config import (
     DEFAULT_BOT_NAME, DEFAULT_WELCOME, DEFAULT_COLOR, DEFAULT_SUBTITLE,
-    DEFAULT_SYSTEM_PROMPT, SUPER_ADMIN_EMAIL, EXEMPT_DOMAINS, GEMINI_MODEL,
-    GEMINI_FALLBACK_MODEL,
+    DEFAULT_SYSTEM_PROMPT, GEMINI_MODEL, GEMINI_FALLBACK_MODEL,
 )
-from denominations import (
-    church_profile, contains_foreign_denomination_text,
-    render_local_practice_block,
-)
+from denominations import PROFILE, render_local_practice_block
 from models import SystemPrompt, TextSnippet, QnAPair
+from organization import get_org
 
 log = logging.getLogger("wesley")
 
 
-def church_tz(church=None):
-    """The church's IANA timezone, falling back to the platform default."""
+def org_tz():
+    """The organization's IANA timezone, falling back to the configured default."""
     from zoneinfo import ZoneInfo
     from config import DEFAULT_TIMEZONE
-    name = getattr(church, "timezone", None) or DEFAULT_TIMEZONE
+    name = get_org().timezone or DEFAULT_TIMEZONE
     try:
         return ZoneInfo(name)
     except Exception:
         return ZoneInfo("America/New_York")
 
 
-def church_now(church=None):
+def local_now():
     """Current wall-clock datetime where the church is, not UTC.
 
     Visitor-facing dates must be church-local: on a Saturday evening in
     Georgia, UTC has already rolled into Sunday.
     """
-    return datetime.now(church_tz(church))
+    return datetime.now(org_tz())
 
 
-def utc_to_church(dt, church=None):
+def utc_to_local(dt):
     """Convert a naive-UTC datetime (as stored in the DB) to church-local."""
     from zoneinfo import ZoneInfo
     if dt is None:
         return None
-    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(church_tz(church))
+    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(org_tz())
 
 
 def iso_utc(dt):
@@ -73,8 +70,9 @@ def iso_utc(dt):
 
 # ── Branding ─────────────────────────────────────────────────────────────────
 
-def build_branding_dict(church) -> dict:
-    """Return the standard branding JSON dict for a Church record."""
+def build_branding_dict(church=None) -> dict:
+    """The public chatbot branding as JSON, from the organization row."""
+    church = church or get_org()
     try:
         sugs = json.loads(church.starter_questions) if church.starter_questions else []
     except (ValueError, TypeError):
@@ -218,46 +216,34 @@ leadership. Never silently choose a position and never blend positions.
 """
 
 
-def _platform_prompt_for(church_key) -> str:
-    """The super-admin-editable platform prompt, if safe for this denomination.
-
-    The platform prompt is a single row shared by every tenant and was authored
-    for United Methodist churches. Injecting it verbatim into another
-    denomination's prompt would leak foreign denominational instructions, so it
-    is dropped when it mentions terminology owned by a different profile.
-    """
+def _platform_prompt() -> str:
+    """The admin-editable public-chatbot instructions."""
     prompt_row = SystemPrompt.query.get(1)
     content = (prompt_row.content if prompt_row else DEFAULT_SYSTEM_PROMPT) or ""
-    if contains_foreign_denomination_text(content, church_key):
-        log.warning(
-            "[DENOM] platform prompt withheld from denomination %r — it "
-            "references another denomination's terminology", church_key,
-        )
-        return ""
     return content.strip()
 
 
-def build_system_prompt(church, widget: bool = False, staff: bool = False) -> str:
-    """Assemble the full Gemini system instruction for a given church.
+def build_system_prompt(widget: bool = False, staff: bool = False) -> str:
+    """Assemble the full Gemini system instruction.
 
     staff=True  → staff interface: full ministry-partner prompt, no visitor restrictions
     staff=False → public widget (widget=True) or fallback: conservative visitor prompt
 
-    Both paths load exactly one denominational profile — the church's own — so
-    staff chat and the public widget can never drift apart theologically.
+    Both paths load the same United Methodist profile, so staff chat and the
+    public widget cannot drift apart theologically.
     """
-    today_str = church_now(church).strftime("%A, %B %-d, %Y")
-    profile = church_profile(church)
+    church = get_org()
+    today_str = local_now().strftime("%A, %B %-d, %Y")
+    profile = PROFILE
 
     # 1. Date + neutral core
     if staff:
         # Staff interface: use hardcoded staff prompt, never the DB prompt
         base = f"Today's date is {today_str}.\n\n" + _STAFF_SYSTEM_PROMPT
     else:
-        # Public bot: neutral identity line plus the platform prompt when it is
-        # safe for this church's denomination.
+        # Public bot: identity line plus the admin-editable instructions.
         parts = [_PUBLIC_IDENTITY_PREFIX]
-        platform_prompt = _platform_prompt_for(profile.key)
+        platform_prompt = _platform_prompt()
         if platform_prompt:
             parts.append(platform_prompt)
         base = f"Today's date is {today_str}.\n\n" + "\n\n".join(parts)
@@ -277,7 +263,7 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
     ctx += render_local_practice_block(church)
 
     # 5. Q&A and snippets injected for both staff and public
-    qna_pairs = QnAPair.query.filter_by(church_id=church.id, is_active=True).all()
+    qna_pairs = QnAPair.query.filter_by(is_active=True).all()
     qna_block = ""
     if qna_pairs:
         lines = "\n".join(f"Q: {p.question}\nA: {p.answer}" for p in qna_pairs)
@@ -289,7 +275,7 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
             + lines
         )
 
-    snippets = TextSnippet.query.filter_by(church_id=church.id, is_active=True).all()
+    snippets = TextSnippet.query.filter_by(is_active=True).all()
     snippet_block = ""
     if snippets:
         lines = "\n".join(f"{s.title}: {s.content}" for s in snippets)
@@ -336,93 +322,9 @@ def build_system_prompt(church, widget: bool = False, staff: bool = False) -> st
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 
-def is_super_admin() -> bool:
-    return current_user.is_authenticated and current_user.email == SUPER_ADMIN_EMAIL
-
-
-def is_billing_exempt(email: str) -> bool:
-    domain = email.split("@")[-1].lower()
-    return domain in EXEMPT_DOMAINS
-
-
-def get_billing_status(church) -> dict:
-    """Return a normalised billing-status dict for *church*.
-
-    Returns:
-        has_access        – bool: whether the church currently has paid access
-        billing_type      – "manual" | "stripe" | "none"
-        expires           – datetime.date or None
-        days_remaining    – int or None
-        stripe_invite_sent – bool
-    """
-    from datetime import date as _date
-    today = _date.today()
-
-    # 1. Active manual payment
-    if (getattr(church, "manual_payment_active", False)
-            and church.manual_payment_expires
-            and church.manual_payment_expires >= today):
-        days_remaining = (church.manual_payment_expires - today).days
-        return {
-            "has_access":          True,
-            "billing_type":        "manual",
-            "expires":             church.manual_payment_expires,
-            "days_remaining":      days_remaining,
-            "stripe_invite_sent":  bool(church.stripe_invite_sent_at),
-        }
-
-    # 2. Stripe subscription
-    if church.stripe_subscription_id:
-        return {
-            "has_access":          True,
-            "billing_type":        "stripe",
-            "expires":             None,
-            "days_remaining":      None,
-            "stripe_invite_sent":  bool(church.stripe_invite_sent_at),
-        }
-
-    # 3. No active billing (trial or fully expired)
-    return {
-        "has_access":          church.is_active,  # True if trial still running
-        "billing_type":        "none",
-        "expires":             None,
-        "days_remaining":      None,
-        "stripe_invite_sent":  bool(getattr(church, "stripe_invite_sent_at", None)),
-    }
-
-
-def has_active_access(church, email: str = "") -> bool:
-    """True when *church* may consume paid features (AI chat, widget answers).
-
-    The boolean core behind require_active(), so JSON APIs and the public
-    widget can gate access without issuing an HTML redirect. Without it,
-    billing lapses only block the dashboard pages while the endpoints that
-    actually cost money keep serving.
-    """
-    if email and is_billing_exempt(email):
-        return True
-    if getattr(church, "billing_exempt", False):
-        return True
-    if church.is_active:
-        return True
-    # A church can be exempt solely through its staff's email domain, and the
-    # public widget has no signed-in user to check — so fall back to the
-    # church's own accounts. Only reached once billing has genuinely lapsed,
-    # so the extra query never touches the common path.
-    from models import User
-    return any(
-        is_billing_exempt(user.email)
-        for user in User.query.filter_by(church_id=church.id).all()
-    )
-
-
-def require_active():
-    """Return a redirect to /subscribe if the current church's billing has lapsed.
-    Returns None if the user may continue.
-    """
-    if has_active_access(current_user.church, current_user.email):
-        return None
-    return redirect(url_for("stripe.subscribe_page"))
+def is_admin() -> bool:
+    """True for a signed-in user with the admin role."""
+    return current_user.is_authenticated and current_user.role == "admin"
 
 
 # ── CSRF ─────────────────────────────────────────────────────────────────────

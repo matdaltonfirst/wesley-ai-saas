@@ -10,7 +10,7 @@ the requests fallback — JS rendering is only needed for heavy SPAs.
 
 Usage (inside a Flask app context):
     from crawler import crawl_church_website
-    result = crawl_church_website(church_id=1, start_url="https://example.com")
+    result = crawl_church_website("https://example.com")
 """
 
 import time
@@ -100,7 +100,7 @@ def _extract_text(html: str) -> tuple[str, str]:
     return title, "\n".join(lines)
 
 
-def _upsert_page(church_id: int, url: str, title: str, text: str) -> None:
+def _upsert_page(url: str, title: str, text: str) -> None:
     """Insert or update a CrawledPage row.
 
     ON CONFLICT DO UPDATE exists on both SQLite and PostgreSQL but only through
@@ -117,14 +117,13 @@ def _upsert_page(church_id: int, url: str, title: str, text: str) -> None:
     stmt = (
         dialect_insert(CrawledPage)
         .values(
-            church_id=church_id,
             url=url,
             title=title,
             content=text,
             crawled_at=datetime.utcnow(),
         )
         .on_conflict_do_update(
-            index_elements=["church_id", "url"],
+            index_elements=["url"],
             set_=dict(title=title, content=text, crawled_at=datetime.utcnow()),
         )
     )
@@ -135,7 +134,6 @@ def _upsert_page(church_id: int, url: str, title: str, text: str) -> None:
 # ── Generic BFS engine ────────────────────────────────────────────────────────
 
 def _bfs_crawl(
-    church_id: int,
     start_url: str,
     base_host: str,
     fetch_fn,           # (url: str) -> str | None   (None = skip)
@@ -184,7 +182,7 @@ def _bfs_crawl(
             continue
 
         try:
-            _upsert_page(church_id, url, title, text)
+            _upsert_page(url, title, text)
         except Exception as exc:
             _log(f"[{method_name}] DB upsert failed for {url}: {exc}", level="error")
             pages_failed += 1
@@ -215,7 +213,7 @@ def _log(msg: str, level: str = "info") -> None:
 
 # ── Playwright crawler ────────────────────────────────────────────────────────
 
-def _crawl_with_playwright(church_id: int, start_url: str, base_host: str) -> tuple[int, int]:
+def _crawl_with_playwright(start_url: str, base_host: str) -> tuple[int, int]:
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
     _log("Launching Playwright Chromium browser…")
@@ -248,7 +246,7 @@ def _crawl_with_playwright(church_id: int, start_url: str, base_host: str) -> tu
                 return None
 
         pages_crawled, pages_failed = _bfs_crawl(
-            church_id, start_url, base_host, fetch, "playwright"
+            start_url, base_host, fetch, "playwright"
         )
 
         page.close()
@@ -260,7 +258,7 @@ def _crawl_with_playwright(church_id: int, start_url: str, base_host: str) -> tu
 
 # ── requests fallback crawler ─────────────────────────────────────────────────
 
-def _crawl_with_requests(church_id: int, start_url: str, base_host: str) -> tuple[int, int]:
+def _crawl_with_requests(start_url: str, base_host: str) -> tuple[int, int]:
     session = req_lib.Session()
     session.headers.update({
         "User-Agent": CRAWLER_UA,
@@ -288,14 +286,14 @@ def _crawl_with_requests(church_id: int, start_url: str, base_host: str) -> tupl
             _log(f"[requests] Request error on {url}: {exc}", level="warning")
             return None
 
-    return _bfs_crawl(church_id, start_url, base_host, fetch, "requests")
+    return _bfs_crawl(start_url, base_host, fetch, "requests")
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def crawl_church_website(church_id: int, start_url: str) -> dict:
+def crawl_church_website(start_url: str) -> dict:
     """
-    Crawl `start_url` for church `church_id`.
+    Crawl `start_url` and store its pages.
 
     Tries Playwright (JS-rendering) first. If Playwright is unavailable or
     fails to launch, automatically falls back to requests + BeautifulSoup.
@@ -306,18 +304,19 @@ def crawl_church_website(church_id: int, start_url: str) -> dict:
         {"pages_crawled": int, "pages_failed": int, "error": str | None,
          "method": "playwright" | "requests"}
     """
-    from models import db, Church
+    from models import db
+    from organization import get_org
 
     start_url = start_url.rstrip("/")
     parsed = urlparse(start_url)
     base_host = parsed.netloc
 
     if not base_host:
-        _log(f"Invalid start URL for church_id={church_id}: {start_url!r}", level="error")
+        _log(f"Invalid start URL: {start_url!r}", level="error")
         return {"pages_crawled": 0, "pages_failed": 0,
                 "error": "Invalid start URL", "method": None}
 
-    _log(f"=== Crawl start — church_id={church_id} url={start_url} ===")
+    _log(f"=== Crawl start — url={start_url} ===")
 
     # ── Try Playwright ────────────────────────────────────────────────────────
     method = "playwright"
@@ -335,7 +334,7 @@ def crawl_church_website(church_id: int, start_url: str) -> dict:
         _log("Playwright available — using JS-rendering crawler.")
 
         pages_crawled, pages_failed = _crawl_with_playwright(
-            church_id, start_url, base_host
+            start_url, base_host
         )
 
     except Exception as exc:
@@ -347,25 +346,22 @@ def crawl_church_website(church_id: int, start_url: str) -> dict:
         method = "requests"
         try:
             pages_crawled, pages_failed = _crawl_with_requests(
-                church_id, start_url, base_host
+                start_url, base_host
             )
         except Exception as exc2:
             _log(f"requests crawler also failed: {exc2}", level="error")
             return {"pages_crawled": 0, "pages_failed": 0,
                     "error": str(exc2), "method": method}
 
-    # ── Update Church.last_crawled_at ─────────────────────────────────────────
+    # ── Update Organization.last_crawled_at ───────────────────────────────────
     try:
-        church = Church.query.get(church_id)
-        if church:
-            church.last_crawled_at = datetime.utcnow()
-            db.session.commit()
+        get_org().last_crawled_at = datetime.utcnow()
+        db.session.commit()
     except Exception as exc:
-        _log(f"Failed to update last_crawled_at for church_id={church_id}: {exc}",
-             level="error")
+        _log(f"Failed to update last_crawled_at: {exc}", level="error")
 
     _log(
-        f"=== Crawl complete — church_id={church_id} method={method} "
+        f"=== Crawl complete — method={method} "
         f"crawled={pages_crawled} failed={pages_failed} ==="
     )
     return {

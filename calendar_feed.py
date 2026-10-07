@@ -140,7 +140,7 @@ def refresh_calendar(cal: ChurchCalendar) -> bool:
 
     CalendarEvent.query.filter_by(calendar_id=cal.id).delete()
     for event in events:
-        db.session.add(CalendarEvent(calendar_id=cal.id, church_id=cal.church_id, **event))
+        db.session.add(CalendarEvent(calendar_id=cal.id, **event))
     cal.event_count = len(events)
     cal.last_error = None
     db.session.commit()
@@ -214,13 +214,12 @@ def score_calendar_chunks(question: str, chunks: list[dict]) -> list[tuple[int, 
     return find_relevant_chunks(question, chunks, top_n=10)
 
 
-def load_calendar_chunks(church_id: int) -> list[dict]:
+def load_calendar_chunks() -> list[dict]:
     """Upcoming events as citable retrieval chunks, soonest first."""
     now = datetime.utcnow()
     events = (
         CalendarEvent.query
         .filter(
-            CalendarEvent.church_id == church_id,
             CalendarEvent.starts_at >= now - timedelta(days=1),
             CalendarEvent.starts_at <= now + timedelta(days=CONTEXT_DAYS),
         )

@@ -134,7 +134,7 @@ class TestCalendarRoutes:
         assert cal["event_count"] == 1
         assert cal["preview"][0]["title"] == "Fall Festival"
 
-        for cal in ChurchCalendar.query.filter_by(church_id=church.id).all():
+        for cal in ChurchCalendar.query.filter_by().all():
             db.session.delete(cal)  # ORM delete so events cascade
         db.session.commit()
 
@@ -143,7 +143,7 @@ class TestCalendarRoutes:
             res = auth_client.post("/api/calendars",
                                    json={"url": "https://feeds.example.org/bad.ics"})
         assert res.status_code == 400
-        assert ChurchCalendar.query.filter_by(church_id=church.id).count() == 0
+        assert ChurchCalendar.query.filter_by().count() == 0
 
     def test_duplicate_and_limit(self, auth_client, church):
         assert self._add(auth_client).status_code == 201
@@ -154,7 +154,7 @@ class TestCalendarRoutes:
         assert res.status_code == 400
         assert "up to 3" in res.get_json()["error"]
 
-        for cal in ChurchCalendar.query.filter_by(church_id=church.id).all():
+        for cal in ChurchCalendar.query.filter_by().all():
             db.session.delete(cal)  # ORM delete so events cascade
         db.session.commit()
 
@@ -167,16 +167,15 @@ class TestCalendarRoutes:
 
 class TestCalendarChat:
     def _seed_events(self, church):
-        cal = ChurchCalendar(church_id=church.id,
-                             url="https://feeds.example.org/cal.ics")
+        cal = ChurchCalendar(url="https://feeds.example.org/cal.ics")
         db.session.add(cal)
         db.session.flush()
         db.session.add(CalendarEvent(
-            calendar_id=cal.id, church_id=church.id, title="Community Picnic",
+            calendar_id=cal.id, title="Community Picnic",
             location="Front Lawn", starts_at=_dt(4), ends_at=_dt(4) + timedelta(hours=2),
         ))
         db.session.add(CalendarEvent(
-            calendar_id=cal.id, church_id=church.id, title="Camp Lighthouse Kickoff",
+            calendar_id=cal.id, title="Camp Lighthouse Kickoff",
             starts_at=_dt(9), ends_at=_dt(9) + timedelta(hours=3),
         ))
         db.session.commit()
@@ -184,12 +183,12 @@ class TestCalendarChat:
 
     def test_broad_event_question_gets_full_window(self, app, church):
         self._seed_events(church)
-        chunks = load_calendar_chunks(church.id)
+        chunks = load_calendar_chunks()
         scored = score_calendar_chunks("What's happening this weekend?", chunks)
         assert len(scored) == 2
         assert "Community Picnic" in scored[0][1]["content"]  # chronological
 
-        for cal in ChurchCalendar.query.filter_by(church_id=church.id).all():
+        for cal in ChurchCalendar.query.filter_by().all():
             db.session.delete(cal)  # ORM delete so events cascade
         db.session.commit()
 
@@ -213,9 +212,9 @@ class TestCalendarChat:
         assert data["sources"][0]["type"] == "calendar"
 
         wconv = WidgetConversation.query.filter_by(
-            church_id=church.id, session_id=data["session_id"]).first()
+            session_id=data["session_id"]).first()
         db.session.delete(wconv)
-        for cal in ChurchCalendar.query.filter_by(church_id=church.id).all():
+        for cal in ChurchCalendar.query.filter_by().all():
             db.session.delete(cal)  # ORM delete so events cascade
         db.session.commit()
 
@@ -228,7 +227,7 @@ class TestWebcalNormalization:
                 "url": "webcal://calendar.planningcenteronline.com/icals/abc123.ics",
             })
         assert res.status_code == 201
-        cal = ChurchCalendar.query.filter_by(church_id=church.id).one()
+        cal = ChurchCalendar.query.filter_by().one()
         assert cal.url == "https://calendar.planningcenteronline.com/icals/abc123.ics"
 
         db.session.delete(cal)

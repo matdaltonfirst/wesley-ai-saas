@@ -29,9 +29,9 @@ TRANSCRIPT = (
 
 @pytest.fixture
 def sermon(app, church):
-    src = SermonSource(church_id=church.id, channel_url="https://y/@x", channel_id="UCx")
+    src = SermonSource(channel_url="https://y/@x", channel_id="UCx")
     db.session.add(src); db.session.flush()
-    s = Sermon(source_id=src.id, church_id=church.id, video_id="v1",
+    s = Sermon(source_id=src.id, video_id="v1",
                title="Staying Connected", series="The Vine", status="ingested",
                transcript=TRANSCRIPT,
                published_at=datetime.utcnow() - timedelta(days=1))

@@ -201,7 +201,7 @@ class TestListConversations:
         assert res.get_json()["conversations"] == []
 
     def test_list_shows_own_conversations(self, auth_client, church):
-        conv = Conversation(church_id=church.id, title="Sunday Service")
+        conv = Conversation(title="Sunday Service")
         db.session.add(conv)
         db.session.commit()
 
@@ -214,7 +214,7 @@ class TestListConversations:
         db.session.commit()
 
     def test_list_response_shape(self, auth_client, church):
-        conv = Conversation(church_id=church.id, title="Test Conv")
+        conv = Conversation(title="Test Conv")
         db.session.add(conv)
         db.session.commit()
 
@@ -232,7 +232,7 @@ class TestListConversations:
 
 class TestGetConversationMessages:
     def test_get_messages_requires_auth(self, client, church):
-        conv = Conversation(church_id=church.id, title="Temp")
+        conv = Conversation(title="Temp")
         db.session.add(conv)
         db.session.commit()
 
@@ -247,7 +247,7 @@ class TestGetConversationMessages:
         assert res.status_code == 404
 
     def test_get_messages_returns_correct_shape(self, auth_client, church):
-        conv = Conversation(church_id=church.id, title="Shape Test")
+        conv = Conversation(title="Shape Test")
         db.session.add(conv)
         db.session.flush()
         db.session.add(Message(conversation_id=conv.id, role="user", content="Hello"))

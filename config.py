@@ -49,7 +49,7 @@ def engine_options(url: str) -> dict:
 
 # ── Platform constants (override via environment variables) ───────────────────
 
-APP_URL       = os.getenv("APP_URL",       "https://app.wesleyai.co")
+APP_URL       = os.getenv("APP_URL",       "https://app.wesleyai.co")  # unchanged until a new domain is chosen
 FROM_EMAIL    = os.getenv("FROM_EMAIL",    "Wesley AI <noreply@wesleyai.co>")
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "info@wesleyai.co")
 GEMINI_MODEL  = os.getenv("GEMINI_MODEL",  "gemini-2.5-flash-lite")
@@ -62,11 +62,11 @@ PCO_CLIENT_SECRET = os.getenv("PCO_CLIENT_SECRET", "")
 PCO_TOKEN_ENCRYPTION_KEY = os.getenv("PCO_TOKEN_ENCRYPTION_KEY", "")
 PCO_API_BASE      = "https://api.planningcenteronline.com"
 
-# ── YouTube Data API (sermon ingestion; one key serves all churches) ──────────
+# ── YouTube Data API (sermon ingestion) ───────────────────────────────────────
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
-# ── Default timezone for church-facing dates (per-church override in DB) ──────
+# ── Default timezone for church-facing dates (Organization.timezone overrides) ─
 
 DEFAULT_TIMEZONE = os.getenv("DEFAULT_TIMEZONE", "America/New_York")
 
@@ -83,17 +83,20 @@ DEFAULT_STARTERS = [
     "Write a prayer for our newsletter",
 ]
 
-# ── Super admin ──────────────────────────────────────────────────────────────
+# ── The organization ─────────────────────────────────────────────────────────
+#
+# One church. These seed a brand-new database; after that the Organization row
+# is the source of truth (see organization.py).
 
-SUPER_ADMIN_EMAIL = os.getenv("SUPER_ADMIN_EMAIL", "info@wesleyai.co")
+ORG_NAME   = os.getenv("ORG_NAME",   "Dalton First United Methodist Church")
+ORG_CITY   = os.getenv("ORG_CITY",   "Dalton, GA")
+# Only accounts on this email domain may be staff. Enforced server-side.
+ORG_DOMAIN = os.getenv("ORG_DOMAIN", "daltonfumc.com")
 
 # ── Default system prompt ────────────────────────────────────────────────────
 #
-# The platform-wide, super-admin-editable prompt. It is shared by every tenant,
-# so it must stay denominationally neutral: each church's theology comes from its
-# selected profile in the `denominations` package. Text here that names another
-# denomination's terminology is withheld from churches of other denominations
-# (see helpers._platform_prompt_for).
+# The admin-editable instructions for the public website chatbot. Theology does
+# not belong here: it comes from the profile in the `denominations` package.
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful AI assistant for a local church. "
@@ -109,8 +112,3 @@ DEFAULT_SYSTEM_PROMPT = (
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 MAX_UPLOAD_MB = 32
-
-# ── Billing exempt domains ───────────────────────────────────────────────────
-
-_extra_exempt  = {d.strip() for d in os.getenv("BILLING_EXEMPT_DOMAINS", "daltonfumc.com").split(",") if d.strip()}
-EXEMPT_DOMAINS = {"wesleyai.co"} | _extra_exempt

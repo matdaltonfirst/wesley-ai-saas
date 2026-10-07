@@ -82,31 +82,31 @@ VALID_STATUSES = {"missing", "linked", "needs_review", "not_applicable"}
 SOURCE_MODELS = {"document": Document, "page": CrawledPage, "snippet": TextSnippet, "qna": QnAPair, "calendar": ChurchCalendar}
 
 
-def _source_options(church_id):
+def _source_options():
     options = []
-    for doc in Document.query.filter_by(church_id=church_id).order_by(Document.original_name).all():
+    for doc in Document.query.order_by(Document.original_name).all():
         options.append({"type": "document", "id": doc.id, "label": doc.original_name, "audience": "guest" if doc.visibility == "staff_and_chatbot" else "staff"})
-    for page in CrawledPage.query.filter_by(church_id=church_id).order_by(CrawledPage.title).all():
+    for page in CrawledPage.query.order_by(CrawledPage.title).all():
         options.append({"type": "page", "id": page.id, "label": page.title or page.url, "audience": "guest"})
-    for snippet in TextSnippet.query.filter_by(church_id=church_id, is_active=True).order_by(TextSnippet.title).all():
+    for snippet in TextSnippet.query.filter_by(is_active=True).order_by(TextSnippet.title).all():
         options.append({"type": "snippet", "id": snippet.id, "label": snippet.title, "audience": "guest"})
-    for pair in QnAPair.query.filter_by(church_id=church_id, is_active=True).order_by(QnAPair.question).all():
+    for pair in QnAPair.query.filter_by(is_active=True).order_by(QnAPair.question).all():
         options.append({"type": "qna", "id": pair.id, "label": pair.question, "audience": "guest"})
-    for cal in ChurchCalendar.query.filter_by(church_id=church_id).order_by(ChurchCalendar.label).all():
+    for cal in ChurchCalendar.query.order_by(ChurchCalendar.label).all():
         options.append({"type": "calendar", "id": cal.id, "label": cal.label, "audience": "guest"})
     return options
 
 
-def _state_map(church_id):
-    return {row.item_key: row for row in KnowledgeChecklistState.query.filter_by(church_id=church_id).all()}
+def _state_map():
+    return {row.item_key: row for row in KnowledgeChecklistState.query.all()}
 
 
 @knowledge_bp.route("/api/knowledge-packs")
 @login_required
 def list_knowledge_packs():
-    active = {row.pack_key for row in KnowledgePackState.query.filter_by(church_id=current_user.church_id, is_active=True).all()}
-    states = _state_map(current_user.church_id)
-    options = _source_options(current_user.church_id)
+    active = {row.pack_key for row in KnowledgePackState.query.filter_by(is_active=True).all()}
+    states = _state_map()
+    options = _source_options()
     option_map = {(o["type"], o["id"]): o for o in options}
     packs = []
     for definition in PACKS:
@@ -130,9 +130,9 @@ def activate_pack(pack_key):
         return jsonify({"error": "Only church admins can manage knowledge packs."}), 403
     if pack_key not in PACK_BY_KEY:
         return jsonify({"error": "Knowledge pack not found."}), 404
-    row = KnowledgePackState.query.filter_by(church_id=current_user.church_id, pack_key=pack_key).first()
+    row = KnowledgePackState.query.filter_by(pack_key=pack_key).first()
     if not row:
-        row = KnowledgePackState(church_id=current_user.church_id, pack_key=pack_key)
+        row = KnowledgePackState(pack_key=pack_key)
         db.session.add(row)
     row.is_active = bool((request.get_json(silent=True) or {}).get("active", True))
     db.session.commit()
@@ -154,7 +154,7 @@ def update_checklist_item(item_key):
     source_id = data.get("source_id")
     if status == "linked":
         model = SOURCE_MODELS.get(source_type)
-        source = model.query.filter_by(id=source_id, church_id=current_user.church_id).first() if model and source_id else None
+        source = model.query.filter_by(id=source_id).first() if model and source_id else None
         if not source:
             return jsonify({"error": "Select a valid knowledge source."}), 400
         pack, _ = ITEMS[item_key]
@@ -162,9 +162,9 @@ def update_checklist_item(item_key):
             return jsonify({"error": "Guest knowledge must use a document shared with the chatbot."}), 400
     else:
         source_type, source_id = None, None
-    row = KnowledgeChecklistState.query.filter_by(church_id=current_user.church_id, item_key=item_key).first()
+    row = KnowledgeChecklistState.query.filter_by(item_key=item_key).first()
     if not row:
-        row = KnowledgeChecklistState(church_id=current_user.church_id, item_key=item_key)
+        row = KnowledgeChecklistState(item_key=item_key)
         db.session.add(row)
     row.status, row.source_type, row.source_id = status, source_type, source_id
     db.session.commit()

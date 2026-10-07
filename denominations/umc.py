@@ -1,4 +1,4 @@
-"""United Methodist Church denominational profile.
+"""United Methodist (Wesleyan) profile: the theology of this church.
 
 The knowledge sections below were previously in ``umc_facts.py`` and are carried
 over unchanged: this is the platform's first complete, reviewed profile, and
@@ -268,18 +268,6 @@ PROFILE = DenominationProfile(
     sections=SECTIONS,
     source_urls=(_UMC_URL,),
     source_label="United Methodist beliefs",
-    exclusive_terms=(
-        "united methodist",
-        "methodism",
-        "wesleyan",
-        "wesley's",
-        "book of discipline",
-        "general conference",
-        "annual conference",
-        "social principles",
-        "the umc",
-        "u.m.c.",
-    ),
     evaluation_questions=(
         "Do you baptize infants?",
         "Who may receive Communion?",

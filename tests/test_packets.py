@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 
 import packets
-from models import db, Church, Sermon, SermonPacket, SermonSource, User
+from models import db, Sermon, SermonPacket, SermonSource, User
 
 
 TRANSCRIPT = (
@@ -25,7 +25,7 @@ TRANSCRIPT = (
 
 @pytest.fixture
 def source(app, church):
-    s = SermonSource(church_id=church.id, channel_url="https://youtube.com/@x",
+    s = SermonSource(channel_url="https://youtube.com/@x",
                      channel_id="UCtest")
     db.session.add(s)
     db.session.commit()
@@ -34,7 +34,7 @@ def source(app, church):
 
 def _sermon(church, source, video_id="v1", days_ago=1, transcript=TRANSCRIPT,
             status="ingested"):
-    s = Sermon(source_id=source.id, church_id=church.id, video_id=video_id,
+    s = Sermon(source_id=source.id, video_id=video_id,
                title=f"Message {video_id}", status=status, transcript=transcript,
                published_at=datetime.utcnow() - timedelta(days=days_ago))
     db.session.add(s)
@@ -58,35 +58,35 @@ def _content(quotes=1, social=1):
 class TestSelection:
     def test_a_recent_transcribed_sermon_is_picked_up(self, church, source):
         s = _sermon(church, source)
-        assert [x.id for x in packets.sermons_needing_packets(church.id)] == [s.id]
+        assert [x.id for x in packets.sermons_needing_packets()] == [s.id]
 
     def test_a_sermon_without_a_transcript_is_skipped(self, church, source):
         _sermon(church, source, transcript=None)
-        assert packets.sermons_needing_packets(church.id) == []
+        assert packets.sermons_needing_packets() == []
 
     def test_an_old_sermon_is_not_picked_up(self, church, source):
         """Connecting a channel should not email a church about March."""
         _sermon(church, source, days_ago=packets.LOOKBACK_DAYS + 5)
-        assert packets.sermons_needing_packets(church.id) == []
+        assert packets.sermons_needing_packets() == []
 
     def test_an_excluded_sermon_is_skipped(self, church, source):
         _sermon(church, source, status="excluded")
-        assert packets.sermons_needing_packets(church.id) == []
+        assert packets.sermons_needing_packets() == []
 
     def test_a_sermon_that_already_has_a_packet_is_not_repeated(self, church, source):
         s = _sermon(church, source)
-        db.session.add(SermonPacket(church_id=church.id, sermon_id=s.id, status="ready"))
+        db.session.add(SermonPacket(sermon_id=s.id, status="ready"))
         db.session.commit()
-        assert packets.sermons_needing_packets(church.id) == []
+        assert packets.sermons_needing_packets() == []
 
     def test_a_failed_packet_is_not_retried_forever(self, church, source):
         """Whatever the outcome, one attempt per sermon — otherwise a sermon
         that always fails is retried every night for ever."""
         s = _sermon(church, source)
-        db.session.add(SermonPacket(church_id=church.id, sermon_id=s.id,
+        db.session.add(SermonPacket(sermon_id=s.id,
                                     status="failed", error="boom"))
         db.session.commit()
-        assert packets.sermons_needing_packets(church.id) == []
+        assert packets.sermons_needing_packets() == []
 
 
 # ── Generation ───────────────────────────────────────────────────────────────
@@ -108,47 +108,17 @@ class TestGeneration:
         assert packet.status == "failed"
         assert "model down" in packet.error
 
-    def test_one_church_failing_does_not_stop_the_next(self, church, source):
-        from models import Church as C
-        other = C(name="Second Church", billing_exempt=True)
-        db.session.add(other); db.session.flush()
-        other_source = SermonSource(church_id=other.id, channel_url="https://y/@z",
-                                    channel_id="UCother")
-        db.session.add(other_source); db.session.flush()
-        bad = _sermon(church, source, video_id="bad")
-        good = _sermon(other, other_source, video_id="good")
-
-        def build(sermon, ch):
-            if sermon.id == bad.id:
-                raise RuntimeError("boom")
-            return _content()
-
-        try:
-            with patch("sermon_packet.build_packet", side_effect=build), \
-                 patch("packets.send_packet_email", return_value=1):
-                result = packets.run_monday_packets()
-            assert result["generated"] == 1
-            assert result["failed"] == 1
-        finally:
-            SermonPacket.query.filter_by(church_id=other.id).delete()
-            Sermon.query.filter_by(church_id=other.id).delete()
-            SermonSource.query.filter_by(church_id=other.id).delete()
-            C.query.filter_by(id=other.id).delete()
-            db.session.commit()
-
 
 # ── Delivery ─────────────────────────────────────────────────────────────────
 
 class TestDelivery:
     def test_every_admin_is_emailed(self, church, source):
         for n in range(3):
-            db.session.add(User(email=f"admin{n}@x.org", password_hash="x",
-                                church_id=church.id, role="admin"))
-        db.session.add(User(email="staff@x.org", password_hash="x",
-                            church_id=church.id, role="staff"))
+            db.session.add(User(email=f"admin{n}@x.org", password_hash="x", role="admin"))
+        db.session.add(User(email="staff@x.org", password_hash="x", role="staff"))
         db.session.commit()
         s = _sermon(church, source)
-        packet = SermonPacket(church_id=church.id, sermon_id=s.id, status="ready",
+        packet = SermonPacket(sermon_id=s.id, status="ready",
                               content=json.dumps(_content()))
         db.session.add(packet); db.session.commit()
 
@@ -161,8 +131,7 @@ class TestDelivery:
 
     def test_an_empty_packet_is_not_emailed(self, church, source):
         """An empty Monday email teaches staff it is not worth opening."""
-        db.session.add(User(email="a@x.org", password_hash="x",
-                            church_id=church.id, role="admin"))
+        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet",
@@ -174,8 +143,7 @@ class TestDelivery:
         send.assert_not_called()
 
     def test_a_failed_packet_is_never_emailed(self, church, source):
-        db.session.add(User(email="a@x.org", password_hash="x",
-                            church_id=church.id, role="admin"))
+        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet", side_effect=RuntimeError("boom")), \
@@ -185,7 +153,7 @@ class TestDelivery:
 
     def test_a_church_with_no_admins_is_skipped_quietly(self, church, source):
         s = _sermon(church, source)
-        packet = SermonPacket(church_id=church.id, sermon_id=s.id, status="ready",
+        packet = SermonPacket(sermon_id=s.id, status="ready",
                               content=json.dumps(_content()))
         db.session.add(packet); db.session.commit()
         assert packets.send_packet_email(packet) == 0
@@ -195,8 +163,7 @@ class TestIdempotence:
     def test_running_twice_sends_one_email(self, church, source):
         """The job may run again after a restart; a church must not receive
         Sunday's packet twice."""
-        db.session.add(User(email="a@x.org", password_hash="x",
-                            church_id=church.id, role="admin"))
+        db.session.add(User(email="a@x.org", password_hash="x", role="admin"))
         db.session.commit()
         _sermon(church, source)
         with patch("sermon_packet.build_packet", return_value=_content()), \
@@ -220,10 +187,10 @@ class TestLongformIsolation:
         from models import db, Sermon, SermonSource
         from packets import generate_packet
 
-        src = SermonSource(church_id=church.id, channel_url="https://y/@x",
+        src = SermonSource(channel_url="https://y/@x",
                            channel_id="UClf")
         db.session.add(src); db.session.flush()
-        sermon = Sermon(source_id=src.id, church_id=church.id, video_id="lf1",
+        sermon = Sermon(source_id=src.id, video_id="lf1",
                         title="A Message", status="ingested",
                         transcript="Something worth quoting was said here.",
                         published_at=datetime.utcnow() - timedelta(days=1))

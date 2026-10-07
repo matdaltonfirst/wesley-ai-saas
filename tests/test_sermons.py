@@ -16,7 +16,7 @@ from sermons import (
 
 def _source(church, **overrides):
     src = SermonSource(
-        church_id=church.id, channel_url="https://youtube.com/@testchurch",
+        channel_url="https://youtube.com/@testchurch",
         channel_id="UCabc123", channel_title="Test Church", **overrides,
     )
     db.session.add(src)
@@ -26,7 +26,7 @@ def _source(church, **overrides):
 
 def _sermon(church, src, video_id="vid1", status="ingested", days_ago=3, **overrides):
     fields = dict(
-        source_id=src.id, church_id=church.id, video_id=video_id,
+        source_id=src.id, video_id=video_id,
         title="Grace Like Rain", published_at=datetime.utcnow() - timedelta(days=days_ago),
         status=status, summary="A sermon about prevenient grace and God's pursuit of us.",
         main_points="Grace goes before us\nGrace meets us in failure",
@@ -40,7 +40,7 @@ def _sermon(church, src, video_id="vid1", status="ingested", days_ago=3, **overr
 
 
 def _cleanup(church):
-    for src in SermonSource.query.filter_by(church_id=church.id).all():
+    for src in SermonSource.query.filter_by().all():
         db.session.delete(src)  # cascades to sermons
     db.session.commit()
 
@@ -139,7 +139,7 @@ class TestCheckSource:
              patch("sermons.distill_sermon", return_value=_DISTILLED):
             count = check_source(src)
         assert count == 1
-        assert Sermon.query.filter_by(church_id=church.id).count() == 2
+        assert Sermon.query.filter_by().count() == 2
         _cleanup(church)
 
 
@@ -148,7 +148,7 @@ class TestSermonChunks:
         src = _source(church)
         _sermon(church, src, video_id="a", days_ago=10, title="Older Message")
         _sermon(church, src, video_id="b", days_ago=2, title="Newest Message")
-        chunks = load_sermon_chunks(church.id)
+        chunks = load_sermon_chunks()
         scored = score_sermon_chunks("What was Sunday's sermon about?", chunks)
         assert len(scored) == 2
         assert "Newest Message" in scored[0][1]["content"]
@@ -158,7 +158,7 @@ class TestSermonChunks:
     def test_failed_sermons_excluded(self, app, church):
         src = _source(church)
         _sermon(church, src, video_id="bad", status="failed")
-        assert load_sermon_chunks(church.id) == []
+        assert load_sermon_chunks() == []
         _cleanup(church)
 
     def test_widget_chat_cites_sermon(self, client, church):
@@ -182,7 +182,7 @@ class TestSermonChunks:
         assert "youtube.com" in data["sources"][0]["url"]
 
         wconv = WidgetConversation.query.filter_by(
-            church_id=church.id, session_id=data["session_id"]).first()
+            session_id=data["session_id"]).first()
         db.session.delete(wconv)
         _cleanup(church)
 
@@ -233,7 +233,7 @@ class TestSermonRoutes:
         src = _source(church)
         _sermon(church, src)
         assert auth_client.delete("/api/sermons/source").status_code == 200
-        assert Sermon.query.filter_by(church_id=church.id).count() == 0
+        assert Sermon.query.filter_by().count() == 0
 
     def test_reingest_all_rebuilds_summaries(self, auth_client, church):
         src = _source(church)
@@ -244,7 +244,7 @@ class TestSermonRoutes:
         assert res.status_code == 200
         assert res.get_json()["count"] == 2
         assert mock_bg.called
-        statuses = {s.status for s in Sermon.query.filter_by(church_id=church.id)}
+        statuses = {s.status for s in Sermon.query.filter_by()}
         assert statuses == {"pending"}
         _cleanup(church)
 
@@ -262,14 +262,14 @@ class TestSermonRoutes:
         assert all(s["title"] != "Worship Night" for s in data["sermons"])
 
         # Invisible to the bot
-        assert load_sermon_chunks(church.id) == []
+        assert load_sermon_chunks() == []
 
         # Not re-created by the daily check (video_id still known)
         videos = [{"video_id": "unwanted", "title": "Worship Night",
                    "published_at": datetime.utcnow()}]
         with patch("sermons.list_recent_videos", return_value=videos):
             assert check_source(src) == 0
-        assert Sermon.query.filter_by(church_id=church.id).count() == 1
+        assert Sermon.query.filter_by().count() == 1
 
         # Skipped by rebuild-all
         res = auth_client.post("/api/sermons/reingest-all")
@@ -289,7 +289,7 @@ class TestSermonRoutes:
 
     def test_widget_prompt_directs_sermon_answers(self, app, church):
         from helpers import build_system_prompt
-        prompt = build_system_prompt(church, widget=True)
+        prompt = build_system_prompt(widget=True)
         assert "sources labeled 'Sermon:'" in prompt
         assert "Blog posts and web pages are not sermons" in prompt
 
@@ -313,7 +313,7 @@ class TestChurchLocalDates:
         from datetime import datetime as dt
         from helpers import build_system_prompt
         expected = dt.now(ZoneInfo("America/New_York")).strftime("%A, %B %-d, %Y")
-        prompt = build_system_prompt(church, widget=True)
+        prompt = build_system_prompt(widget=True)
         assert f"Today's date is {expected}" in prompt
 
     def test_sermon_chunk_date_is_church_local(self, app, church):
@@ -321,7 +321,7 @@ class TestChurchLocalDates:
         # 01:00 UTC on July 6 is the evening of July 5 in Georgia
         _sermon(church, src, video_id="tz",
                 published_at=datetime(2026, 7, 6, 1, 0, 0))
-        chunks = load_sermon_chunks(church.id)
+        chunks = load_sermon_chunks()
         assert "July 5, 2026" in chunks[0]["content"]
         _cleanup(church)
 
@@ -333,7 +333,7 @@ class TestTranscriptBackfill:
 
     def _sermon(self, church, src, video_id, days_ago, transcript=None):
         from datetime import datetime, timedelta
-        s = Sermon(source_id=src.id, church_id=church.id, video_id=video_id,
+        s = Sermon(source_id=src.id, video_id=video_id,
                    title=f"Message {video_id}", status="ingested",
                    transcript=transcript,
                    published_at=datetime.utcnow() - timedelta(days=days_ago))

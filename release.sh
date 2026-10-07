@@ -8,7 +8,7 @@ WORKERS="${WEB_CONCURRENCY:-1}"
 
 if [ -n "${DATABASE_URL:-}" ]; then
   echo "release: Postgres detected — applying migrations"
-  flask db upgrade
+  WESLEY_DISABLE_SCHEDULER=1 flask db upgrade
 else
   echo "release: no DATABASE_URL — SQLite, schema handled by create_all"
   # The scheduler's cross-process lock is a Postgres advisory lock; on SQLite it

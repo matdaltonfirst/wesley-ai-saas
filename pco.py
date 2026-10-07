@@ -1,6 +1,6 @@
 """Planning Center integration — OAuth, API client, and guest-connection sync.
 
-Each church connects its own Planning Center account via OAuth ("Connect
+The church connects its Planning Center account via OAuth ("Connect
 Planning Center" in Settings → Integrations). Wesley then pushes widget
 Guest Connections into PCO People: find-or-create the person, attach a
 context note, and optionally add them to a follow-up workflow.
@@ -131,8 +131,8 @@ def _refresh_tokens(
             "client_secret": PCO_CLIENT_SECRET,
         }, timeout=TIMEOUT_S)
         if resp.status_code != 200:
-            log.error("PCO token refresh failed for church_id=%d (%d): %s",
-                      conn.church_id, resp.status_code, resp.text[:300])
+            log.error("PCO token refresh failed (%d): %s",
+                      resp.status_code, resp.text[:300])
             raise PcoError(
                 "The Planning Center connection has expired. Please reconnect it "
                 "in Settings → Integrations."
@@ -310,7 +310,7 @@ def _record_sync_failure(guest_id: int, exc: Exception) -> None:
 
 def sync_guest_connection(gc, force: bool = False) -> bool:
     """Resume a guest sync from its first unfinished durable step."""
-    conn = PcoConnection.query.filter_by(church_id=gc.church_id).first()
+    conn = PcoConnection.query.first()
     if not conn:
         return False
     if gc.pco_sync_status == "syncing" and not force:
@@ -360,8 +360,7 @@ def sync_guest_connection(gc, force: bool = False) -> bool:
             pco_next_retry_at=None,
             pco_sync_started_at=None,
         )
-        log.info("PCO sync: guest %d -> person %s (church_id=%d)",
-                 gc.id, person_id, gc.church_id)
+        log.info("PCO sync: guest %d -> person %s", gc.id, person_id)
         return True
     except Exception as exc:
         _record_sync_failure(guest_id, exc)
@@ -375,9 +374,8 @@ def reconcile_pending_syncs(limit: int = 50) -> int:
     stuck_before = now - timedelta(minutes=STUCK_SYNC_MINUTES)
     guests = (
         GuestConnection.query
-        .join(PcoConnection, PcoConnection.church_id == GuestConnection.church_id)
+        .join(PcoConnection, PcoConnection.auto_sync.is_(True))
         .filter(
-            PcoConnection.auto_sync.is_(True),
             or_(
                 GuestConnection.pco_sync_status.in_(("pending", "partial")),
                 and_(

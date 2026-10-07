@@ -12,7 +12,7 @@ from digest import build_weekly_digest, send_weekly_digests
 def _seed_conversation(church, question, answer="Here you go!", days_ago=1):
     created = datetime.utcnow() - timedelta(days=days_ago)
     wconv = WidgetConversation(
-        church_id=church.id, session_id=f"digest-{question[:20]}-{days_ago}",
+        session_id=f"digest-{question[:20]}-{days_ago}",
         created_at=created,
     )
     db.session.add(wconv)
@@ -30,16 +30,16 @@ def _seed_conversation(church, question, answer="Here you go!", days_ago=1):
 
 
 def _cleanup_widget_data(church):
-    for wconv in WidgetConversation.query.filter_by(church_id=church.id).all():
+    for wconv in WidgetConversation.query.filter_by().all():
         db.session.delete(wconv)
-    GuestConnection.query.filter_by(church_id=church.id).delete()
+    GuestConnection.query.filter_by().delete()
     db.session.commit()
 
 
 class TestBuildWeeklyDigest:
     def test_quiet_church_returns_none(self, app, church):
         since = datetime.utcnow() - timedelta(days=7)
-        assert build_weekly_digest(church, since) is None
+        assert build_weekly_digest(since) is None
 
     def test_counts_conversations_questions_and_topics(self, app, church):
         _seed_conversation(church, "What time is Sunday worship service?")
@@ -47,7 +47,7 @@ class TestBuildWeeklyDigest:
         old = _seed_conversation(church, "Old question", days_ago=30)
 
         since = datetime.utcnow() - timedelta(days=7)
-        stats = build_weekly_digest(church, since)
+        stats = build_weekly_digest(since)
 
         assert stats["conversations"] == 2
         assert stats["questions"] == 2
@@ -60,15 +60,15 @@ class TestBuildWeeklyDigest:
         _seed_conversation(church, "Hi there")
         wmsg = WidgetMessage.query.filter_by(role="assistant").first()
         db.session.add(GuestConnection(
-            church_id=church.id, name="Pat Visitor", email="pat@example.org",
+            name="Pat Visitor", email="pat@example.org",
         ))
         db.session.add(AnswerFeedback(
-            church_id=church.id, widget_message_id=wmsg.id,
+            widget_message_id=wmsg.id,
             rating="auto_flagged", status="open",
         ))
         db.session.commit()
 
-        stats = build_weekly_digest(church, datetime.utcnow() - timedelta(days=7))
+        stats = build_weekly_digest(datetime.utcnow() - timedelta(days=7))
         assert stats["new_guests"] == 1
         assert stats["pending_guests"] == 1
         assert stats["open_feedback"] == 1

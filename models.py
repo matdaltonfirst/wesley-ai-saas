@@ -9,7 +9,6 @@ db = SQLAlchemy()
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     title = db.Column(db.String(100), nullable=False, default="New Conversation")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -39,15 +38,22 @@ class SystemPrompt(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class Church(db.Model):
-    __tablename__ = "churches"
+class Organization(db.Model):
+    """The one organization this app serves: Dalton First United Methodist Church.
+
+    A single row (id=1) holding everything that used to be per-tenant: name,
+    branding, timezone, local practice, feature flags and integration settings.
+    Its theology is fixed (Wesleyan United Methodist, see ``denominations``), so
+    there is deliberately no denomination column.
+    """
+    __tablename__ = "organization"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     website_url = db.Column(db.String(500), nullable=True)
     last_crawled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Branding / customisation
+    # Branding of the public website chatbot
     bot_name = db.Column(db.String(100), nullable=False, default="Wesley")
     welcome_message = db.Column(db.String(500), nullable=False, default="How can I help you today?")
     primary_color = db.Column(db.String(7), nullable=False, default="#0a3d3d")
@@ -55,90 +61,23 @@ class Church(db.Model):
     starter_questions = db.Column(db.Text, nullable=True)  # JSON-encoded list of strings
     bot_subtitle = db.Column(db.String(200), nullable=True)
 
-    # Onboarding
-    onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)
-
-    # Theology & affiliation — stable internal profile key from the
-    # `denominations` registry. Existing churches predate this field and are all
-    # United Methodist, so the default must stay "umc".
-    denomination = db.Column(db.String(40), nullable=False, default="umc")
-    # Version of the profile in force when the church last selected it, so a
-    # later profile revision is traceable rather than silently applied.
-    denomination_profile_version = db.Column(db.String(40), nullable=True)
-    denomination_updated_at = db.Column(db.DateTime, nullable=True)
     # Validated JSON object of structured local-practice settings; schema and
     # server-side validation live in denominations/local_practice.py.
     local_practices = db.Column(db.Text, nullable=True)
-    # A church's own approved statement of faith (local content, never a
-    # denominational claim).
+    # The church's own approved statement of faith (local content).
     statement_of_faith = db.Column(db.Text, nullable=True)
 
-    # Features
-    comms_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    # JSON object of feature flags, e.g. {"comms": true}. See organization.feature_enabled.
+    features = db.Column(db.Text, nullable=True)
 
-    # Weekly activity digest email
     digest_last_sent_at = db.Column(db.DateTime, nullable=True)
 
-    # IANA timezone for visitor-facing dates (defaults to US Eastern)
+    # IANA timezone for church-local dates (falls back to DEFAULT_TIMEZONE)
     timezone = db.Column(db.String(50), nullable=True)
 
-    # Billing — Stripe
-    trial_ends_at          = db.Column(db.DateTime, nullable=True)
-    stripe_subscription_id = db.Column(db.String(200), nullable=True)
-    stripe_customer_id     = db.Column(db.String(200), nullable=True)
-    billing_exempt         = db.Column(db.Boolean, nullable=False, default=False)
-    plan                   = db.Column(db.String(20), nullable=False, default="founders")
-    trial_reminder_sent    = db.Column(db.Boolean, nullable=False, default=False)
-
-    # Billing — Manual (check / bank transfer / external invoice)
-    manual_payment_active   = db.Column(db.Boolean, nullable=False, default=False)
-    manual_payment_note     = db.Column(db.String(500), nullable=True)
-    manual_payment_start    = db.Column(db.Date, nullable=True)
-    manual_payment_expires  = db.Column(db.Date, nullable=True)
-    manual_payment_amount   = db.Column(db.Numeric(10, 2), nullable=True)
-    manual_payment_plan     = db.Column(db.String(20), nullable=True)   # "monthly" | "annual"
-    manual_payment_set_by   = db.Column(db.String(200), nullable=True)
-    stripe_invite_sent_at   = db.Column(db.DateTime, nullable=True)
-    stripe_invite_resent_at = db.Column(db.DateTime, nullable=True)
-    # Expiration warning tracking — reset to False each time a new manual payment is recorded
-    warning_30_sent = db.Column(db.Boolean, nullable=False, default=False)
-    warning_7_sent  = db.Column(db.Boolean, nullable=False, default=False)
-    expired_sent    = db.Column(db.Boolean, nullable=False, default=False)
-
-    @property
-    def is_active(self) -> bool:
-        """True when the church has any active paid access.
-
-        Priority order:
-          1. Active manual payment (manual_payment_active + not expired)
-          2. Active Stripe subscription
-          3. Trial period still running (trial_ends_at in the future or null)
-        """
-        from datetime import date as _date
-        # 1. Manual billing
-        if self.manual_payment_active and self.manual_payment_expires:
-            if self.manual_payment_expires >= _date.today():
-                return True
-        # 2. Stripe subscription
-        if self.stripe_subscription_id:
-            return True
-        # 3. Trial (None = safety net against accidental lockout)
-        if self.trial_ends_at is None:
-            return True
-        if self.trial_ends_at > datetime.utcnow():
-            return True
-        return False
-
-    users = db.relationship("User", backref="church", lazy=True)
-    documents = db.relationship("Document", backref="church", lazy=True)
-    crawled_pages = db.relationship("CrawledPage", backref="church", lazy=True,
-                                    cascade="all, delete-orphan")
-    conversations = db.relationship("Conversation", backref="church", lazy=True,
-                                    cascade="all, delete-orphan")
-    widget_conversations = db.relationship("WidgetConversation", backref="church", lazy=True,
-                                           cascade="all, delete-orphan")
-    comms_requests = db.relationship("CommsRequest", backref="church", lazy=True,
-                                     cascade="all, delete-orphan")
+    # The id the live website embed passes as data-church-id. The public
+    # endpoints still accept it so the embed code does not have to change.
+    legacy_widget_id = db.Column(db.Integer, nullable=True)
 
 
 class User(UserMixin, db.Model):
@@ -146,7 +85,6 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
     password_hash = db.Column(db.String(300), nullable=False)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Role: "admin" (church owner) or "staff" (invited member)
@@ -160,7 +98,6 @@ class User(UserMixin, db.Model):
 class Document(db.Model):
     __tablename__ = "documents"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     filename = db.Column(db.String(300), nullable=False)       # UUID-based stored name
     original_name = db.Column(db.String(300), nullable=False)  # user-visible display name
     size_bytes = db.Column(db.Integer, nullable=False)
@@ -173,14 +110,13 @@ class CrawledPage(db.Model):
     """Stores scraped content from a church's public website."""
     __tablename__ = "crawled_pages"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     url = db.Column(db.String(1000), nullable=False)
     title = db.Column(db.String(500), nullable=True)
     content = db.Column(db.Text, nullable=True)
     crawled_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint("church_id", "url", name="uq_church_url"),
+        db.UniqueConstraint("url", name="uq_crawled_page_url"),
     )
 
 
@@ -188,7 +124,6 @@ class WidgetConversation(db.Model):
     """A visitor conversation started from the embeddable website widget."""
     __tablename__ = "widget_conversations"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     # Random UUID generated on the visitor's first message; groups messages
     # belonging to one browser session together.
     session_id = db.Column(db.String(64), nullable=False, index=True)
@@ -224,7 +159,6 @@ class AnswerFeedback(db.Model):
     """Visitor rating and staff correction state for a widget answer."""
     __tablename__ = "answer_feedback"
     id = db.Column(db.Integer, primary_key=True)
-    church_id = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     widget_message_id = db.Column(
         db.Integer, db.ForeignKey("widget_messages.id"), nullable=False, unique=True, index=True
     )
@@ -242,7 +176,6 @@ class AnswerFeedback(db.Model):
 class CommsRequest(db.Model):
     __tablename__ = "comms_requests"
     id                   = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    church_id            = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     submitter_id         = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     submitter_name       = db.Column(db.String(200), nullable=False)
     ministry_department  = db.Column(db.String(100))
@@ -266,7 +199,6 @@ class CommsRequest(db.Model):
 class GuestConnection(db.Model):
     __tablename__ = "guest_connections"
     id              = db.Column(db.Integer, primary_key=True)
-    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     name            = db.Column(db.String(200), nullable=False)
     email           = db.Column(db.String(200), nullable=False)
     phone           = db.Column(db.String(50))
@@ -294,7 +226,6 @@ class TextSnippet(db.Model):
     """Short text blurbs that supplement uploaded docs in the bot's context."""
     __tablename__ = "text_snippets"
     id         = db.Column(db.Integer, primary_key=True)
-    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     title      = db.Column(db.String(200), nullable=False)
     content    = db.Column(db.Text, nullable=False)
     category   = db.Column(db.String(100), nullable=True)
@@ -307,7 +238,6 @@ class QnAPair(db.Model):
     """Staff-written Q&A pairs injected verbatim into the bot's context."""
     __tablename__ = "qna_pairs"
     id         = db.Column(db.Integer, primary_key=True)
-    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     question   = db.Column(db.String(500), nullable=False)
     answer     = db.Column(db.Text, nullable=False)
     is_active  = db.Column(db.Boolean, nullable=False, default=True)
@@ -319,13 +249,12 @@ class KnowledgePackState(db.Model):
     """A church's activation state for one built-in knowledge pack."""
     __tablename__ = "knowledge_pack_states"
     id         = db.Column(db.Integer, primary_key=True)
-    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     pack_key   = db.Column(db.String(80), nullable=False)
     is_active  = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint("church_id", "pack_key", name="uq_church_knowledge_pack"),
+        db.UniqueConstraint("pack_key", name="uq_knowledge_pack"),
     )
 
 
@@ -333,7 +262,6 @@ class KnowledgeChecklistState(db.Model):
     """Church-specific progress and source link for a built-in checklist item."""
     __tablename__ = "knowledge_checklist_states"
     id          = db.Column(db.Integer, primary_key=True)
-    church_id   = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     item_key    = db.Column(db.String(100), nullable=False)
     status      = db.Column(db.String(20), nullable=False, default="missing")
     source_type = db.Column(db.String(30), nullable=True)
@@ -341,7 +269,7 @@ class KnowledgeChecklistState(db.Model):
     updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint("church_id", "item_key", name="uq_church_knowledge_item"),
+        db.UniqueConstraint("item_key", name="uq_knowledge_item"),
     )
 
 
@@ -359,9 +287,6 @@ class ContentProfile(db.Model):
     """
     __tablename__ = "content_profiles"
     id             = db.Column(db.Integer, primary_key=True)
-    church_id      = db.Column(
-        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
-    )
     # Free text in the church's own words — seeded from their website copy at
     # onboarding, refined by staff.
     voice_notes    = db.Column(db.Text, nullable=True)
@@ -381,7 +306,6 @@ class SermonPacket(db.Model):
     """
     __tablename__ = "sermon_packets"
     id           = db.Column(db.Integer, primary_key=True)
-    church_id    = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     sermon_id    = db.Column(
         db.Integer, db.ForeignKey("sermons.id"), nullable=False, unique=True, index=True,
     )
@@ -421,7 +345,7 @@ class EmbeddingCache(db.Model):
 
 
 class UsageDaily(db.Model):
-    """One church's AI consumption for a single day, surface, and model.
+    """AI consumption for a single day, surface, and model.
 
     Aggregated at write time rather than stored per call: a busy church
     produces a handful of rows a day instead of thousands, which keeps the
@@ -429,7 +353,6 @@ class UsageDaily(db.Model):
     """
     __tablename__ = "usage_daily"
     id              = db.Column(db.Integer, primary_key=True)
-    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     day             = db.Column(db.Date, nullable=False, index=True)
     surface         = db.Column(db.String(20), nullable=False)   # staff | widget
     model           = db.Column(db.String(60), nullable=False)
@@ -440,8 +363,7 @@ class UsageDaily(db.Model):
     updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint("church_id", "day", "surface", "model",
-                            name="uq_usage_daily_bucket"),
+        db.UniqueConstraint("day", "surface", "model", name="uq_usage_daily_bucket"),
     )
 
 
@@ -449,7 +371,6 @@ class Invite(db.Model):
     """A pending invitation for a staff member to join a church account."""
     __tablename__ = "invites"
     id         = db.Column(db.Integer, primary_key=True)
-    church_id  = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     email      = db.Column(db.String(200), nullable=False)
     token      = db.Column(db.String(100), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -460,7 +381,6 @@ class ChurchCalendar(db.Model):
     """A public ICS calendar feed (Google Calendar, Planning Center, etc.)."""
     __tablename__ = "church_calendars"
     id              = db.Column(db.Integer, primary_key=True)
-    church_id       = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     url             = db.Column(db.String(1000), nullable=False)
     label           = db.Column(db.String(200), nullable=False, default="Church calendar")
     last_fetched_at = db.Column(db.DateTime, nullable=True)
@@ -484,7 +404,6 @@ class CalendarEvent(db.Model):
     calendar_id = db.Column(
         db.Integer, db.ForeignKey("church_calendars.id"), nullable=False, index=True,
     )
-    church_id   = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     title       = db.Column(db.String(500), nullable=False)
     location    = db.Column(db.String(500), nullable=True)
     description = db.Column(db.Text, nullable=True)
@@ -497,9 +416,6 @@ class PcoConnection(db.Model):
     """A church's Planning Center OAuth connection (one per church)."""
     __tablename__ = "pco_connections"
     id                = db.Column(db.Integer, primary_key=True)
-    church_id         = db.Column(
-        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
-    )
     access_token      = db.Column(db.String(1000), nullable=False)
     refresh_token     = db.Column(db.String(1000), nullable=False)
     token_expires_at  = db.Column(db.DateTime, nullable=False)
@@ -515,9 +431,6 @@ class SermonSource(db.Model):
     """A church's YouTube channel used for sermon ingestion (one per church)."""
     __tablename__ = "sermon_sources"
     id              = db.Column(db.Integer, primary_key=True)
-    church_id       = db.Column(
-        db.Integer, db.ForeignKey("churches.id"), nullable=False, unique=True, index=True,
-    )
     channel_url     = db.Column(db.String(500), nullable=False)
     channel_id      = db.Column(db.String(100), nullable=False)
     channel_title   = db.Column(db.String(200), nullable=True)
@@ -537,7 +450,6 @@ class Sermon(db.Model):
     source_id    = db.Column(
         db.Integer, db.ForeignKey("sermon_sources.id"), nullable=False, index=True,
     )
-    church_id    = db.Column(db.Integer, db.ForeignKey("churches.id"), nullable=False, index=True)
     video_id     = db.Column(db.String(20), nullable=False, index=True)
     title        = db.Column(db.String(500), nullable=False)
     published_at = db.Column(db.DateTime, nullable=False)

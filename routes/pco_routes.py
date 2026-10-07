@@ -24,7 +24,7 @@ def pco_status():
             "configured": False, "connected": False,
             "can_manage": current_user.role == "admin",
         })
-    conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
+    conn = PcoConnection.query.first()
     if not conn:
         return jsonify({
             "configured": True, "connected": False,
@@ -47,7 +47,7 @@ def pco_connect():
     if not pco.is_configured():
         return "Planning Center integration is not enabled on this server.", 400
     if current_user.role != "admin":
-        return "Only church admins can connect Planning Center.", 403
+        return "Only admins can connect Planning Center.", 403
     state = secrets.token_urlsafe(24)
     session["pco_oauth_state"] = state
     # Remember where to land after the OAuth round-trip (dashboard or wizard)
@@ -81,9 +81,9 @@ def pco_callback():
     except PcoError as exc:
         return str(exc), 502
 
-    conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
+    conn = PcoConnection.query.first()
     if not conn:
-        conn = PcoConnection(church_id=current_user.church_id)
+        conn = PcoConnection()
         db.session.add(conn)
     conn.access_token = pco.encrypt_token(tokens["access_token"])
     conn.refresh_token = pco.encrypt_token(tokens["refresh_token"])
@@ -97,8 +97,7 @@ def pco_callback():
     except PcoError:
         pass  # connection still works; name is cosmetic
 
-    log.info("PCO connected: church_id=%d org=%r",
-             conn.church_id, conn.organization_name)
+    log.info("PCO connected: org=%r", conn.organization_name)
     return redirect(_destination("connected"))
 
 
@@ -106,8 +105,8 @@ def pco_callback():
 @login_required
 def pco_disconnect():
     if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can disconnect."}), 403
-    conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
+        return jsonify({"error": "Only admins can disconnect."}), 403
+    conn = PcoConnection.query.first()
     if conn:
         db.session.delete(conn)
         db.session.commit()
@@ -117,7 +116,7 @@ def pco_disconnect():
 @pco_bp.route("/api/pco/workflows")
 @login_required
 def pco_workflows():
-    conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
+    conn = PcoConnection.query.first()
     if not conn:
         return jsonify({"error": "Planning Center is not connected."}), 400
     try:
@@ -130,8 +129,8 @@ def pco_workflows():
 @login_required
 def pco_settings():
     if current_user.role != "admin":
-        return jsonify({"error": "Only church admins can change integration settings."}), 403
-    conn = PcoConnection.query.filter_by(church_id=current_user.church_id).first()
+        return jsonify({"error": "Only admins can change integration settings."}), 403
+    conn = PcoConnection.query.first()
     if not conn:
         return jsonify({"error": "Planning Center is not connected."}), 400
     data = request.get_json(silent=True) or {}
@@ -147,12 +146,10 @@ def pco_settings():
 @pco_bp.route("/api/guest-connection/<int:gc_id>/sync-pco", methods=["POST"])
 @login_required
 def sync_guest_to_pco(gc_id):
-    gc = GuestConnection.query.filter_by(
-        id=gc_id, church_id=current_user.church_id
-    ).first()
+    gc = GuestConnection.query.get(gc_id)
     if not gc:
         return jsonify({"error": "Guest connection not found."}), 404
-    if not PcoConnection.query.filter_by(church_id=current_user.church_id).first():
+    if not PcoConnection.query.first():
         return jsonify({"error": "Planning Center is not connected."}), 400
 
     ok = pco.sync_guest_connection(gc, force=True)

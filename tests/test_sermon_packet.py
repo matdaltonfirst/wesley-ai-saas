@@ -40,12 +40,12 @@ SEGMENTS = [
 
 @pytest.fixture
 def sermon(app, church):
-    source = SermonSource(church_id=church.id, channel_url="https://youtube.com/@x",
+    source = SermonSource(channel_url="https://youtube.com/@x",
                           channel_id="UCtest")
     db.session.add(source)
     db.session.flush()
     s = Sermon(
-        source_id=source.id, church_id=church.id, video_id="abc123",
+        source_id=source.id, video_id="abc123",
         title="Staying Connected", published_at=datetime(2026, 9, 6, 11, 0),
         transcript=TRANSCRIPT, transcript_segments=json.dumps(SEGMENTS),
         series="The Vine", status="ingested",
@@ -53,8 +53,8 @@ def sermon(app, church):
     db.session.add(s)
     db.session.commit()
     yield s
-    Sermon.query.filter_by(church_id=church.id).delete()
-    SermonSource.query.filter_by(church_id=church.id).delete()
+    Sermon.query.filter_by().delete()
+    SermonSource.query.filter_by().delete()
     db.session.commit()
 
 
@@ -216,7 +216,7 @@ class TestHouseStyle:
 
     def test_a_church_title_strategy_reaches_the_prompt(self, sermon, church):
         db.session.add(ContentProfile(
-            church_id=church.id, title_strategy="scripture_first",
+            title_strategy="scripture_first",
             voice_notes="Plain and pastoral."))
         db.session.commit()
         try:
@@ -226,28 +226,7 @@ class TestHouseStyle:
             assert "Lead each title with the scripture reference" in prompt
             assert "Plain and pastoral." in prompt
         finally:
-            ContentProfile.query.filter_by(church_id=church.id).delete()
-            db.session.commit()
-
-    def test_one_church_style_does_not_leak_into_another(self, sermon, church, app):
-        """The reason the style is a per-church layer rather than a constant."""
-        from models import Church
-        other = Church(name="Other Church", billing_exempt=True)
-        db.session.add(other)
-        db.session.flush()
-        db.session.add(ContentProfile(church_id=church.id,
-                                      title_strategy="question_caps",
-                                      voice_notes="LOUD AND PUNCHY."))
-        db.session.commit()
-        try:
-            with patch("sermon_packet.call_gemini", return_value=_model_reply()) as gem:
-                packet.build_packet(sermon, other)
-            prompt = gem.call_args.args[0]
-            assert "LOUD AND PUNCHY" not in prompt
-            assert "FULL CAPITALS" not in prompt
-        finally:
-            ContentProfile.query.filter_by(church_id=church.id).delete()
-            Church.query.filter_by(id=other.id).delete()
+            ContentProfile.query.filter_by().delete()
             db.session.commit()
 
 
@@ -279,7 +258,7 @@ class TestTitleExamples:
         for n, title in enumerate(["What Happens When We Fail God?",
                                    "Why Does Prayer Feel Hard?"]):
             db.session.add(Sermon(
-                source_id=sermon.source_id, church_id=church.id,
+                source_id=sermon.source_id,
                 video_id=f"past{n}", title=title,
                 published_at=datetime(2026, 8, n + 1), status="ingested"))
         db.session.commit()
@@ -296,41 +275,25 @@ class TestTitleExamples:
         for n, title in enumerate(["Traditional Service", "Modern Service",
                                    "Sunday Worship", "The Cost of Following"]):
             db.session.add(Sermon(
-                source_id=sermon.source_id, church_id=church.id,
+                source_id=sermon.source_id,
                 video_id=f"gen{n}", title=title,
                 published_at=datetime(2026, 7, n + 1), status="ingested"))
         db.session.commit()
 
-        examples = packet.past_title_examples(church.id, exclude_id=sermon.id)
+        examples = packet.past_title_examples(exclude_id=sermon.id)
         assert "The Cost of Following" in examples
         for generic in ("Traditional Service", "Modern Service", "Sunday Worship"):
             assert generic not in examples
-
-    def test_another_churchs_titles_are_never_used(self, sermon, church):
-        from models import Church
-        other = Church(name="Other", billing_exempt=True)
-        db.session.add(other); db.session.flush()
-        db.session.add(Sermon(
-            source_id=sermon.source_id, church_id=other.id, video_id="oth1",
-            title="A Title From Another Church", published_at=datetime(2026, 8, 1),
-            status="ingested"))
-        db.session.commit()
-        try:
-            assert "A Title From Another Church" not in packet.past_title_examples(church.id)
-        finally:
-            Sermon.query.filter_by(church_id=other.id).delete()
-            Church.query.filter_by(id=other.id).delete()
-            db.session.commit()
 
 
 class TestUpcomingEvents:
     def test_events_in_the_window_reach_the_prompt(self, sermon, church):
         from datetime import timedelta
         from models import CalendarEvent, ChurchCalendar
-        cal = ChurchCalendar(church_id=church.id, url="https://x/c.ics", label="Main")
+        cal = ChurchCalendar(url="https://x/c.ics", label="Main")
         db.session.add(cal); db.session.flush()
         db.session.add(CalendarEvent(
-            calendar_id=cal.id, church_id=church.id, title="Youth Cookout",
+            calendar_id=cal.id, title="Youth Cookout",
             starts_at=datetime.utcnow() + timedelta(days=3), location="Fellowship Hall"))
         db.session.commit()
 
@@ -346,13 +309,13 @@ class TestUpcomingEvents:
     def test_events_beyond_the_window_are_left_out(self, sermon, church):
         from datetime import timedelta
         from models import CalendarEvent, ChurchCalendar
-        cal = ChurchCalendar(church_id=church.id, url="https://x/d.ics", label="Main")
+        cal = ChurchCalendar(url="https://x/d.ics", label="Main")
         db.session.add(cal); db.session.flush()
         db.session.add(CalendarEvent(
-            calendar_id=cal.id, church_id=church.id, title="Christmas Eve Service",
+            calendar_id=cal.id, title="Christmas Eve Service",
             starts_at=datetime.utcnow() + timedelta(days=90)))
         db.session.commit()
-        assert "Christmas Eve Service" not in " ".join(packet.upcoming_events(church.id))
+        assert "Christmas Eve Service" not in " ".join(packet.upcoming_events())
 
 
 class TestQuoteQuality:

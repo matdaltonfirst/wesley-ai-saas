@@ -144,14 +144,14 @@ class TestStaffManagement:
 
     def test_invite_staff_success(self, auth_client, church):
         res = auth_client.post("/api/staff/invite", json={
-            "email": "newstaff@example.com",
+            "email": "newstaff@daltonfumc.com",
         })
         assert res.status_code == 201
         assert res.get_json()["ok"] is True
 
         # Cleanup the invite
         from models import Invite
-        Invite.query.filter_by(email="newstaff@example.com", church_id=church.id).delete()
+        Invite.query.filter_by(email="newstaff@daltonfumc.com").delete()
         db.session.commit()
 
     def test_invite_staff_missing_email(self, auth_client):
@@ -178,9 +178,8 @@ class TestStaffManagement:
     def test_staff_endpoints_require_admin_role(self, client, church):
         """A staff-role user cannot access staff management endpoints."""
         staff = User(
-            email="staff_member@example.com",
+            email="staff_member@daltonfumc.com",
             password_hash=generate_password_hash("staffpass1", method="pbkdf2:sha256"),
-            church_id=church.id,
             role="staff",
         )
         db.session.add(staff)
@@ -188,7 +187,7 @@ class TestStaffManagement:
 
         # Log in as staff
         res = client.post("/api/auth/login", json={
-            "email": "staff_member@example.com",
+            "email": "staff_member@daltonfumc.com",
             "password": "staffpass1",
         })
         assert res.status_code == 200

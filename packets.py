@@ -4,14 +4,15 @@ The job body lives here rather than in app.py so it can be tested without the
 scheduler, and so the two halves — generate, then send — stay separable. A
 packet that generated fine but failed to email should not be regenerated on the
 next run, and a packet that failed to generate should not block the email for
-every other church.
+every other sermon.
 """
 
 import json
 import logging
 from datetime import datetime, timedelta
 
-from models import db, Church, Sermon, SermonPacket, User
+from models import db, Sermon, SermonPacket, User
+from organization import get_org
 
 log = logging.getLogger("wesley")
 
@@ -32,12 +33,12 @@ EMAIL_WINDOW_DAYS = 8
 
 # A newly connected channel ingests its whole back catalogue at once. Without a
 # cap the first run after connecting would spend a model call per sermon, so
-# take only the newest few per church per run and let the rest follow on later
+# take only the newest few per run and let the rest follow on later
 # runs — or on demand, from the dashboard.
-MAX_PER_CHURCH_PER_RUN = 3
+MAX_PER_RUN = 3
 
 
-def sermons_awaiting_content(church_id: int = None, since_days: int = None):
+def sermons_awaiting_content(since_days: int = None):
     """Ingested sermons that have a transcript but no packet, newest first.
 
     The dashboard uses this to show what it *could* build content from, which is
@@ -56,42 +57,28 @@ def sermons_awaiting_content(church_id: int = None, since_days: int = None):
     if since_days is not None:
         query = query.filter(
             Sermon.published_at >= datetime.utcnow() - timedelta(days=since_days))
-    if church_id:
-        query = query.filter(Sermon.church_id == church_id)
     return query.all()
 
 
-def sermons_needing_packets(church_id: int = None):
-    """What the weekly job should build, capped per church."""
-    sermons = sermons_awaiting_content(church_id, since_days=LOOKBACK_DAYS)
-    if church_id:
-        return sermons[:MAX_PER_CHURCH_PER_RUN]
-
-    per_church, out = {}, []
-    for sermon in sermons:                        # already newest-first
-        seen = per_church.get(sermon.church_id, 0)
-        if seen >= MAX_PER_CHURCH_PER_RUN:
-            continue
-        per_church[sermon.church_id] = seen + 1
-        out.append(sermon)
-    return out
+def sermons_needing_packets():
+    """What the weekly job should build, newest first, capped per run."""
+    return sermons_awaiting_content(since_days=LOOKBACK_DAYS)[:MAX_PER_RUN]
 
 
 def generate_packet(sermon) -> SermonPacket:
     """Build and store the packet for one sermon.
 
-    A failure is recorded on the row rather than raised, so one church's bad
-    sermon cannot stop every other church's packet.
+    A failure is recorded on the row rather than raised, so one bad sermon
+    cannot stop the others.
     """
     from sermon_packet import build_packet
 
-    packet = SermonPacket(church_id=sermon.church_id, sermon_id=sermon.id,
-                          status="pending")
+    packet = SermonPacket(sermon_id=sermon.id, status="pending")
     db.session.add(packet)
     db.session.commit()
 
     try:
-        church = Church.query.get(sermon.church_id)
+        church = get_org()
         content = build_packet(sermon, church)
         # The long-form pieces are a separate pair of calls and are allowed to
         # fail on their own: an article that did not come back must not cost
@@ -127,8 +114,8 @@ def send_packet_email(packet) -> int:
     from emails import send_sermon_packet_email
 
     sermon = Sermon.query.get(packet.sermon_id)
-    church = Church.query.get(packet.church_id)
-    admins = User.query.filter_by(church_id=packet.church_id, role="admin").all()
+    church = get_org()
+    admins = User.query.filter_by(role="admin").all()
     if not admins or not sermon or not church:
         return 0
 

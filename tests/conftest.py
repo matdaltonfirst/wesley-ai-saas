@@ -10,9 +10,9 @@ from werkzeug.security import generate_password_hash
 
 from app import create_app
 from models import (
-    db as _db, AnswerFeedback, Church, Conversation, CrawledPage, Document,
-    ContentProfile, Message, Sermon, SermonPacket, SermonSource, SystemPrompt,
-    UsageDaily, User, WidgetConversation, WidgetMessage,
+    db as _db, AnswerFeedback, Conversation, CrawledPage, Document,
+    ContentProfile, Message, Organization, Sermon, SermonPacket, SermonSource,
+    SystemPrompt, UsageDaily, User, WidgetConversation, WidgetMessage,
 )
 
 
@@ -58,50 +58,42 @@ def client(app):
 
 @pytest.fixture
 def church(app):
-    """A test church with an active billing-exempt trial."""
-    c = Church(
-        name="Grace Community Church",
-        trial_ends_at=datetime.utcnow() + timedelta(days=14),
-        billing_exempt=True,
-    )
+    """The organization row, created fresh for each test.
+
+    Named ``church`` for the many tests that predate the single-organization
+    conversion; it is the Organization.
+    """
+    from flask import g
+    g.pop("org", None)
+    c = Organization(name="Grace Community Church", legacy_widget_id=2)
     _db.session.add(c)
     _db.session.commit()
     _db.session.refresh(c)
     yield c
-    _delete_church_rows(c.id)
+    _wipe()
+    g.pop("org", None)
 
 
-def _delete_church_rows(church_id: int) -> None:
-    """Remove a church and every row belonging to it.
+def _wipe() -> None:
+    """Delete every row a test could have created, children first.
 
-    Bulk deletes are used rather than an ORM delete, because Church.documents
-    and Church.users have no delete cascade and the ORM would try to NULL their
-    non-nullable church_id. But that also means no cascade fires, so children
-    are cleared by hand — otherwise conversations committed by a test that
-    exercised a real chat endpoint survive into later modules that count them.
+    Derived from the metadata rather than hand-listed: a hand-list goes stale the
+    moment a model is added, and the rows it misses do not fail loudly. They leak
+    into the next test, where a stray calendar event outranks a sermon or a
+    leftover source trips a unique constraint three modules later. The seeded
+    system prompt and the content-addressed embedding cache are kept.
     """
-    conv_ids = [row.id for row in Conversation.query.filter_by(church_id=church_id)]
-    wconv_ids = [row.id for row in WidgetConversation.query.filter_by(church_id=church_id)]
-
-    if conv_ids:
-        Message.query.filter(Message.conversation_id.in_(conv_ids)).delete()
-    if wconv_ids:
-        WidgetMessage.query.filter(
-            WidgetMessage.widget_conversation_id.in_(wconv_ids)
-        ).delete()
-
-    # Every table carrying a church_id, children first. Derived from the
-    # metadata rather than hand-listed: a hand-list goes stale the moment a
-    # model is added, and the rows it misses do not fail loudly — they leak
-    # into the next test, where a stray calendar event outranks a sermon or a
-    # leftover source trips a unique constraint three modules later.
+    _db.session.rollback()
     for table in reversed(_db.metadata.sorted_tables):
-        if "church_id" in table.c:
-            _db.session.execute(
-                table.delete().where(table.c.church_id == church_id))
-
-    Church.query.filter_by(id=church_id).delete()
+        if table.name in ("system_prompts", "embedding_cache"):
+            continue
+        _db.session.execute(table.delete())
     _db.session.commit()
+    # Bulk deletes leave the deleted objects in the identity map, and the next
+    # test reuses their primary keys. Whether the stale object has been garbage
+    # collected by then is timing-dependent, which shows up as an unrelated
+    # flush error in whichever test happens to run next.
+    _db.session.expunge_all()
 
 
 _TEST_PASSWORD = "SecureTestPass1!"
@@ -144,6 +136,7 @@ def reset_db_session(app):
     # Clear Flask-Login's user cache so the next test starts unauthenticated.
     from flask import g
     g.pop("_login_user", None)
+    g.pop("org", None)
     _db.session.rollback()
 
 
@@ -151,9 +144,8 @@ def reset_db_session(app):
 def admin_user(app, church):
     """An admin user belonging to the test church."""
     u = User(
-        email="admin@gracecc.org",
+        email="admin@daltonfumc.com",
         password_hash=generate_password_hash(_TEST_PASSWORD, method="pbkdf2:sha256"),
-        church_id=church.id,
         role="admin",
     )
     _db.session.add(u)

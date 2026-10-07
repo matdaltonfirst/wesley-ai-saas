@@ -40,7 +40,6 @@ class TestListDocuments:
 
     def test_list_response_shape(self, auth_client, church):
         doc = Document(
-            church_id=church.id,
             filename="abc123.pdf",
             original_name="bulletin.pdf",
             size_bytes=1024,
@@ -144,7 +143,7 @@ class TestUploadDocument:
 class TestDeleteDocument:
     def test_delete_requires_auth(self, client, church):
         doc = Document(
-            church_id=church.id, filename="x.pdf",
+            filename="x.pdf",
             original_name="x.pdf", size_bytes=100,
         )
         db.session.add(doc)
@@ -173,38 +172,13 @@ class TestDeleteDocument:
         # Should be gone from DB
         assert Document.query.get(doc_id) is None
 
-    def test_delete_cannot_delete_other_churchs_doc(self, auth_client):
-        """A document not belonging to the user's church returns 404, not 403."""
-        from models import Church
-        from datetime import timedelta
-        from datetime import datetime
-        other_church = Church(
-            name="Other Church",
-            trial_ends_at=datetime.utcnow() + timedelta(days=14),
-        )
-        db.session.add(other_church)
-        db.session.flush()
-        doc = Document(
-            church_id=other_church.id, filename="other.pdf",
-            original_name="other.pdf", size_bytes=100,
-        )
-        db.session.add(doc)
-        db.session.commit()
-
-        res = auth_client.delete(f"/api/documents/{doc.id}")
-        assert res.status_code == 404
-
-        db.session.delete(doc)
-        db.session.delete(other_church)
-        db.session.commit()
-
 
 # ── Patch visibility ──────────────────────────────────────────────────────────
 
 class TestPatchVisibility:
     def test_patch_requires_auth(self, client, church):
         doc = Document(
-            church_id=church.id, filename="y.pdf",
+            filename="y.pdf",
             original_name="y.pdf", size_bytes=100,
         )
         db.session.add(doc)
@@ -224,7 +198,7 @@ class TestPatchVisibility:
 
     def test_patch_invalid_visibility(self, auth_client, church):
         doc = Document(
-            church_id=church.id, filename="z.pdf",
+            filename="z.pdf",
             original_name="z.pdf", size_bytes=100,
         )
         db.session.add(doc)
@@ -239,7 +213,7 @@ class TestPatchVisibility:
 
     def test_patch_valid_visibility(self, auth_client, church):
         doc = Document(
-            church_id=church.id, filename="v.pdf",
+            filename="v.pdf",
             original_name="v.pdf", size_bytes=100,
             visibility="staff_only",
         )
@@ -260,7 +234,7 @@ class TestPatchVisibility:
     def test_public_loader_excludes_staff_only_documents(self, app, church):
         from documents import load_chatbot_documents
 
-        church_dir = app.config["UPLOADS_DIR"] / str(church.id)
+        church_dir = app.config["UPLOADS_DIR"] / "2"
         church_dir.mkdir(parents=True, exist_ok=True)
         public_path = church_dir / "public.pdf"
         private_path = church_dir / "private.pdf"
@@ -268,12 +242,12 @@ class TestPatchVisibility:
         private_path.touch()
 
         public_doc = Document(
-            church_id=church.id, filename=public_path.name,
+            filename=public_path.name,
             original_name="Public Guide.pdf", size_bytes=1,
             visibility="staff_and_chatbot",
         )
         private_doc = Document(
-            church_id=church.id, filename=private_path.name,
+            filename=private_path.name,
             original_name="Staff Notes.pdf", size_bytes=1,
             visibility="staff_only",
         )
@@ -286,7 +260,7 @@ class TestPatchVisibility:
                 "source": doc.original_name,
                 "location": "Page 1",
             }]
-            chunks = load_chatbot_documents(church.id, app.config["UPLOADS_DIR"])
+            chunks = load_chatbot_documents(app.config["UPLOADS_DIR"])
 
         assert [chunk["source"] for chunk in chunks] == ["Public Guide.pdf"]
 

@@ -9,18 +9,23 @@ from models import db, WidgetConversation, WidgetMessage, QnAPair, AnswerFeedbac
 # ── Widget branding ───────────────────────────────────────────────────────────
 
 class TestWidgetBranding:
-    def test_missing_church_id(self, client):
+    def test_church_id_is_optional(self, client, church):
         res = client.get("/api/widget/branding")
-        assert res.status_code == 400
-        assert "church_id" in res.get_json()["error"].lower()
+        assert res.status_code == 200
 
-    def test_invalid_church_id(self, client):
+    def test_invalid_church_id(self, client, church):
         res = client.get("/api/widget/branding?church_id=abc")
-        assert res.status_code == 400
+        assert res.status_code == 404
 
-    def test_church_not_found(self, client):
+    def test_church_not_found(self, client, church):
         res = client.get("/api/widget/branding?church_id=999999")
         assert res.status_code == 404
+
+    def test_the_legacy_embed_id_still_works(self, client, church):
+        """The live website embed was installed with data-church-id=2."""
+        assert church.legacy_widget_id == 2
+        res = client.get("/api/widget/branding?church_id=2")
+        assert res.status_code == 200
 
     def test_returns_branding_for_valid_church(self, client, church):
         res = client.get(f"/api/widget/branding?church_id={church.id}")
@@ -44,27 +49,29 @@ class TestWidgetBranding:
 # ── Widget chat ───────────────────────────────────────────────────────────────
 
 class TestWidgetChat:
-    def test_missing_church_id(self, client):
-        res = client.post("/api/widget/chat", json={"question": "Hello?"})
-        assert res.status_code == 400
-
     def test_missing_question(self, client, church):
         res = client.post("/api/widget/chat", json={"church_id": church.id})
         assert res.status_code == 400
 
-    def test_invalid_church_id(self, client):
+    def test_invalid_church_id(self, client, church):
         res = client.post("/api/widget/chat", json={
             "church_id": "not-a-number",
             "question": "Hello?",
         })
-        assert res.status_code == 400
+        assert res.status_code == 404
 
-    def test_church_not_found(self, client):
+    def test_church_not_found(self, client, church):
         res = client.post("/api/widget/chat", json={
             "church_id": 999999,
             "question": "Hello?",
         })
         assert res.status_code == 404
+
+    def test_legacy_embed_id_chats(self, client, church):
+        with patch("routes.widget.call_gemini", return_value="Sundays at 9:30 and 11."):
+            res = client.post("/api/widget/chat", json={
+                "church_id": 2, "question": "When is church?"})
+        assert res.status_code == 200
 
     def test_question_too_long(self, client, church):
         res = client.post("/api/widget/chat", json={
@@ -98,7 +105,7 @@ class TestWidgetChat:
 
         # Cleanup the widget conversation created during this test
         wconv = WidgetConversation.query.filter_by(
-            church_id=church.id, session_id=data["session_id"]
+            session_id=data["session_id"]
         ).first()
         if wconv:
             db.session.delete(wconv)
@@ -143,7 +150,6 @@ class TestWidgetChat:
 
     def test_chat_cites_staff_approved_qna(self, client, church):
         pair = QnAPair(
-            church_id=church.id,
             question="What time is worship?",
             answer="Worship begins at 10 AM.",
         )
@@ -192,7 +198,7 @@ class TestWidgetChat:
 
         # The conversation should have 4 messages (2 user + 2 assistant)
         wconv = WidgetConversation.query.filter_by(
-            church_id=church.id, session_id=session_id
+            session_id=session_id
         ).first()
         assert wconv is not None
         assert len(wconv.messages) == 4
@@ -335,7 +341,7 @@ class TestWidgetConversationList:
         assert res.get_json()["conversations"] == []
 
     def test_list_shows_own_church_conversations(self, auth_client, church):
-        wconv = WidgetConversation(church_id=church.id, session_id="test-session-abc")
+        wconv = WidgetConversation(session_id="test-session-abc")
         db.session.add(wconv)
         db.session.commit()
 
@@ -370,7 +376,6 @@ class TestAutoFlaggedFeedback:
             widget_message_id=answer["message_id"]).one()
         assert feedback.rating == "auto_flagged"
         assert feedback.status == "open"
-        assert feedback.church_id == church.id
         self._cleanup(answer)
 
     def test_phrasing_variations_are_auto_flagged(self, client, church):
@@ -380,7 +385,6 @@ class TestAutoFlaggedFeedback:
             widget_message_id=answer["message_id"]).one()
         assert feedback.rating == "auto_flagged"
         assert feedback.status == "open"
-        assert feedback.church_id == church.id
         self._cleanup(answer)
 
     def test_confident_answer_is_not_flagged(self, client, church):
@@ -425,12 +429,12 @@ class TestAutoFlaggedFeedback:
 class TestMultiLanguage:
     def test_widget_prompt_instructs_language_matching(self, app, church):
         from helpers import build_system_prompt
-        prompt = build_system_prompt(church, widget=True)
+        prompt = build_system_prompt(widget=True)
         assert "language the visitor writes in" in prompt
 
     def test_staff_prompt_unchanged(self, app, church):
         from helpers import build_system_prompt
-        prompt = build_system_prompt(church, staff=True)
+        prompt = build_system_prompt(staff=True)
         assert "language the visitor writes in" not in prompt
 
 
@@ -438,7 +442,7 @@ class TestUmcCurrentFacts:
     def test_both_prompts_carry_post_2024_facts(self, app, church):
         from helpers import build_system_prompt
         for kwargs in ({"widget": True}, {"staff": True}):
-            prompt = build_system_prompt(church, **kwargs)
+            prompt = build_system_prompt(**kwargs)
             assert "2020/2024 Book of Discipline is the current one" in prompt
             assert "Never quote Book of Discipline paragraph numbers" in prompt
             assert 'claim that you will "learn,"' in prompt

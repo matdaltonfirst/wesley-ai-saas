@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 from models import (
-    db, Church, User,
+    db, User,
     WidgetConversation, WidgetMessage, GuestConnection, AnswerFeedback,
 )
 
@@ -13,50 +13,46 @@ log = logging.getLogger("wesley")
 
 
 def send_weekly_digests() -> int:
-    """Send the weekly digest to every church admin. Returns churches emailed.
+    """Send the weekly digest to every admin. Returns 1 if sent, else 0.
 
-    Must run inside an app context. Quiet churches are skipped, and
+    Must run inside an app context. A quiet week sends nothing, and
     ``digest_last_sent_at`` makes the job idempotent across restarts.
     """
     from emails import send_weekly_digest_email
     from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
+    from organization import get_org
 
+    org = get_org()
     now = datetime.utcnow()
-    sent = 0
-    for church in Church.query.all():
-        if church.digest_last_sent_at and (now - church.digest_last_sent_at).days < 3:
-            continue
-        stats = build_weekly_digest(church, now - timedelta(days=7))
-        if not stats:
-            continue
-        admins = User.query.filter_by(church_id=church.id, role="admin").all()
-        if not admins:
-            continue
-        for admin in admins:
-            send_weekly_digest_email(
-                admin.email, church.name, stats, FROM_EMAIL, APP_URL, SUPPORT_EMAIL
-            )
-        church.digest_last_sent_at = now
-        sent += 1
+    if org.digest_last_sent_at and (now - org.digest_last_sent_at).days < 3:
+        return 0
+    stats = build_weekly_digest(now - timedelta(days=7))
+    if not stats:
+        return 0
+    admins = User.query.filter_by(role="admin").all()
+    if not admins:
+        return 0
+    for admin in admins:
+        send_weekly_digest_email(
+            admin.email, org.name, stats, FROM_EMAIL, APP_URL, SUPPORT_EMAIL
+        )
+    org.digest_last_sent_at = now
     db.session.commit()
-    return sent
+    return 1
 
 
-def build_weekly_digest(church, since: datetime):
-    """Assemble one church's widget activity since ``since`` (usually 7 days).
+def build_weekly_digest(since: datetime):
+    """Assemble widget activity since ``since`` (usually 7 days).
 
-    Returns None when there is nothing worth emailing about — no
-    conversations, no new guest connections, and nothing awaiting review —
-    so quiet churches are not nagged.
+    Returns None when there is nothing worth emailing about (no
+    conversations, no new guest connections, and nothing awaiting review), so a
+    quiet week is not nagged about.
     """
     from routes.widget import _categorize  # shared topic rules, avoids drift
 
     convs = (
         WidgetConversation.query
-        .filter(
-            WidgetConversation.church_id == church.id,
-            WidgetConversation.created_at >= since,
-        )
+        .filter(WidgetConversation.created_at >= since)
         .all()
     )
 
@@ -69,23 +65,16 @@ def build_weekly_digest(church, since: datetime):
             topic_counter[_categorize(user_msgs[0].content)] += 1
 
     new_guests = GuestConnection.query.filter(
-        GuestConnection.church_id == church.id,
         GuestConnection.created_at >= since,
     ).count()
-    pending_guests = GuestConnection.query.filter_by(
-        church_id=church.id, status="new",
-    ).count()
+    pending_guests = GuestConnection.query.filter_by(status="new").count()
 
-    open_feedback = AnswerFeedback.query.filter_by(
-        church_id=church.id, status="open",
-    ).count()
+    open_feedback = AnswerFeedback.query.filter_by(status="open").count()
     flagged_week = AnswerFeedback.query.filter(
-        AnswerFeedback.church_id == church.id,
         AnswerFeedback.rating.in_(("auto_flagged", "not_helpful")),
         AnswerFeedback.created_at >= since,
     ).count()
     corrections_week = AnswerFeedback.query.filter(
-        AnswerFeedback.church_id == church.id,
         AnswerFeedback.status == "corrected",
         AnswerFeedback.resolved_at >= since,
     ).count()

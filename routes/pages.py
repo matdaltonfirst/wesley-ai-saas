@@ -1,14 +1,12 @@
-"""HTML page routes: dashboard, onboarding, settings."""
+"""HTML page routes: dashboard and settings."""
 
 import json
-from datetime import datetime
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for
+from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required, current_user
 
-from models import db
-from denominations import denomination_options, get_denomination_profile, is_valid_denomination
-from helpers import build_branding_dict, require_active
+from helpers import build_branding_dict
+from organization import get_org
 
 pages_bp = Blueprint("pages", __name__)
 
@@ -16,13 +14,8 @@ pages_bp = Blueprint("pages", __name__)
 @pages_bp.route("/")
 @login_required
 def chat_page():
-    church = current_user.church
-    if not church.onboarding_complete:
-        return redirect(url_for("pages.onboarding_page"))
-    check = require_active()
-    if check:
-        return check
-    branding = build_branding_dict(church)
+    church = get_org()
+    branding = build_branding_dict()
     return render_template(
         "dashboard.html",
         church_name=church.name,
@@ -34,80 +27,21 @@ def chat_page():
     )
 
 
-@pages_bp.route("/onboarding")
-@login_required
-def onboarding_page():
-    # ?step=N lets integrations (e.g. the Planning Center OAuth round-trip)
-    # send the user back into the wizard after onboarding is already marked
-    # complete at step 1.
-    resume_step = request.args.get("step", type=int)
-    if current_user.church.onboarding_complete and not resume_step:
-        return redirect(url_for("pages.chat_page"))
-    church = current_user.church
-    return render_template(
-        "onboarding.html",
-        church_name=church.name,
-        church_id=church.id,
-        resume_step=min(max(resume_step or 1, 1), 6),
-        pco_result=request.args.get("pco", ""),
-        # Friendly names only — internal keys stay in the value attribute, and
-        # nothing is preselected so the choice is visible to every new church.
-        denominations=denomination_options(),
-    )
-
-
-@pages_bp.route("/api/onboarding/step1", methods=["POST"])
-@login_required
-def onboarding_step1():
-    """Save church name, city, and denominational affiliation; complete onboarding.
-
-    The denomination is required here so a brand-new church never silently
-    inherits the United Methodist default that exists for backward compatibility.
-    Only keys from the profile registry are accepted — a client cannot invent one.
-    """
-    data = request.get_json(silent=True) or {}
-    church_name = (data.get("church_name") or "").strip()
-    church_city = (data.get("church_city") or "").strip()
-    denomination = data.get("denomination")
-
-    if not church_name:
-        return jsonify({"error": "Church name cannot be empty."}), 400
-    if denomination in (None, ""):
-        return jsonify({"error": "Please select your denominational affiliation."}), 400
-    if not is_valid_denomination(denomination):
-        return jsonify({"error": "Unknown denomination."}), 400
-
-    profile = get_denomination_profile(denomination)
-    church = current_user.church
-    church.name = church_name[:200]
-    church.church_city = church_city[:200] if church_city else None
-    church.denomination = profile.key
-    church.denomination_profile_version = profile.version
-    church.denomination_updated_at = datetime.utcnow()
-    church.onboarding_complete = True
-    db.session.commit()
-    return jsonify({"ok": True})
-
-
 @pages_bp.route("/dashboard")
 @login_required
 def management_dashboard():
     if current_user.role == "staff":
         return redirect(url_for("pages.chat_page"))
-    check = require_active()
-    if check:
-        return check
-    church = current_user.church
-    branding = build_branding_dict(church)
+    church = get_org()
+    branding = build_branding_dict()
     return render_template(
         "settings.html",
         church_name=church.name,
-        church_id=current_user.church_id,
+        church_id=church.legacy_widget_id or church.id,
         user_email=current_user.email,
         user_role=current_user.role,
         bot_name=branding["bot_name"],
         welcome_message=branding["welcome_message"],
         primary_color=branding["primary_color"],
         church_city=branding["church_city"],
-        has_stripe_sub=bool(church.stripe_subscription_id),
     )

@@ -68,26 +68,26 @@ class TestGeminiUsageCapture:
 class TestRecordUsage:
     def test_repeat_calls_fold_into_one_daily_row(self, church):
         for _ in range(3):
-            record_usage(church.id, STAFF, {
+            record_usage(STAFF, {
                 "model": "m", "prompt_tokens": 10,
                 "response_tokens": 5, "total_tokens": 15,
             })
-        rows = UsageDaily.query.filter_by(church_id=church.id).all()
+        rows = UsageDaily.query.filter_by().all()
         assert len(rows) == 1
         assert rows[0].calls == 3
         assert rows[0].total_tokens == 45
 
     def test_surfaces_are_bucketed_separately(self, church):
-        record_usage(church.id, STAFF, {"model": "m", "total_tokens": 10})
-        record_usage(church.id, WIDGET, {"model": "m", "total_tokens": 90})
+        record_usage(STAFF, {"model": "m", "total_tokens": 10})
+        record_usage(WIDGET, {"model": "m", "total_tokens": 90})
         surfaces = {r.surface: r.total_tokens
-                    for r in UsageDaily.query.filter_by(church_id=church.id)}
+                    for r in UsageDaily.query.filter_by()}
         assert surfaces == {STAFF: 10, WIDGET: 90}
 
     def test_a_call_is_recorded_even_without_token_counts(self, church):
         """Knowing a request happened matters even when the counts don't arrive."""
-        record_usage(church.id, WIDGET, {})
-        row = UsageDaily.query.filter_by(church_id=church.id).one()
+        record_usage(WIDGET, {})
+        row = UsageDaily.query.filter_by().one()
         assert row.calls == 1
         assert row.model == "unknown"
 
@@ -96,18 +96,18 @@ class TestRecordUsage:
         not be able to turn a delivered reply into an error."""
         with patch("usage.UsageDaily.query") as broken:
             broken.filter_by.side_effect = RuntimeError("database on fire")
-            record_usage(church.id, STAFF, {"model": "m"})  # must not raise
+            record_usage(STAFF, {"model": "m"})  # must not raise
 
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
 class TestUsageTotals:
     def test_totals_split_staff_and_widget_calls(self, church):
-        record_usage(church.id, STAFF, {"model": "m", "total_tokens": 100})
-        record_usage(church.id, WIDGET, {"model": "m", "total_tokens": 300})
-        record_usage(church.id, WIDGET, {"model": "m", "total_tokens": 200})
+        record_usage(STAFF, {"model": "m", "total_tokens": 100})
+        record_usage(WIDGET, {"model": "m", "total_tokens": 300})
+        record_usage(WIDGET, {"model": "m", "total_tokens": 200})
 
-        totals = usage_totals([church.id])[church.id]
+        totals = usage_totals()
         assert totals["calls"] == 3
         assert totals["staff_calls"] == 1
         assert totals["widget_calls"] == 2
@@ -115,19 +115,15 @@ class TestUsageTotals:
 
     def test_rows_outside_the_window_are_excluded(self, church):
         db.session.add(UsageDaily(
-            church_id=church.id, day=date.today() - timedelta(days=45),
+            day=date.today() - timedelta(days=45),
             surface=STAFF, model="m", calls=99, total_tokens=99_000,
         ))
         db.session.commit()
-        record_usage(church.id, STAFF, {"model": "m", "total_tokens": 10})
+        record_usage(STAFF, {"model": "m", "total_tokens": 10})
 
-        totals = usage_totals([church.id], days=30)[church.id]
+        totals = usage_totals(days=30)
         assert totals["calls"] == 1
         assert totals["total_tokens"] == 10
-
-    def test_empty_id_list_returns_nothing(self, church):
-        record_usage(church.id, STAFF, {"model": "m", "total_tokens": 10})
-        assert usage_totals([]) == {}
 
 
 # ── End to end through the chat endpoints ────────────────────────────────────
@@ -138,7 +134,7 @@ class TestMeteringThroughTheEndpoints:
             res = auth_client.post("/api/chat", json={"question": "Draft a bulletin"})
         assert res.status_code == 200
 
-        row = UsageDaily.query.filter_by(church_id=church.id, surface=STAFF).one()
+        row = UsageDaily.query.filter_by(surface=STAFF).one()
         assert row.prompt_tokens == 800
         assert row.response_tokens == 120
         assert row.total_tokens == 920
@@ -151,7 +147,7 @@ class TestMeteringThroughTheEndpoints:
             })
         assert res.status_code == 200
 
-        row = UsageDaily.query.filter_by(church_id=church.id, surface=WIDGET).one()
+        row = UsageDaily.query.filter_by(surface=WIDGET).one()
         assert row.calls == 1
         assert row.total_tokens == 75
 
@@ -160,23 +156,30 @@ class TestMeteringThroughTheEndpoints:
         with patch("routes.chat.call_gemini", side_effect=Exception("503 unavailable")):
             res = auth_client.post("/api/chat", json={"question": "Draft a bulletin"})
         assert res.status_code == 503
-        assert UsageDaily.query.filter_by(church_id=church.id).count() == 0
+        assert UsageDaily.query.filter_by().count() == 0
 
 
 # ── Admin surfacing ───────────────────────────────────────────────────────────
 
-class TestAdminUsageColumns:
-    def test_super_admin_sees_per_church_and_platform_totals(self, app, auth_client, church, admin_user):
-        record_usage(church.id, WIDGET, {"model": "m", "total_tokens": 500})
-        record_usage(church.id, STAFF, {"model": "m", "total_tokens": 250})
+class TestAdminUsage:
+    def test_admin_sees_totals(self, app, auth_client, church, admin_user):
+        record_usage(WIDGET, {"model": "m", "total_tokens": 500})
+        record_usage(STAFF, {"model": "m", "total_tokens": 250})
 
-        with patch("routes.admin.is_super_admin", return_value=True):
-            res = auth_client.get("/api/admin/churches")
+        res = auth_client.get("/api/admin/usage")
         assert res.status_code == 200
         data = res.get_json()
+        assert data["calls"] == 2
+        assert data["total_tokens"] == 750
+        assert data["widget_calls"] == 1
+        assert data["staff_calls"] == 1
 
-        row = next(c for c in data["churches"] if c["id"] == church.id)
-        assert row["ai_calls_30d"] == 2
-        assert row["ai_tokens_30d"] == 750
-        assert row["ai_widget_calls_30d"] == 1
-        assert data["stats"]["ai_tokens_30d"] >= 750
+    def test_staff_cannot_see_usage(self, app, client, church):
+        from werkzeug.security import generate_password_hash
+        from models import User
+        db.session.add(User(email="staff@daltonfumc.com", role="staff",
+                            password_hash=generate_password_hash("SecureTestPass1!", method="pbkdf2:sha256")))
+        db.session.commit()
+        client.post("/api/auth/login", json={
+            "email": "staff@daltonfumc.com", "password": "SecureTestPass1!"})
+        assert client.get("/api/admin/usage").status_code == 403

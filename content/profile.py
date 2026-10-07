@@ -28,11 +28,15 @@ class ResolvedProfile:
     is_configured: bool   # False when the church has set nothing yet
 
 
-def profile_for(church) -> ResolvedProfile:
-    """The resolved content style for *church*, falling back to neutral defaults."""
+def profile_for(church=None) -> ResolvedProfile:
+    """The resolved content style, falling back to neutral defaults.
+
+    *church* is accepted for call-site symmetry with style_prompt_block and is
+    unused: there is one content profile row.
+    """
     from models import ContentProfile
 
-    row = ContentProfile.query.filter_by(church_id=church.id).first() if church else None
+    row = ContentProfile.query.first()
 
     platforms = DEFAULT_PLATFORMS
     if row and row.platforms:

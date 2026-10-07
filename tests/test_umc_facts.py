@@ -3,7 +3,9 @@
 from unittest.mock import patch
 
 from models import db, WidgetConversation
-from umc_facts import load_denomination_chunks, score_denomination_chunks, SECTIONS
+from denominations import PROFILE, load_denomination_chunks, score_denomination_chunks
+
+SECTIONS = PROFILE.sections
 
 
 class TestDenominationChunks:
@@ -44,7 +46,7 @@ class TestDenominationChunks:
         assert any(s["type"] == "denomination" for s in data["sources"])
 
         wconv = WidgetConversation.query.filter_by(
-            church_id=church.id, session_id=data["session_id"]).first()
+            session_id=data["session_id"]).first()
         db.session.delete(wconv)
         db.session.commit()
 

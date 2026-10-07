@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import pytest
 from unittest.mock import patch
 
-from models import db, Church, Sermon, SermonPacket, SermonSource
+from models import db, Sermon, SermonPacket, SermonSource
 
 
 def _content():
@@ -27,15 +27,15 @@ def _content():
 
 @pytest.fixture
 def packet(app, church):
-    source = SermonSource(church_id=church.id, channel_url="https://y/@x",
+    source = SermonSource(channel_url="https://y/@x",
                           channel_id="UCtest")
     db.session.add(source); db.session.flush()
-    sermon = Sermon(source_id=source.id, church_id=church.id, video_id="v1",
+    sermon = Sermon(source_id=source.id, video_id="v1",
                     title="Staying Connected", series="The Vine", status="ingested",
                     transcript="The branch does not strain to produce grapes.",
                     published_at=datetime.utcnow() - timedelta(days=1))
     db.session.add(sermon); db.session.flush()
-    p = SermonPacket(church_id=church.id, sermon_id=sermon.id, status="ready",
+    p = SermonPacket(sermon_id=sermon.id, status="ready",
                      content=json.dumps(_content()), generated_at=datetime.utcnow())
     db.session.add(p); db.session.commit()
     return p
@@ -52,31 +52,6 @@ class TestListing:
 
     def test_authentication_is_required(self, client, packet):
         assert client.get("/api/packets").status_code == 401
-
-    def test_another_churchs_packets_are_invisible(self, auth_client, packet, app):
-        other = Church(name="Other", billing_exempt=True)
-        db.session.add(other); db.session.flush()
-        source = SermonSource(church_id=other.id, channel_url="https://y/@o",
-                              channel_id="UCother")
-        db.session.add(source); db.session.flush()
-        sermon = Sermon(source_id=source.id, church_id=other.id, video_id="o1",
-                        title="Not Yours", status="ingested",
-                        published_at=datetime.utcnow())
-        db.session.add(sermon); db.session.flush()
-        theirs = SermonPacket(church_id=other.id, sermon_id=sermon.id,
-                              status="ready", content=json.dumps(_content()))
-        db.session.add(theirs); db.session.commit()
-        try:
-            titles = [p["sermon"]["title"] for p in
-                      auth_client.get("/api/packets").get_json()["packets"]]
-            assert "Not Yours" not in titles
-            assert auth_client.get(f"/api/packets/{theirs.id}").status_code == 404
-        finally:
-            SermonPacket.query.filter_by(church_id=other.id).delete()
-            Sermon.query.filter_by(church_id=other.id).delete()
-            SermonSource.query.filter_by(church_id=other.id).delete()
-            Church.query.filter_by(id=other.id).delete()
-            db.session.commit()
 
 
 class TestEditing:
@@ -112,10 +87,6 @@ class TestEditing:
                           json={"social": [{"platform": "facebook", "body": "  "}]})
         content = json.loads(SermonPacket.query.get(packet.id).content)
         assert content["social"] == []
-
-    def test_editing_another_churchs_packet_is_refused(self, client, packet):
-        assert client.patch(f"/api/packets/{packet.id}",
-                            json={"titles": ["x"]}).status_code == 401
 
 
 class TestRegenerate:

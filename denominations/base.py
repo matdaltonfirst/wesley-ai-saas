@@ -1,13 +1,9 @@
 """Shared types for denominational profiles.
 
 A profile is *data*: theological identity, doctrine, polity, and citable
-knowledge sections for exactly one denomination. Profiles never import route
-modules, never touch the database, and never know which church is asking — so
-reviewed theological content can be added or corrected without touching
-application logic.
-
-Every church loads exactly one profile. Two profiles are never assembled into
-the same prompt.
+knowledge sections. Profiles never import route modules and never touch the
+database, so reviewed theological content can be corrected without touching
+application logic. This app has exactly one profile (``umc.py``).
 """
 
 from dataclasses import dataclass
@@ -58,14 +54,8 @@ class DenominationProfile:
     # "United Methodist beliefs: Baptism". Kept stable — visitors see it.
     source_label: str = ""
 
-    # Terms that belong exclusively to this denomination. Used to keep foreign
-    # denominational text (for example the platform-wide editable prompt, which
-    # was originally authored for United Methodist churches) out of another
-    # denomination's prompt. Lowercase.
-    exclusive_terms: tuple[str, ...] = ()
-
-    # Standard denomination-specific evaluation questions. These drive the
-    # isolation test matrix and give reviewers a fixed checklist per profile.
+    # Standard evaluation questions: a fixed checklist for reviewing answers
+    # after the profile changes.
     evaluation_questions: tuple[str, ...] = ()
 
     def __post_init__(self):
@@ -114,10 +104,9 @@ class DenominationProfile:
             f"(profile key {self.key}, version {self.version}) ---",
             f"This church is affiliated with: {self.display_name}. "
             f"{self.short_description}",
-            "This is the only denominational profile that applies to this "
-            "church. Do not answer from, refer to, or compare against any "
-            "other denomination's teaching unless the person explicitly asks "
-            "about that other denomination.",
+            "Do not answer from, refer to, or compare against any other "
+            "denomination's teaching unless the person explicitly asks about "
+            "that other denomination.",
             "",
             "Theological identity and perspective:",
             self.identity.strip(),

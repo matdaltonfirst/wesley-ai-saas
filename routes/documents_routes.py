@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required, current_user
+from flask_login import login_required
 from werkzeug.utils import secure_filename
 
 from models import db, Document
@@ -32,7 +32,7 @@ def _valid_mime(content: bytes, suffix: str) -> bool:
 def list_documents():
     docs = (
         Document.query
-        .filter_by(church_id=current_user.church_id)
+        
         .order_by(Document.uploaded_at.desc())
         .all()
     )
@@ -72,7 +72,7 @@ def upload_document():
 
     stored_name = f"{uuid.uuid4().hex}{suffix}"
     uploads_dir = current_app.config["UPLOADS_DIR"]
-    church_dir = get_church_dir(current_user.church_id, uploads_dir)
+    church_dir = get_church_dir(uploads_dir)
     (church_dir / stored_name).write_bytes(content)
 
     display_name = secure_filename(original_name) or stored_name
@@ -82,7 +82,6 @@ def upload_document():
         visibility = "staff_only"
 
     doc = Document(
-        church_id=current_user.church_id,
         filename=stored_name,
         original_name=display_name,
         size_bytes=size_bytes,
@@ -104,12 +103,12 @@ def upload_document():
 @documents_bp.route("/api/documents/<int:doc_id>", methods=["DELETE"])
 @login_required
 def delete_document(doc_id):
-    doc = Document.query.filter_by(id=doc_id, church_id=current_user.church_id).first()
+    doc = Document.query.filter_by(id=doc_id).first()
     if not doc:
         return jsonify({"error": "Document not found."}), 404
 
     uploads_dir = current_app.config["UPLOADS_DIR"]
-    filepath = get_church_dir(current_user.church_id, uploads_dir) / doc.filename
+    filepath = get_church_dir(uploads_dir) / doc.filename
     if filepath.exists():
         filepath.unlink()
 
@@ -122,7 +121,7 @@ def delete_document(doc_id):
 @documents_bp.route("/api/documents/<int:doc_id>", methods=["PATCH"])
 @login_required
 def update_document_visibility(doc_id):
-    doc = Document.query.filter_by(id=doc_id, church_id=current_user.church_id).first()
+    doc = Document.query.filter_by(id=doc_id).first()
     if not doc:
         return jsonify({"error": "Document not found."}), 404
 

@@ -1,16 +1,19 @@
-"""Auth routes: login, signup, logout, password reset, invite accept."""
+"""Auth routes: login, logout, password reset, invite accept.
+
+Accounts are staff of one church and are created only by invitation; there is
+no public signup. Google Workspace sign-in replaces passwords in Phase 1b."""
 
 import secrets
-import threading
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, request, jsonify, render_template, redirect, url_for
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, User, Church, Invite
-from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
-from emails import send_reset_email, send_welcome_email, send_invite_email
+from models import db, User, Invite
+from config import FROM_EMAIL, ORG_DOMAIN, SUPPORT_EMAIL
+from organization import get_org
+from emails import send_reset_email
 from helpers import validate_csrf_json
 
 # Pre-computed dummy hash for constant-time comparison on failed lookups
@@ -25,21 +28,7 @@ auth_bp = Blueprint("auth", __name__)
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for("pages.chat_page"))
-    return render_template("auth.html", mode="login", signup_open=_signup_open())
-
-
-def _signup_open() -> bool:
-    """Public signup is off unless SIGNUP_ENABLED is set (see docs/AUDIT.md S-1)."""
-    return bool(current_app.config.get("SIGNUP_ENABLED"))
-
-
-@auth_bp.route("/signup")
-def signup_page():
-    if not _signup_open():
-        return redirect(url_for("auth.login_page"))
-    if current_user.is_authenticated:
-        return redirect(url_for("pages.chat_page"))
-    return render_template("auth.html", mode="signup", signup_open=True)
+    return render_template("auth.html")
 
 
 @auth_bp.route("/logout")
@@ -77,15 +66,11 @@ def accept_invite_page(token: str):
         invite is not None
         and invite.created_at >= cutoff
     )
-    church_name = ""
-    if token_valid and invite:
-        church = Church.query.get(invite.church_id)
-        church_name = church.name if church else ""
     return render_template(
         "invite.html",
         token=token,
         token_valid=token_valid,
-        church_name=church_name,
+        church_name=get_org().name if token_valid else "",
     )
 
 
@@ -106,70 +91,6 @@ def _auth_rate_limited():
     return None
 
 
-@auth_bp.route("/api/auth/signup", methods=["POST"])
-def api_signup():
-    if not _signup_open():
-        return jsonify({"error": "Account creation is closed."}), 403
-    limited = _auth_rate_limited()
-    if limited:
-        return limited
-
-    err, status = validate_csrf_json()
-    if err:
-        return err, status
-
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-    church_name = (data.get("church_name") or "").strip()
-
-    if not email or not password or not church_name:
-        return jsonify({"error": "Email, password, and church name are required."}), 400
-    if len(email) > 254:
-        return jsonify({"error": "Email address is too long."}), 400
-    if len(church_name) > 200:
-        return jsonify({"error": "Church name must be 200 characters or fewer."}), 400
-    if len(password) < 8:
-        return jsonify({"error": "Password must be at least 8 characters."}), 400
-    if len(password) > 128:
-        return jsonify({"error": "Password must be 128 characters or fewer."}), 400
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "An account with that email already exists."}), 400
-
-    church = Church(
-        name=church_name,
-        trial_ends_at=datetime.utcnow() + timedelta(days=14),
-    )
-    db.session.add(church)
-    db.session.flush()
-
-    user = User(
-        email=email,
-        password_hash=generate_password_hash(password, method="pbkdf2:sha256"),
-        church_id=church.id,
-    )
-    db.session.add(user)
-    db.session.commit()
-
-    login_user(user)
-
-    _church_name   = church.name
-    _trial_ends_at = church.trial_ends_at
-    _app = current_app._get_current_object()
-
-    def _send_welcome():
-        try:
-            with _app.app_context():
-                send_welcome_email(email, _church_name, _trial_ends_at, FROM_EMAIL, APP_URL, SUPPORT_EMAIL)
-        except Exception:
-            import logging
-            logging.getLogger("wesley").exception("Failed to send welcome email")
-
-    threading.Thread(target=_send_welcome, daemon=True).start()
-
-    return jsonify({"ok": True}), 201
-
-
 @auth_bp.route("/api/auth/login", methods=["POST"])
 def api_login():
     limited = _auth_rate_limited()
@@ -187,6 +108,9 @@ def api_login():
     user = User.query.filter_by(email=email).first()
     # Always perform password hash comparison to prevent timing-based user enumeration
     if not check_password_hash(user.password_hash if user else _DUMMY_HASH, password) or not user:
+        return jsonify({"error": "Invalid email or password."}), 401
+    # Only staff on the church's own email domain may sign in.
+    if not user.email.lower().endswith("@" + ORG_DOMAIN):
         return jsonify({"error": "Invalid email or password."}), 401
 
     login_user(user)
@@ -275,13 +199,14 @@ def api_accept_invite():
     if not invite or invite.created_at < cutoff:
         return jsonify({"error": "This invitation link is invalid or has expired."}), 400
 
+    if not invite.email.lower().endswith("@" + ORG_DOMAIN):
+        return jsonify({"error": "This invitation link is invalid or has expired."}), 400
     if User.query.filter_by(email=invite.email).first():
         return jsonify({"error": "An account with this email already exists. Please log in."}), 400
 
     user = User(
         email=invite.email,
         password_hash=generate_password_hash(password, method="pbkdf2:sha256"),
-        church_id=invite.church_id,
         role="staff",
     )
     db.session.add(user)

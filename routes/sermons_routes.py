@@ -4,7 +4,7 @@ import logging
 import threading
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 import sermons as sermon_lib
 from models import db, SermonSource, Sermon
@@ -36,15 +36,12 @@ def _sermon_dict(s):
 def sermons_status():
     if not sermon_lib.is_configured():
         return jsonify({"configured": False, "connected": False})
-    source = SermonSource.query.filter_by(church_id=current_user.church_id).first()
+    source = SermonSource.query.first()
     if not source:
         return jsonify({"configured": True, "connected": False})
     sermon_rows = (
         Sermon.query
-        .filter(
-            Sermon.church_id == current_user.church_id,
-            Sermon.status != "excluded",
-        )
+        .filter(Sermon.status != "excluded")
         .order_by(Sermon.published_at.desc())
         .limit(25)
         .all()
@@ -114,7 +111,7 @@ def connect_channel():
     url = (data.get("url") or "").strip()
     if not url or len(url) > 500:
         return jsonify({"error": "Enter your YouTube channel link."}), 400
-    if SermonSource.query.filter_by(church_id=current_user.church_id).first():
+    if SermonSource.query.first():
         return jsonify({"error": "A channel is already connected. Disconnect it first."}), 400
 
     try:
@@ -123,7 +120,6 @@ def connect_channel():
         return jsonify({"error": str(exc)}), 400
 
     source = SermonSource(
-        church_id=current_user.church_id,
         channel_url=url,
         channel_id=channel["channel_id"],
         channel_title=channel["title"],
@@ -135,15 +131,14 @@ def connect_channel():
     _try_claim_recovery(source.id)
     _run_in_background(_backfill_source, source.id)
 
-    log.info("Sermon channel connected: church_id=%d channel=%r",
-             source.church_id, source.channel_title)
+    log.info("Sermon channel connected: channel=%r", source.channel_title)
     return jsonify({"ok": True, "channel_title": source.channel_title}), 201
 
 
 @sermons_bp.route("/api/sermons/source", methods=["DELETE"])
 @login_required
 def disconnect_channel():
-    source = SermonSource.query.filter_by(church_id=current_user.church_id).first()
+    source = SermonSource.query.first()
     if source:
         db.session.delete(source)  # cascades to sermons
         db.session.commit()
@@ -153,7 +148,7 @@ def disconnect_channel():
 @sermons_bp.route("/api/sermons/check", methods=["POST"])
 @login_required
 def check_now():
-    source = SermonSource.query.filter_by(church_id=current_user.church_id).first()
+    source = SermonSource.query.first()
     if not source:
         return jsonify({"error": "No channel connected."}), 400
     if not _try_claim_recovery(source.id):
@@ -166,10 +161,7 @@ def check_now():
 @login_required
 def reingest_all():
     """Regenerate every sermon's summary (e.g. after a distillation improvement)."""
-    sermon_rows = Sermon.query.filter(
-        Sermon.church_id == current_user.church_id,
-        Sermon.status != "excluded",
-    ).all()
+    sermon_rows = Sermon.query.filter(Sermon.status != "excluded").all()
     if not sermon_rows:
         return jsonify({"error": "No sermons to rebuild."}), 400
     ids = []
@@ -193,7 +185,7 @@ def reingest_all():
 @login_required
 def reingest(sermon_id):
     sermon = Sermon.query.filter_by(
-        id=sermon_id, church_id=current_user.church_id
+        id=sermon_id
     ).first()
     if not sermon:
         return jsonify({"error": "Sermon not found."}), 404
@@ -214,7 +206,7 @@ def reingest(sermon_id):
 def paste_transcript(sermon_id):
     """Manual escape hatch: staff paste a transcript and we distill from it."""
     sermon = Sermon.query.filter_by(
-        id=sermon_id, church_id=current_user.church_id
+        id=sermon_id
     ).first()
     if not sermon:
         return jsonify({"error": "Sermon not found."}), 404
@@ -235,7 +227,7 @@ def exclude_sermon(sermon_id):
     """Remove a video from Wesley's knowledge. The row is kept (status
     "excluded") so the daily channel check never re-ingests it."""
     sermon = Sermon.query.filter_by(
-        id=sermon_id, church_id=current_user.church_id
+        id=sermon_id
     ).first()
     if not sermon:
         return jsonify({"error": "Sermon not found."}), 404
@@ -245,5 +237,5 @@ def exclude_sermon(sermon_id):
     sermon.main_points = None
     sermon.error = None
     db.session.commit()
-    log.info("Sermon excluded: %r (church_id=%d)", sermon.title, sermon.church_id)
+    log.info("Sermon excluded: %r", sermon.title)
     return jsonify({"ok": True})

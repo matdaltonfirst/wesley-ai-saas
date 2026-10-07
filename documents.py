@@ -37,9 +37,15 @@ STOP_WORDS = {
 # ── Church data directory ────────────────────────────────────────────────────
 
 
-def get_church_dir(church_id: int, uploads_dir: Path) -> Path:
-    """Return (and lazily create) the per-church upload directory."""
-    d = uploads_dir / str(church_id)
+# Uploads predate single-organization mode, when each church had its own folder.
+# Dalton First UMC's files live under 2/, so that folder is kept rather than
+# moving files in production. Fresh installs get the same path.
+UPLOAD_SUBDIR = "2"
+
+
+def get_church_dir(uploads_dir: Path) -> Path:
+    """Return (and lazily create) the upload directory."""
+    d = uploads_dir / UPLOAD_SUBDIR
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -149,10 +155,10 @@ def evict_doc_cache(doc_id: int, uploaded_at) -> None:
 # ── Document loaders ─────────────────────────────────────────────────────────
 
 
-def load_church_documents(church_id: int, uploads_dir: Path) -> list[dict]:
-    """Load and parse all documents for a church (staff chat — no visibility filter)."""
-    docs = Document.query.filter_by(church_id=church_id).all()
-    church_dir = get_church_dir(church_id, uploads_dir)
+def load_church_documents(uploads_dir: Path) -> list[dict]:
+    """Load and parse all documents (staff chat, no visibility filter)."""
+    docs = Document.query.all()
+    church_dir = get_church_dir(uploads_dir)
     all_chunks = []
     for doc in docs:
         filepath = church_dir / doc.filename
@@ -162,10 +168,10 @@ def load_church_documents(church_id: int, uploads_dir: Path) -> list[dict]:
     return all_chunks
 
 
-def load_chatbot_documents(church_id: int, uploads_dir: Path) -> list[dict]:
+def load_chatbot_documents(uploads_dir: Path) -> list[dict]:
     """Load and parse only documents marked staff_and_chatbot (widget chat)."""
-    docs = Document.query.filter_by(church_id=church_id, visibility="staff_and_chatbot").all()
-    church_dir = get_church_dir(church_id, uploads_dir)
+    docs = Document.query.filter_by(visibility="staff_and_chatbot").all()
+    church_dir = get_church_dir(uploads_dir)
     all_chunks = []
     for doc in docs:
         filepath = church_dir / doc.filename
@@ -175,9 +181,9 @@ def load_chatbot_documents(church_id: int, uploads_dir: Path) -> list[dict]:
     return all_chunks
 
 
-def load_church_web_content(church_id: int) -> list[dict]:
-    """Return keyword-scoreable chunks from a church's crawled web pages."""
-    pages = CrawledPage.query.filter_by(church_id=church_id).all()
+def load_church_web_content() -> list[dict]:
+    """Return keyword-scoreable chunks from the crawled web pages."""
+    pages = CrawledPage.query.all()
     chunks = []
     for page in pages:
         if page.content and page.content.strip():
@@ -189,17 +195,17 @@ def load_church_web_content(church_id: int) -> list[dict]:
     return chunks
 
 
-def load_curated_content(church_id: int) -> list[dict]:
+def load_curated_content() -> list[dict]:
     """Return active staff-approved Q&A and snippets as citable chunks."""
     chunks = []
-    for pair in QnAPair.query.filter_by(church_id=church_id, is_active=True).all():
+    for pair in QnAPair.query.filter_by(is_active=True).all():
         chunks.append({
             "content": f"Question: {pair.question}\nAnswer: {pair.answer}",
             "source": "Approved church answer",
             "location": pair.question,
             "type": "approved_answer",
         })
-    for snippet in TextSnippet.query.filter_by(church_id=church_id, is_active=True).all():
+    for snippet in TextSnippet.query.filter_by(is_active=True).all():
         chunks.append({
             "content": snippet.content,
             "source": snippet.title,

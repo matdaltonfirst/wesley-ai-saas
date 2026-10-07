@@ -12,6 +12,7 @@ from flask_login import login_required, current_user
 from models import db, CommsRequest
 from comms_triage import determine_priority, determine_tier, generate_triage_explanation
 from helpers import iso_utc
+from organization import get_org
 
 comms_bp = Blueprint("comms", __name__)
 
@@ -89,10 +90,8 @@ def _run_triage(req: CommsRequest) -> None:
 @comms_bp.route("/comms")
 @login_required
 def comms_dashboard():
-    church_id       = current_user.church_id
     _TERMINAL       = ("completed", "cancelled")
     _active_base    = CommsRequest.query.filter(
-        CommsRequest.church_id == church_id,
         CommsRequest.status.notin_(_TERMINAL),
     )
     total    = _active_base.count()
@@ -105,7 +104,7 @@ def comms_dashboard():
 
     return render_template(
         "comms/dashboard.html",
-        church_name=current_user.church.name,
+        church_name=get_org().name,
         user_email=current_user.email,
         user_role=current_user.role,
         stats={
@@ -127,7 +126,7 @@ def comms_dashboard():
 def comms_new_get():
     return render_template(
         "comms/new_request.html",
-        church_name=current_user.church.name,
+        church_name=get_org().name,
         user_email=current_user.email,
         user_role=current_user.role,
         today=date.today().isoformat(),
@@ -182,7 +181,7 @@ def comms_new_post():
     if errors:
         return render_template(
             "comms/new_request.html",
-            church_name=current_user.church.name,
+            church_name=get_org().name,
             user_email=current_user.email,
             user_role=current_user.role,
             today=date.today().isoformat(),
@@ -192,7 +191,6 @@ def comms_new_post():
 
     # ── Build and triage the request ─────────────────────────────────────────
     req = CommsRequest(
-        church_id           = current_user.church_id,
         submitter_id        = current_user.id,
         submitter_name      = current_user.email,
         ministry_department = ministry_department[:100] if ministry_department else None,
@@ -219,13 +217,13 @@ def comms_new_post():
 def comms_my_requests():
     requests = (
         CommsRequest.query
-        .filter_by(church_id=current_user.church_id, submitter_id=current_user.id)
+        .filter_by(submitter_id=current_user.id)
         .order_by(CommsRequest.created_at.desc())
         .all()
     )
     return render_template(
         "comms/my_requests.html",
-        church_name=current_user.church.name,
+        church_name=get_org().name,
         user_email=current_user.email,
         user_role=current_user.role,
         requests=requests,
@@ -247,7 +245,6 @@ def comms_admin():
     active = (
         CommsRequest.query
         .filter(
-            CommsRequest.church_id == current_user.church_id,
             CommsRequest.status.in_(["in_queue", "in_progress"]),
         )
         .order_by(order_by)
@@ -256,7 +253,6 @@ def comms_admin():
     completed = (
         CommsRequest.query
         .filter(
-            CommsRequest.church_id == current_user.church_id,
             CommsRequest.status.in_(["completed", "cancelled"]),
         )
         .order_by(CommsRequest.completed_at.desc())
@@ -270,7 +266,7 @@ def comms_admin():
 
     return render_template(
         "comms/admin.html",
-        church_name=current_user.church.name,
+        church_name=get_org().name,
         user_email=current_user.email,
         user_role=current_user.role,
         active=active,
@@ -295,7 +291,7 @@ def comms_update_status(req_id):
         return jsonify({"error": "Forbidden."}), 403
 
     req = CommsRequest.query.filter_by(
-        id=req_id, church_id=current_user.church_id
+        id=req_id
     ).first_or_404()
 
     data   = request.get_json(silent=True) or {}
@@ -320,7 +316,7 @@ def comms_update_status(req_id):
 @login_required
 def comms_re_evaluate(req_id):
     req = CommsRequest.query.filter_by(
-        id=req_id, church_id=current_user.church_id
+        id=req_id
     ).first_or_404()
 
     # Staff can only re-evaluate their own requests; admins can re-evaluate any
@@ -345,7 +341,7 @@ def comms_re_evaluate(req_id):
 @login_required
 def comms_detail(req_id):
     req = CommsRequest.query.filter_by(
-        id=req_id, church_id=current_user.church_id
+        id=req_id
     ).first_or_404()
 
     # Staff can only view their own requests; admins can view all

@@ -226,7 +226,7 @@ detail (a time, a place, an age range) that is not written here:
 """
 
 
-def past_title_examples(church_id: int, exclude_id=None) -> list[str]:
+def past_title_examples(exclude_id=None) -> list[str]:
     """A church's own recent sermon titles, as the style sample for new ones.
 
     A church's back catalogue is a better description of how it titles things
@@ -238,7 +238,7 @@ def past_title_examples(church_id: int, exclude_id=None) -> list[str]:
 
     rows = (
         Sermon.query
-        .filter(Sermon.church_id == church_id, Sermon.status == "ingested")
+        .filter(Sermon.status == "ingested")
         .order_by(Sermon.published_at.desc())
         .limit(TITLE_EXAMPLES * 4)
         .all()
@@ -257,7 +257,7 @@ def past_title_examples(church_id: int, exclude_id=None) -> list[str]:
     return titles
 
 
-def upcoming_events(church_id: int) -> list[str]:
+def upcoming_events() -> list[str]:
     """Short descriptions of what is coming up, for the week's posts."""
     from datetime import datetime, timedelta
 
@@ -268,7 +268,6 @@ def upcoming_events(church_id: int) -> list[str]:
     events = (
         CalendarEvent.query
         .filter(
-            CalendarEvent.church_id == church_id,
             CalendarEvent.starts_at >= now,
             CalendarEvent.starts_at <= now + timedelta(days=EVENT_DAYS),
         )
@@ -293,7 +292,7 @@ def _parse(raw: str) -> dict:
     return data
 
 
-def build_packet(sermon, church) -> dict:
+def build_packet(sermon, church) -> dict:  # church: the Organization
     """Generate the packet for one sermon. Raises on an unusable response."""
     if not sermon.transcript:
         raise ValueError("sermon has no transcript")
@@ -301,11 +300,11 @@ def build_packet(sermon, church) -> dict:
     profile = profile_for(church)
     series_line = f", part of the series \"{sermon.series}\"" if sermon.series else ""
 
-    examples = past_title_examples(church.id, exclude_id=sermon.id)
+    examples = past_title_examples(exclude_id=sermon.id)
     title_examples = _TITLE_EXAMPLES_BLOCK.format(
         titles="\n".join(f"  - {t}" for t in examples)) if examples else ""
 
-    events = upcoming_events(church.id)
+    events = upcoming_events()
     events_block = _EVENTS_BLOCK.format(
         events="\n".join(f"  - {e}" for e in events)) if events else ""
 

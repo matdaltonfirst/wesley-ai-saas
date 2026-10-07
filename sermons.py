@@ -293,8 +293,7 @@ def ingest_sermon(sermon: Sermon) -> bool:
         sermon.error = None
         sermon.ingested_at = datetime.utcnow()
         db.session.commit()
-        log.info("Sermon ingested: %r (%s, church_id=%d)",
-                 sermon.title, sermon.video_id, sermon.church_id)
+        log.info("Sermon ingested: %r (%s)", sermon.title, sermon.video_id)
         return True
     except Exception as exc:
         db.session.rollback()
@@ -323,7 +322,7 @@ def check_source(source: SermonSource, limit: int = BACKFILL_COUNT) -> int:
         if video["video_id"] in known:
             continue
         sermon = Sermon(
-            source_id=source.id, church_id=source.church_id,
+            source_id=source.id,
             video_id=video["video_id"], title=video["title"],
             published_at=video["published_at"],
         )
@@ -366,7 +365,7 @@ BACKFILL_BATCH = 25
 MAX_BACKFILL_AGE_DAYS = 120
 
 
-def backfill_transcripts(limit: int = BACKFILL_BATCH, church_id: int = None) -> dict:
+def backfill_transcripts(limit: int = BACKFILL_BATCH) -> dict:
     """Fetch captions for already-ingested sermons that have none.
 
     Idempotent and bounded: a sermon that gains a transcript drops out of the
@@ -385,8 +384,6 @@ def backfill_transcripts(limit: int = BACKFILL_BATCH, church_id: int = None) -> 
         )
         .order_by(Sermon.published_at.desc())
     )
-    if church_id:
-        query = query.filter(Sermon.church_id == church_id)
 
     filled = failed = 0
     for sermon in query.limit(limit).all():
@@ -417,24 +414,22 @@ _SERMON_INTENT_WORDS = (
 )
 
 
-def load_sermon_chunks(church_id: int) -> list[dict]:
+def load_sermon_chunks() -> list[dict]:
     """Recent sermons as citable chunks, newest first."""
-    from models import Church
-    from helpers import utc_to_church
+    from helpers import utc_to_local
 
     sermons = (
         Sermon.query
-        .filter_by(church_id=church_id, status="ingested")
+        .filter_by(status="ingested")
         .order_by(Sermon.published_at.desc())
         .limit(CONTEXT_SERMON_COUNT)
         .all()
     )
-    church = Church.query.get(church_id) if sermons else None
     chunks = []
     for i, sermon in enumerate(sermons):
         # YouTube publish timestamps are UTC; a Sunday-morning upload can read
         # as Monday without converting to the church's timezone.
-        local = utc_to_church(sermon.published_at, church)
+        local = utc_to_local(sermon.published_at)
         date_str = local.strftime("%B %-d, %Y")
         lines = [f"Sermon: {sermon.title} (preached {date_str}"
                  + (", most recent sermon)" if i == 0 else ")")]

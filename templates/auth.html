@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wesley AI — {% if mode == 'signup' %}Create Account{% else %}Sign In{% endif %}</title>
+  <title>Wesley AI: Sign In</title>
   {% include 'partials/head.html' %}
   <meta name="csrf-token" content="{{ csrf_token() }}" />
   <style>
@@ -203,18 +203,13 @@
  <div class="auth-shell">
   <div class="auth-intro">
     <img src="/static/WesleyAI.png" alt="Wesley AI" />
-    <h1>{% if mode == 'signup' %}Start with Wesley{% else %}Welcome back{% endif %}</h1>
-    <p>{% if mode == 'signup' %}Set up your church in a couple of minutes.{% else %}Sign in to pick up where your team left off.{% endif %}</p>
+    <h1>Welcome back</h1>
+    <p>Sign in with your church email to pick up where your team left off.</p>
   </div>
   <div class="auth-card">
 
-    <div class="tabs">
-      <button class="tab-btn {% if mode == 'login' %}active{% endif %}" data-tab="login">Sign In</button>
-      {% if signup_open %}<button class="tab-btn {% if mode == 'signup' %}active{% endif %}" data-tab="signup">Create Account</button>{% endif %}
-    </div>
-
     <!-- Login -->
-    <div class="form-panel {% if mode == 'login' %}active{% endif %}" id="panelLogin">
+    <div class="form-panel active" id="panelLogin">
       <div class="success-banner" id="resetBanner">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         Password updated — please sign in.
@@ -230,26 +225,6 @@
       </div>
       <div class="forgot-link"><a href="/forgot-password">Forgot password?</a></div>
       <button class="btn btn--primary btn--lg btn--block submit-btn" id="loginBtn">Sign In</button>
-      {% if signup_open %}<div class="switch-link">Don't have an account? <a href="/signup">Create one</a></div>{% endif %}
-    </div>
-
-    <!-- Signup -->
-    <div class="form-panel {% if mode == 'signup' %}active{% endif %}" id="panelSignup">
-      <div class="error-msg" id="signupError"></div>
-      <div class="field">
-        <label for="signupChurch">Church Name</label>
-        <input type="text" id="signupChurch" placeholder="First United Methodist Church" autocomplete="organization" />
-      </div>
-      <div class="field">
-        <label for="signupEmail">Email</label>
-        <input type="email" id="signupEmail" placeholder="you@church.org" autocomplete="email" />
-      </div>
-      <div class="field">
-        <label for="signupPassword">Password</label>
-        <input type="password" id="signupPassword" placeholder="At least 8 characters" autocomplete="new-password" />
-      </div>
-      <button class="btn btn--primary btn--lg btn--block submit-btn" id="signupBtn">Create Account</button>
-      <div class="switch-link">Already have an account? <a href="/login">Sign in</a></div>
     </div>
 
   </div>
@@ -262,19 +237,6 @@
       document.getElementById("resetBanner").classList.add("visible");
       history.replaceState(null, "", "/login");
     }
-
-    // ── Tab switching ─────────────────────────────────────────────────────────
-    document.querySelectorAll(".tab-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const tab = btn.dataset.tab;
-        document.querySelectorAll(".tab-btn").forEach(b =>
-          b.classList.toggle("active", b.dataset.tab === tab)
-        );
-        document.querySelectorAll(".form-panel").forEach(p =>
-          p.classList.toggle("active", p.id === "panel" + tab.charAt(0).toUpperCase() + tab.slice(1))
-        );
-      });
-    });
 
     function showError(elId, msg) {
       const el = document.getElementById(elId);
@@ -316,44 +278,9 @@
       }
     });
 
-    // ── Signup ────────────────────────────────────────────────────────────────
-    document.getElementById("signupBtn").addEventListener("click", async () => {
-      clearError("signupError");
-      const church_name = document.getElementById("signupChurch").value.trim();
-      const email       = document.getElementById("signupEmail").value.trim();
-      const password    = document.getElementById("signupPassword").value;
-      if (!church_name || !email || !password) {
-        showError("signupError", "All fields are required.");
-        return;
-      }
-      if (password.length < 8) {
-        showError("signupError", "Password must be at least 8 characters.");
-        return;
-      }
-      const btn = document.getElementById("signupBtn");
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Creating account…';
-      try {
-        const res  = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-CSRFToken": _csrfToken },
-          body: JSON.stringify({ church_name, email, password }),
-        });
-        const data = await res.json();
-        if (res.ok) { window.location.href = "/"; }
-        else { showError("signupError", data.error || "Signup failed."); }
-      } catch {
-        showError("signupError", "Network error. Please try again.");
-      } finally {
-        btn.disabled = false; btn.textContent = "Create Account";
-      }
-    });
-
-    // Enter submits whichever form is active
+    // Enter submits the form
     document.addEventListener("keydown", e => {
-      if (e.key !== "Enter") return;
-      const loginActive = document.getElementById("panelLogin").classList.contains("active");
-      if (loginActive) document.getElementById("loginBtn").click();
-      else document.getElementById("signupBtn").click();
+      if (e.key === "Enter") document.getElementById("loginBtn").click();
     });
   </script>
 </body>

@@ -16,13 +16,14 @@ from sqlalchemy.orm import joinedload
 from flask_login import login_required, current_user
 
 from models import (
-    db, Church, User, WidgetConversation, WidgetMessage, GuestConnection,
+    db, User, WidgetConversation, WidgetMessage, GuestConnection,
     TextSnippet, QnAPair, AnswerFeedback, PcoConnection,
 )
 from helpers import (
     build_branding_dict, build_system_prompt, call_gemini, friendly_gemini_error,
-    has_active_access, iso_utc, sse_event as _sse, stream_gemini,
+    iso_utc, sse_event as _sse, stream_gemini,
 )
+from organization import get_org, public_widget_ids
 from config import FROM_EMAIL, APP_URL, SUPPORT_EMAIL
 from emails import send_guest_connection_email
 from documents import (
@@ -80,20 +81,10 @@ def widget_branding():
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp, 429
 
-    church_id = request.args.get("church_id", "").strip()
-    if not church_id:
-        return jsonify({"error": "church_id is required"}), 400
-
-    try:
-        church_id_int = int(church_id)
-    except ValueError:
-        return jsonify({"error": "Invalid church_id"}), 400
-
-    church = Church.query.get(church_id_int)
-    if not church:
+    if _bad_public_church_id(request.args.get("church_id", "").strip()):
         return jsonify({"error": "Church not found"}), 404
 
-    resp = jsonify(build_branding_dict(church))
+    resp = jsonify(build_branding_dict())
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "public, max-age=60"
     return resp
@@ -107,7 +98,6 @@ def list_widget_conversations():
     wconvs = (
         WidgetConversation.query
         .options(joinedload(WidgetConversation.messages))
-        .filter_by(church_id=current_user.church_id)
         .order_by(WidgetConversation.updated_at.desc())
         .all()
     )
@@ -129,9 +119,7 @@ def list_widget_conversations():
 @widget_bp.route("/api/widget/conversations/<int:wconv_id>/messages")
 @login_required
 def get_widget_conversation_messages(wconv_id):
-    wconv = WidgetConversation.query.filter_by(
-        id=wconv_id, church_id=current_user.church_id
-    ).first()
+    wconv = WidgetConversation.query.get(wconv_id)
     if not wconv:
         return jsonify({"error": "Widget conversation not found."}), 404
     return jsonify({
@@ -173,6 +161,20 @@ class _WidgetTurnError(Exception):
         self.status = status
 
 
+def _bad_public_church_id(raw) -> bool:
+    """True when a public request names a church id that is not ours.
+
+    The live website embed still sends the id it was installed with, so it is
+    accepted; an absent id is also fine. Anything else is rejected.
+    """
+    if raw in (None, ""):
+        return False
+    try:
+        return int(raw) not in public_widget_ids()
+    except (ValueError, TypeError):
+        return True
+
+
 def _prepare_widget_turn(data):
     """Validate a widget request and build everything the model call needs.
 
@@ -184,39 +186,25 @@ def _prepare_widget_turn(data):
     question = (data.get("question") or "").strip()
     session_id = (data.get("session_id") or "").strip() or None
 
-    if not church_id_raw or not question:
-        raise _WidgetTurnError("church_id and question are required.")
+    if not question:
+        raise _WidgetTurnError("question is required.")
     if len(question) > 2000:
         raise _WidgetTurnError(
             "Message is too long. Please keep questions under 2,000 characters.")
     if session_id and len(session_id) > 64:
         raise _WidgetTurnError("Invalid session_id.")
 
-    try:
-        church_id = int(church_id_raw)
-    except (ValueError, TypeError):
-        raise _WidgetTurnError("Invalid church_id.")
-
-    church = Church.query.get(church_id)
-    if not church:
+    # The live website embed still sends the id it was installed with. Accept it
+    # (and the organization's own id); anything else is not this church.
+    if _bad_public_church_id(church_id_raw):
         raise _WidgetTurnError("Church not found.", 404)
-    # A lapsed church's widget would otherwise keep answering visitors — and
-    # keep billing us for the tokens — indefinitely. Worded for the visitor,
-    # who is not the party who let the subscription lapse.
-    if not has_active_access(church):
-        raise _WidgetTurnError(
-            "Online chat isn't available right now. Please contact the church directly.",
-            402,
-        )
 
     wconv = None
     if session_id:
-        wconv = WidgetConversation.query.filter_by(
-            church_id=church_id, session_id=session_id
-        ).first()
+        wconv = WidgetConversation.query.filter_by(session_id=session_id).first()
     if not wconv:
         session_id = uuid.uuid4().hex
-        wconv = WidgetConversation(church_id=church_id, session_id=session_id)
+        wconv = WidgetConversation(session_id=session_id)
         db.session.add(wconv)
         db.session.flush()
 
@@ -234,15 +222,14 @@ def _prepare_widget_turn(data):
     MAX_WEB_CHUNKS = 5
 
     uploads_dir = current_app.config["UPLOADS_DIR"]
-    web_chunks = load_church_web_content(church_id)
-    doc_chunks = load_chatbot_documents(church_id, uploads_dir) + load_curated_content(church_id)
+    web_chunks = load_church_web_content()
+    doc_chunks = load_chatbot_documents(uploads_dir) + load_curated_content()
 
     scored_docs = find_relevant_chunks(question, doc_chunks, top_n=MAX_DOC_CHUNKS) if doc_chunks else []
     scored_web = find_relevant_chunks(question, web_chunks, top_n=MAX_WEB_CHUNKS) if web_chunks else []
-    scored_cal = score_calendar_chunks(question, load_calendar_chunks(church_id))
-    scored_ser = score_sermon_chunks(question, load_sermon_chunks(church_id))
-    # Only this church's own denomination is ever a retrieval candidate.
-    scored_denom = score_denomination_chunks(question, church.denomination)
+    scored_cal = score_calendar_chunks(question, load_calendar_chunks())
+    scored_ser = score_sermon_chunks(question, load_sermon_chunks())
+    scored_denom = score_denomination_chunks(question)
 
     context, candidate_sources = build_cited_context(
         [scored_docs, scored_web, scored_cal, scored_ser, scored_denom]
@@ -251,14 +238,13 @@ def _prepare_widget_turn(data):
     # Ids, never ORM instances: the streaming generator runs outside this
     # request's session, where a live object would be detached.
     return {
-        "church_id": church_id,
         "question": question,
         "session_id": session_id,
         "wconv_id": wconv.id,
         "history": history,
         "context": context,
         "candidate_sources": candidate_sources,
-        "system_instruction": build_system_prompt(church, widget=True),
+        "system_instruction": build_system_prompt(widget=True),
     }
 
 
@@ -284,7 +270,6 @@ def _save_widget_answer(turn, answer):
         # even when the visitor never rates the answer.
         db.session.flush()
         db.session.add(AnswerFeedback(
-            church_id=turn["church_id"],
             widget_message_id=assistant_message.id,
             rating="auto_flagged",
             status="open",
@@ -356,7 +341,7 @@ def widget_chat_stream():
                             "message_id": None, "saved": False})
                 return
 
-            record_usage(turn["church_id"], WIDGET, call_usage)
+            record_usage(WIDGET, call_usage)
             yield _sse({
                 "type": "done",
                 "sources": sources,
@@ -412,7 +397,7 @@ def widget_chat():
         log.error("[WIDGET] DB commit failed: %s", e)
         return _cors(jsonify({"error": "Failed to save conversation. Please try again."})), 500
 
-    record_usage(turn["church_id"], WIDGET, call_usage)
+    record_usage(WIDGET, call_usage)
 
     return _cors(jsonify({
         "answer": answer,
@@ -443,9 +428,10 @@ def submit_answer_feedback():
     session_id = (data.get("session_id") or "").strip()
 
     try:
-        church_id = int(data.get("church_id"))
         message_id = int(data.get("message_id"))
     except (TypeError, ValueError):
+        return _feedback_cors_error("Invalid feedback target.")
+    if _bad_public_church_id(data.get("church_id")):
         return _feedback_cors_error("Invalid feedback target.")
 
     if rating not in ("helpful", "not_helpful"):
@@ -461,7 +447,6 @@ def submit_answer_feedback():
         .filter(
             WidgetMessage.id == message_id,
             WidgetMessage.role == "assistant",
-            WidgetConversation.church_id == church_id,
             WidgetConversation.session_id == session_id,
         )
         .first()
@@ -471,7 +456,7 @@ def submit_answer_feedback():
 
     feedback = AnswerFeedback.query.filter_by(widget_message_id=message.id).first()
     if not feedback:
-        feedback = AnswerFeedback(church_id=church_id, widget_message_id=message.id)
+        feedback = AnswerFeedback(widget_message_id=message.id)
         db.session.add(feedback)
     feedback.rating = rating
     feedback.reason = reason if rating == "not_helpful" else None
@@ -498,7 +483,7 @@ def _feedback_cors_error(message, status=400):
 @login_required
 def list_answer_feedback():
     status_filter = request.args.get("status", "open").strip()
-    query = AnswerFeedback.query.filter_by(church_id=current_user.church_id)
+    query = AnswerFeedback.query
     if status_filter in ("open", "corrected", "dismissed"):
         query = query.filter_by(status=status_filter)
     if status_filter == "dismissed":
@@ -510,16 +495,16 @@ def list_answer_feedback():
     return jsonify({
         "stats": {
             "open": AnswerFeedback.query.filter_by(
-                church_id=current_user.church_id, status="open"
+                status="open"
             ).count(),
             "helpful": AnswerFeedback.query.filter_by(
-                church_id=current_user.church_id, rating="helpful"
+                rating="helpful"
             ).count(),
             "not_helpful": AnswerFeedback.query.filter_by(
-                church_id=current_user.church_id, rating="not_helpful"
+                rating="not_helpful"
             ).count(),
             "corrected": AnswerFeedback.query.filter_by(
-                church_id=current_user.church_id, status="corrected"
+                status="corrected"
             ).count(),
         },
         "items": [_feedback_dict(item) for item in items],
@@ -530,7 +515,7 @@ def list_answer_feedback():
 @login_required
 def correct_answer_feedback(feedback_id):
     feedback = AnswerFeedback.query.filter_by(
-        id=feedback_id, church_id=current_user.church_id
+        id=feedback_id
     ).first()
     if not feedback:
         return jsonify({"error": "Feedback not found."}), 404
@@ -542,7 +527,6 @@ def correct_answer_feedback(feedback_id):
         return jsonify({"error": "Question and corrected answer are required."}), 400
 
     pair = QnAPair(
-        church_id=current_user.church_id,
         question=question[:500],
         answer=answer,
         is_active=True,
@@ -562,7 +546,7 @@ def correct_answer_feedback(feedback_id):
 @login_required
 def dismiss_answer_feedback(feedback_id):
     feedback = AnswerFeedback.query.filter_by(
-        id=feedback_id, church_id=current_user.church_id
+        id=feedback_id
     ).first()
     if not feedback:
         return jsonify({"error": "Feedback not found."}), 404
@@ -639,11 +623,10 @@ def _categorize(text):
     return "Other"
 
 
-def _load_convs(church_id):
+def _load_convs():
     return (
         WidgetConversation.query
         .options(joinedload(WidgetConversation.messages))
-        .filter_by(church_id=church_id)
         .all()
     )
 
@@ -651,7 +634,7 @@ def _load_convs(church_id):
 @widget_bp.route("/api/analytics/chats")
 @login_required
 def analytics_chats():
-    convs = _load_convs(current_user.church_id)
+    convs = _load_convs()
     now = datetime.utcnow()
 
     first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -704,7 +687,7 @@ def analytics_chats():
 @widget_bp.route("/api/analytics/topics")
 @login_required
 def analytics_topics():
-    convs = _load_convs(current_user.church_id)
+    convs = _load_convs()
 
     cat_examples = defaultdict(list)
     for conv in convs:
@@ -732,7 +715,7 @@ def analytics_topics():
 @widget_bp.route("/api/analytics/sentiment")
 @login_required
 def analytics_sentiment():
-    convs = _load_convs(current_user.church_id)
+    convs = _load_convs()
 
     needs_attention = []
     confident_count = 0
@@ -806,20 +789,14 @@ def create_guest_connection():
     interest_area   = (data.get("interest_area") or "General Interest").strip()
     opening_message = (data.get("opening_message") or "").strip()
 
-    if not church_id_raw or not name or not email:
-        return cors_err("church_id, name, and email are required.")
+    if not name or not email:
+        return cors_err("name and email are required.")
 
-    try:
-        church_id = int(church_id_raw)
-    except (ValueError, TypeError):
-        return cors_err("Invalid church_id.")
-
-    church = Church.query.get(church_id)
-    if not church:
+    if _bad_public_church_id(church_id_raw):
         return cors_err("Church not found.", 404)
+    church = get_org()
 
     gc = GuestConnection(
-        church_id=church_id,
         name=name,
         email=email,
         phone=phone or None,
@@ -835,7 +812,7 @@ def create_guest_connection():
         return cors_err("Failed to save. Please try again.", 500)
 
     # Push into Planning Center if connected with auto-sync (non-blocking)
-    pco_conn = PcoConnection.query.filter_by(church_id=church_id, auto_sync=True).first()
+    pco_conn = PcoConnection.query.filter_by(auto_sync=True).first()
     if pco_conn:
         import pco
         pco.queue_guest_sync(gc)
@@ -852,8 +829,8 @@ def create_guest_connection():
                 log.exception("Background guest sync failed for guest_connection_id=%s", target_id)
         threading.Thread(target=_sync, daemon=True).start()
 
-    # Notify all admin users for this church (non-blocking)
-    admin_users = User.query.filter_by(church_id=church_id, role="admin").all()
+    # Notify all admin users (non-blocking)
+    admin_users = User.query.filter_by(role="admin").all()
     dashboard_url = APP_URL.rstrip("/") + "/dashboard#guest-connections"
     _app = current_app._get_current_object()
     _church_name = church.name
@@ -876,19 +853,17 @@ def create_guest_connection():
 @login_required
 def list_guest_connections():
     status_filter = request.args.get("status", "").strip()
-    q = GuestConnection.query.filter_by(church_id=current_user.church_id)
+    q = GuestConnection.query
     if status_filter in ("new", "contacted", "connected"):
         q = q.filter_by(status=status_filter)
     connections = q.order_by(GuestConnection.created_at.desc()).all()
 
-    new_count       = GuestConnection.query.filter_by(church_id=current_user.church_id, status="new").count()
-    contacted_count = GuestConnection.query.filter_by(church_id=current_user.church_id, status="contacted").count()
-    connected_count = GuestConnection.query.filter_by(church_id=current_user.church_id, status="connected").count()
+    new_count       = GuestConnection.query.filter_by(status="new").count()
+    contacted_count = GuestConnection.query.filter_by(status="contacted").count()
+    connected_count = GuestConnection.query.filter_by(status="connected").count()
 
     return jsonify({
-        "pco_connected": PcoConnection.query.filter_by(
-            church_id=current_user.church_id
-        ).first() is not None,
+        "pco_connected": PcoConnection.query.first() is not None,
         "stats": {
             "new": new_count,
             "contacted": contacted_count,
@@ -919,7 +894,7 @@ def list_guest_connections():
 @widget_bp.route("/api/guest-connection/<int:gc_id>", methods=["PATCH"])
 @login_required
 def update_guest_connection(gc_id):
-    gc = GuestConnection.query.filter_by(id=gc_id, church_id=current_user.church_id).first()
+    gc = GuestConnection.query.filter_by(id=gc_id).first()
     if not gc:
         return jsonify({"error": "Not found."}), 404
 
@@ -948,9 +923,7 @@ _SNIPPET_CATEGORIES = [
 @widget_bp.route("/api/snippets", methods=["GET"])
 @login_required
 def list_snippets():
-    snippets = TextSnippet.query.filter_by(
-        church_id=current_user.church_id
-    ).order_by(TextSnippet.created_at.desc()).all()
+    snippets = TextSnippet.query.order_by(TextSnippet.created_at.desc()).all()
     return jsonify({
         "snippets": [_snippet_dict(s) for s in snippets],
         "categories": _SNIPPET_CATEGORIES,
@@ -969,7 +942,6 @@ def create_snippet():
     if category and category not in _SNIPPET_CATEGORIES:
         category = "Other"
     s = TextSnippet(
-        church_id=current_user.church_id,
         title=title[:200],
         content=content[:1000],
         category=category,
@@ -983,7 +955,7 @@ def create_snippet():
 @widget_bp.route("/api/snippets/<int:sid>", methods=["PATCH"])
 @login_required
 def update_snippet(sid):
-    s = TextSnippet.query.filter_by(id=sid, church_id=current_user.church_id).first()
+    s = TextSnippet.query.filter_by(id=sid).first()
     if not s:
         return jsonify({"error": "Not found."}), 404
     data = request.get_json(silent=True) or {}
@@ -1003,7 +975,7 @@ def update_snippet(sid):
 @widget_bp.route("/api/snippets/<int:sid>", methods=["DELETE"])
 @login_required
 def delete_snippet(sid):
-    s = TextSnippet.query.filter_by(id=sid, church_id=current_user.church_id).first()
+    s = TextSnippet.query.filter_by(id=sid).first()
     if not s:
         return jsonify({"error": "Not found."}), 404
     db.session.delete(s)
@@ -1027,9 +999,7 @@ def _snippet_dict(s):
 @widget_bp.route("/api/qna", methods=["GET"])
 @login_required
 def list_qna():
-    pairs = QnAPair.query.filter_by(
-        church_id=current_user.church_id
-    ).order_by(QnAPair.created_at.desc()).all()
+    pairs = QnAPair.query.order_by(QnAPair.created_at.desc()).all()
     return jsonify({"pairs": [_qna_dict(p) for p in pairs]})
 
 
@@ -1042,7 +1012,6 @@ def create_qna():
     if not question or not answer:
         return jsonify({"error": "Question and answer are required."}), 400
     p = QnAPair(
-        church_id=current_user.church_id,
         question=question[:500],
         answer=answer,
         is_active=bool(data.get("is_active", True)),
@@ -1055,7 +1024,7 @@ def create_qna():
 @widget_bp.route("/api/qna/<int:pid>", methods=["PATCH"])
 @login_required
 def update_qna(pid):
-    p = QnAPair.query.filter_by(id=pid, church_id=current_user.church_id).first()
+    p = QnAPair.query.filter_by(id=pid).first()
     if not p:
         return jsonify({"error": "Not found."}), 404
     data = request.get_json(silent=True) or {}
@@ -1072,7 +1041,7 @@ def update_qna(pid):
 @widget_bp.route("/api/qna/<int:pid>", methods=["DELETE"])
 @login_required
 def delete_qna(pid):
-    p = QnAPair.query.filter_by(id=pid, church_id=current_user.church_id).first()
+    p = QnAPair.query.filter_by(id=pid).first()
     if not p:
         return jsonify({"error": "Not found."}), 404
     db.session.delete(p)

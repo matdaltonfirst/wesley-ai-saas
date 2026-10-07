@@ -17,7 +17,6 @@ def _token_encryption_key():
 
 def _connect_church(church, **overrides):
     conn = PcoConnection(
-        church_id=church.id,
         access_token="tok",
         refresh_token="ref",
         token_expires_at=datetime.utcnow() + timedelta(hours=1),
@@ -30,8 +29,8 @@ def _connect_church(church, **overrides):
 
 
 def _cleanup(church):
-    PcoConnection.query.filter_by(church_id=church.id).delete()
-    GuestConnection.query.filter_by(church_id=church.id).delete()
+    PcoConnection.query.filter_by().delete()
+    GuestConnection.query.filter_by().delete()
     db.session.commit()
 
 
@@ -100,7 +99,7 @@ class TestStatusAndSettings:
             "auto_sync": False, "workflow_id": "7", "workflow_name": "Follow Up",
         })
         assert res.status_code == 200
-        conn = PcoConnection.query.filter_by(church_id=church.id).one()
+        conn = PcoConnection.query.filter_by().one()
         assert conn.auto_sync is False
         assert conn.workflow_id == "7"
         _cleanup(church)
@@ -111,9 +110,8 @@ class TestStatusAndSettings:
 
         _connect_church(church)
         staff = User(
-            email="staff-pco@example.org",
+            email="staff-pco@daltonfumc.com",
             password_hash=generate_password_hash("password123", method="pbkdf2:sha256"),
-            church_id=church.id,
             role="staff",
         )
         db.session.add(staff)
@@ -130,14 +128,14 @@ class TestStatusAndSettings:
     def test_disconnect(self, auth_client, church):
         _connect_church(church)
         assert auth_client.post("/api/pco/disconnect").status_code == 200
-        assert PcoConnection.query.filter_by(church_id=church.id).first() is None
+        assert PcoConnection.query.filter_by().first() is None
         _cleanup(church)
 
 
 class TestSyncGuestConnection:
     def _guest(self, church, email="pat@example.org"):
         gc = GuestConnection(
-            church_id=church.id, name="Pat Q Visitor", email=email,
+            name="Pat Q Visitor", email=email,
             phone="555-0100", interest_area="New to Church",
             opening_message="Do you have a young adults group?",
         )
@@ -239,7 +237,6 @@ class TestSyncGuestConnection:
 class TestDurableSync:
     def _guest(self, church, **overrides):
         values = {
-            "church_id": church.id,
             "name": "Jamie Visitor",
             "email": "jamie@example.org",
             "phone": "555-0110",

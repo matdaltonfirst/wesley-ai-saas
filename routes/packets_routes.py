@@ -10,10 +10,11 @@ import logging
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from flask_login import login_required
 
 from helpers import iso_utc, validate_csrf_json
 from models import db, Sermon, SermonPacket
+from organization import get_org
 
 log = logging.getLogger("wesley")
 
@@ -62,7 +63,6 @@ def list_packets():
     rows = (
         db.session.query(SermonPacket, Sermon)
         .outerjoin(Sermon, Sermon.id == SermonPacket.sermon_id)
-        .filter(SermonPacket.church_id == current_user.church_id)
         .order_by(SermonPacket.created_at.desc())
         .limit(50)
         .all()
@@ -74,7 +74,7 @@ def list_packets():
 @login_required
 def get_packet(packet_id):
     packet = SermonPacket.query.filter_by(
-        id=packet_id, church_id=current_user.church_id
+        id=packet_id
     ).first()
     if not packet:
         return jsonify({"error": "Packet not found."}), 404
@@ -90,7 +90,7 @@ def update_packet(packet_id):
         return err, status
 
     packet = SermonPacket.query.filter_by(
-        id=packet_id, church_id=current_user.church_id
+        id=packet_id
     ).first()
     if not packet:
         return jsonify({"error": "Packet not found."}), 404
@@ -174,7 +174,7 @@ def pending_sermons():
     """
     from packets import sermons_awaiting_content
 
-    sermons = sermons_awaiting_content(current_user.church_id)
+    sermons = sermons_awaiting_content()
     return jsonify({"sermons": [{
         "id": s.id,
         "title": s.title,
@@ -201,7 +201,7 @@ def generate_for_sermon():
     data = request.get_json(silent=True) or {}
     sermon_id = data.get("sermon_id")
     sermon = Sermon.query.filter_by(
-        id=sermon_id, church_id=current_user.church_id
+        id=sermon_id
     ).first()
     if not sermon:
         return jsonify({"error": "Sermon not found."}), 404
@@ -236,7 +236,7 @@ def regenerate_packet(packet_id):
         return err, status
 
     packet = SermonPacket.query.filter_by(
-        id=packet_id, church_id=current_user.church_id
+        id=packet_id
     ).first()
     if not packet:
         return jsonify({"error": "Packet not found."}), 404
@@ -248,8 +248,8 @@ def regenerate_packet(packet_id):
     from sermon_longform import build_longform
     from sermon_packet import build_packet
     try:
-        content = build_packet(sermon, current_user.church)
-        content.update(build_longform(sermon, current_user.church))
+        content = build_packet(sermon, get_org())
+        content.update(build_longform(sermon, get_org()))
     except Exception as exc:
         log.error("Packet regenerate failed for packet_id=%s: %s", packet_id, exc)
         return jsonify({"error": "Could not rebuild this packet. Please try again."}), 502

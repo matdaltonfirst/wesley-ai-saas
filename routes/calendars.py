@@ -3,7 +3,7 @@
 import logging
 
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 from models import db, ChurchCalendar, CalendarEvent
 from calendar_feed import refresh_calendar, event_dict, CalendarFeedError
@@ -43,7 +43,7 @@ def _calendar_dict(cal, with_preview=False):
 def list_calendars():
     cals = (
         ChurchCalendar.query
-        .filter_by(church_id=current_user.church_id)
+        
         .order_by(ChurchCalendar.created_at)
         .all()
     )
@@ -73,13 +73,13 @@ def add_calendar():
         return jsonify({"error": "That is the embed link. In Google Calendar "
                         "settings, copy the address ending in .ics instead."}), 400
 
-    existing = ChurchCalendar.query.filter_by(church_id=current_user.church_id)
+    existing = ChurchCalendar.query
     if existing.filter_by(url=url).first():
         return jsonify({"error": "That calendar is already connected."}), 400
     if existing.count() >= MAX_CALENDARS_PER_CHURCH:
         return jsonify({"error": f"You can connect up to {MAX_CALENDARS_PER_CHURCH} calendars."}), 400
 
-    cal = ChurchCalendar(church_id=current_user.church_id, url=url, label=label)
+    cal = ChurchCalendar(url=url, label=label)
     db.session.add(cal)
     db.session.flush()
 
@@ -89,8 +89,8 @@ def add_calendar():
         db.session.commit()
         return jsonify({"error": error}), 400
 
-    log.info("Calendar connected: church_id=%d calendar_id=%d (%d events)",
-             cal.church_id, cal.id, cal.event_count)
+    log.info("Calendar connected: calendar_id=%d (%d events)",
+             cal.id, cal.event_count)
     return jsonify({"ok": True, "calendar": _calendar_dict(cal, with_preview=True)}), 201
 
 
@@ -98,7 +98,7 @@ def add_calendar():
 @login_required
 def refresh_calendar_now(cal_id):
     cal = ChurchCalendar.query.filter_by(
-        id=cal_id, church_id=current_user.church_id
+        id=cal_id
     ).first()
     if not cal:
         return jsonify({"error": "Calendar not found."}), 404
@@ -111,7 +111,7 @@ def refresh_calendar_now(cal_id):
 @login_required
 def delete_calendar(cal_id):
     cal = ChurchCalendar.query.filter_by(
-        id=cal_id, church_id=current_user.church_id
+        id=cal_id
     ).first()
     if not cal:
         return jsonify({"error": "Calendar not found."}), 404

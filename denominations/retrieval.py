@@ -1,26 +1,20 @@
-"""Denomination-aware retrieval.
+"""Retrieval over the United Methodist profile's reviewed sections."""
 
-Callers pass the church's denomination key; they never choose chunks themselves
-and never branch on which denomination it is. A church assigned one denomination
-can only ever receive that denomination's chunks — the loader has no path to any
-other profile's sections.
-"""
-
-from .registry import get_denomination_profile
+from .umc import PROFILE
 
 
-def load_denomination_chunks(denomination) -> list[dict]:
+def load_denomination_chunks() -> list[dict]:
     """Citable retrieval chunks for exactly one denomination.
 
     Returns an empty list for profiles with no reviewed content, so those
     churches contribute nothing to retrieval candidates, model context, or
     citations rather than borrowing another denomination's material.
     """
-    return get_denomination_profile(denomination).chunks()
+    return PROFILE.chunks()
 
 
 def score_denomination_chunks(
-    question: str, denomination, top_n: int = 3, usage: dict = None
+    question: str, top_n: int = 3, usage: dict = None
 ) -> list[tuple[int, dict]]:
     """Score one denomination's sections against a question.
 
@@ -34,7 +28,7 @@ def score_denomination_chunks(
         RELATIVE_BAND_DENOMINATION, SIMILARITY_FLOOR_DENOMINATION, rank_chunks,
     )
 
-    chunks = load_denomination_chunks(denomination)
+    chunks = load_denomination_chunks()
     if not chunks:
         return []
 

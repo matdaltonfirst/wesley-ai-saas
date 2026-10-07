@@ -1487,15 +1487,6 @@
               Integrations
             </button>
             {% endif %}
-            {% if has_stripe_sub %}
-            <button class="db-nav-item" data-panel="subscription">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                <line x1="1" y1="10" x2="23" y2="10"/>
-              </svg>
-              Subscription
-            </button>
-            {% endif %}
           </div>
         </div>
 
@@ -2025,21 +2016,21 @@
         </div><!-- /.pg-layout -->
       </div><!-- /#panel-playground -->
 
-      <!-- ── Theology & Affiliation (admin only) ── -->
+      <!-- ── Theology (admin only) ── -->
       {% if user_role == 'admin' %}
       <div class="db-panel" id="panel-theology">
         <div class="db-panel-header">
-          <h1 class="db-panel-title">Theology &amp; Affiliation</h1>
+          <h1 class="db-panel-title">Theology</h1>
           <p class="db-panel-subtitle">
-            Your denominational affiliation controls how Wesley answers questions
-            about beliefs, sacraments, membership, clergy, marriage, and church
-            governance. Wesley only ever uses the one profile selected here.
+            Wesley answers questions about beliefs, sacraments, membership,
+            clergy, marriage, and church governance from the Wesleyan United
+            Methodist profile below, then from this congregation's own practice.
           </p>
         </div>
 
         <section class="card settings-card">
           <div class="settings-card-header">
-            <h2 class="settings-card-title">Denominational Profile</h2>
+            <h2 class="settings-card-title">United Methodist Profile</h2>
           </div>
           <div id="thProfileBody"><div class="an-empty">Loading…</div></div>
         </section>
@@ -2123,31 +2114,6 @@
             <button class="btn btn--primary btn--sm website-save-btn" id="staffInviteBtn">Send Invite</button>
           </div>
           <div class="website-status" id="staffInviteStatus"></div>
-        </section>
-      </div>
-      {% endif %}
-
-      <!-- ── Subscription (Stripe users only) ── -->
-      {% if has_stripe_sub %}
-      <div class="db-panel" id="panel-subscription">
-        <div class="db-panel-header">
-          <h1 class="db-panel-title">Subscription</h1>
-          <p class="db-panel-subtitle">Manage your billing, payment method, and invoices.</p>
-        </div>
-        <section class="card settings-card">
-          <div class="settings-card-header">
-            <h2 class="settings-card-title">Billing</h2>
-          </div>
-          <p style="font-size:0.87rem;color:var(--text-muted);margin:0 0 18px;line-height:1.6;">
-            Update your payment method, download invoices, or cancel your subscription — all handled securely by Stripe.
-          </p>
-          <a href="/billing/portal" class="portal-btn">
-            Manage subscription
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px;">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-              <polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </a>
         </section>
       </div>
       {% endif %}
@@ -2296,7 +2262,7 @@
   <!-- ── Panel switching + sidebar collapse ── -->
   <script>
   (function () {
-    const VALID_PANELS = ['sermon-packets','chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations','subscription'];
+    const VALID_PANELS = ['sermon-packets','chat-logs','guest-connections','feedback','analytics-chats','analytics-topics','analytics-sentiment','knowledge-guide','snippets','qna','files','website','calendars','sermons','embed','playground','theology','team','integrations'];
     const main = document.getElementById('dbMain');
     const sidebar = document.getElementById('dbSidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -2549,21 +2515,12 @@
 
     function renderProfile() {
       var p = state.profile;
-      var options = state.options.map(function (o) {
-        return '<option value="' + escape(o.key) + '"' +
-          (o.key === state.denomination ? ' selected' : '') + '>' +
-          escape(o.display_name) + '</option>';
-      }).join('');
-
       var statusColor = p.awaiting_content ? '#9a7418' : '#0f8a6a';
       var html =
         '<div style="display:grid;gap:6px;margin-bottom:16px;">' +
           '<div style="font-size:0.95rem;font-weight:600;color:#0f172a;">' + escape(p.display_name) + '</div>' +
           '<div style="font-size:0.84rem;color:#64748b;line-height:1.55;">' + escape(p.short_description) + '</div>' +
           '<div style="font-size:0.8rem;color:#475569;">Profile version: <strong>' + escape(p.version) + '</strong>' +
-            (state.selected_profile_version && !state.profile_version_current
-              ? ' <span style="color:#b45309;">(selected at version ' + escape(state.selected_profile_version) + ' — content has been updated since)</span>'
-              : '') +
           '</div>' +
           '<div style="font-size:0.8rem;color:' + statusColor + ';font-weight:600;">Status: ' + escape(statusLabel(p)) + '</div>' +
         '</div>';
@@ -2578,22 +2535,7 @@
           'otherwise refers people to church leadership.</p>';
       }
 
-      html +=
-        '<div class="website-field-label">Denominational affiliation</div>' +
-        '<div class="website-url-row">' +
-          '<select id="thDenomSelect" class="website-url-input">' + options + '</select>' +
-          '<button class="btn btn--primary btn--sm website-save-btn" id="thDenomSave">Save</button>' +
-        '</div>' +
-        '<p style="font-size:0.8rem;color:#64748b;line-height:1.55;margin:10px 0 0;">' +
-          'Changing this changes every theological answer Wesley gives — in the ' +
-          'staff assistant and in your public website widget alike. Your Q&amp;A, ' +
-          'snippets, documents, local practices, and statement of faith are all ' +
-          'kept, but they may need review under the new profile.' +
-        '</p>' +
-        '<div id="thDenomMsg" class="website-status"></div>';
-
       profileBody.innerHTML = html;
-      document.getElementById('thDenomSave').addEventListener('click', saveDenomination);
     }
 
     function renderPractices() {
@@ -2651,42 +2593,6 @@
           setMsg(qnaSummary, active + ' active approved answer' + (active === 1 ? '' : 's') + '.', true);
         })
         .catch(function () { setMsg(qnaSummary, '', true); });
-    }
-
-    function saveDenomination() {
-      var select = document.getElementById('thDenomSelect');
-      var msg = document.getElementById('thDenomMsg');
-      var chosen = select.value;
-      if (chosen !== state.denomination) {
-        var name = select.options[select.selectedIndex].text;
-        var ok = window.confirm(
-          'Change this church\'s denominational affiliation to "' + name + '"?\n\n' +
-          'Every theological answer Wesley gives — staff assistant and public ' +
-          'widget — will use the new profile immediately. Your Q&A, snippets, ' +
-          'documents, local practices, and statement of faith are preserved, but ' +
-          'you should review them under the new profile.'
-        );
-        if (!ok) { select.value = state.denomination; return; }
-      }
-      var btn = document.getElementById('thDenomSave');
-      btn.disabled = true;
-      setMsg(msg, '', true);
-      fetch('/api/church/theology/denomination', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ denomination: chosen, confirm: true }),
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d.error) { setMsg(document.getElementById('thDenomMsg'), d.error, false); return; }
-          apply(d);
-          setMsg(document.getElementById('thDenomMsg'), 'Saved.', true);
-        })
-        .catch(function () { setMsg(document.getElementById('thDenomMsg'), 'Network error. Please try again.', false); })
-        .finally(function () {
-          var b = document.getElementById('thDenomSave');
-          if (b) b.disabled = false;
-        });
     }
 
     practiceSave.addEventListener('click', function () {
