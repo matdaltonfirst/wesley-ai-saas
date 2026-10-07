@@ -20,6 +20,11 @@ def database_url(data_dir: Path) -> str:
     # SQLAlchemy 2.x refuses to load a dialect for.
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
+    # Name the driver we ship. A bare "postgresql://" lets SQLAlchemy choose,
+    # and newer releases choose psycopg 3, which is not installed: a rebuild
+    # with unpinned dependencies then crashes at boot.
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg2://" + url[len("postgresql://"):]
     return url
 
 
