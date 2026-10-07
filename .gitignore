@@ -21,3 +21,6 @@ static/social/
 intern-timesheet/
 IMG_*.png
 lofi-coffee-bar-claude-code-prompt.md
+
+# Local development database (scripts/seed_dev.py)
+data-dev/

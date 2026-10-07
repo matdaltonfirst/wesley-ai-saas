@@ -9,7 +9,9 @@
       ],
       "port": 5001,
       "env": {
-        "FLASK_DEBUG": "1"
+        "FLASK_DEBUG": "1",
+        "DATA_DIR": "data-dev",
+        "SECRET_KEY": "dev-only-not-a-secret"
       }
     }
   ]
