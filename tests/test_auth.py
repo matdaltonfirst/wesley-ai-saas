@@ -147,7 +147,7 @@ class TestGoogleSignIn:
         user = make_user("carey@daltonfumc.com", ["admin_assistant"])
         state, nonce, _ = google.start(client)
         res = google.finish(client, state, google.claims(nonce))
-        assert res.status_code == 302 and res.headers["Location"].endswith("/")
+        assert res.status_code == 302 and res.headers["Location"].endswith("/home")
         db.session.refresh(user)
         assert user.google_sub == "g-123" and user.display_name == "Carrie Ashcraft"
         assert user.last_login_at is not None
