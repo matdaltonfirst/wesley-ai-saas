@@ -76,7 +76,7 @@ class TextInChurchConnector(OAuthConnector):
     label = "Text In Church"
     description = "Texting activity: new contacts, conversations, connect cards, and who is waiting for a reply."
     docs_anchor = "text-in-church"
-    interval_minutes = 10
+    interval_minutes = 30
     supports_webhook = True
     authorize_url = BASE + "oauthorize.php"
     token_url = BASE + "oauthorize.php"

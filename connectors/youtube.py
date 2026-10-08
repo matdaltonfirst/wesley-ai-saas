@@ -35,6 +35,7 @@ log = logging.getLogger("wesley")
 
 DATA = "https://www.googleapis.com/youtube/v3"
 ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports"
+PEAK_GIVE_UP_AFTER = 3     # YouTube refusing the peak query this many times in one sync: stop asking
 LOOKBACK_DAYS = 70
 MAX_VIDEOS = 50
 
@@ -121,18 +122,46 @@ class YouTubeConnector(OAuthConnector):
                 ids.append(details["videoId"])
         return ids
 
-    def _report(self, ctx, video_id: str, start: datetime, metrics: str) -> dict:
+    def _report(self, ctx, video_id: str, start: datetime, metrics: str, end: datetime = None, dimensions: str = None) -> dict:
+        last_day = min(datetime.utcnow(), (end or datetime.utcnow()) + timedelta(days=2))
         params = {
             "ids": f"channel=={self.channel_id() or 'MINE'}", "startDate": start.date().isoformat(),
-            "endDate": datetime.utcnow().date().isoformat(), "metrics": metrics,
+            "endDate": last_day.date().isoformat(), "metrics": metrics,
             "filters": f"video=={video_id}",
         }
+        if dimensions:
+            params["dimensions"] = dimensions
         data = ctx.client.get(ANALYTICS, params=params, headers=self.auth_headers())
         headers = [h.get("name") for h in data.get("columnHeaders", [])]
         rows = data.get("rows") or []
+        if dimensions:
+            return headers, rows
         return dict(zip(headers, rows[0])) if rows else {}
 
-    def _analytics(self, ctx, video_id: str, start: datetime, title: str = "") -> dict:
+    def _concurrent(self, ctx, video_id: str, start: datetime, end: datetime) -> dict:
+        """Peak and average concurrent viewers. Tries the whole-stream total, then minute by minute.
+
+        On 8 Oct 2026 Google answered the whole-stream form with a 500. The same report by
+        ``livestreamPosition`` (one row per minute) is also allowed, so the peak is the largest minute.
+        """
+        metrics = "peakConcurrentViewers,averageConcurrentViewers"
+        try:
+            return self._report(ctx, video_id, start, metrics, end)
+        except ConnectorError as first:
+            if first.kind == "auth":
+                raise
+            try:
+                headers, rows = self._report(ctx, video_id, start, metrics, end, dimensions="livestreamPosition")
+            except ConnectorError:
+                raise first
+            if not rows:
+                return {}
+            peak_col = headers.index("peakConcurrentViewers")
+            avg_col = headers.index("averageConcurrentViewers")
+            return {"peakConcurrentViewers": max(r[peak_col] for r in rows),
+                    "averageConcurrentViewers": sum(r[avg_col] for r in rows) / len(rows)}
+
+    def _analytics(self, ctx, video_id: str, start: datetime, end: datetime = None, title: str = "") -> dict:
         """Views and watch time for one video, and its concurrent viewers.
 
         Google only allows the concurrent-viewers metrics in a report of their own (they
@@ -142,21 +171,23 @@ class YouTubeConnector(OAuthConnector):
         result = {}
         label = (title or video_id)[:60]
         try:
-            result.update(self._report(ctx, video_id, start, "views,estimatedMinutesWatched,averageViewDuration"))
+            result.update(self._report(ctx, video_id, start, "views,estimatedMinutesWatched,averageViewDuration", end))
         except ConnectorError as exc:
             if exc.kind == "auth":
                 raise
             ctx.warn(f"No watch time for '{label}': {exc}")
-        try:
-            result.update(self._report(ctx, video_id, start, "peakConcurrentViewers,averageConcurrentViewers"))
-        except ConnectorError as exc:
-            if exc.kind == "auth":
-                raise
-            ctx.warn(f"No peak concurrent viewers for '{label}': {exc}")
+        if len(self._peak_failures) < PEAK_GIVE_UP_AFTER:
+            try:
+                result.update(self._concurrent(ctx, video_id, start, end or start))
+            except ConnectorError as exc:
+                if exc.kind == "auth":
+                    raise
+                self._peak_failures.append(str(exc))
         return result
 
     # ── Sync ─────────────────────────────────────────────────────────────────
     def sync(self, ctx):
+        self._peak_failures = []
         wanted = self.channel_id()
         lookup = {"id": wanted} if wanted else {"mine": "true"}
         channel = self._data(ctx, "channels", part="snippet,contentDetails", **lookup)
@@ -179,6 +210,10 @@ class YouTubeConnector(OAuthConnector):
             for v in videos:
                 self._one_video(ctx, v, services)
         self._write_services(ctx, services)
+        if self._peak_failures:
+            ctx.warn(f"Peak concurrent viewers could not be read from YouTube ({self._peak_failures[0][:140]}). "
+                     f"{'It stopped asking after ' + str(PEAK_GIVE_UP_AFTER) + ' failures. ' if len(self._peak_failures) >= PEAK_GIVE_UP_AFTER else ''}"
+                     "Views and watch time are unaffected. Peaks can be typed in on the Streaming numbers page.")
 
     def _one_video(self, ctx, v, services):
         vid = v["id"]
@@ -188,7 +223,7 @@ class YouTubeConnector(OAuthConnector):
         ctx.store_raw("video", vid, v)
         peak = minutes = avg_seconds = views_analytics = None
         if live and start and end:                      # an ended live stream
-            a = self._analytics(ctx, vid, start, snippet.get("title") or "")
+            a = self._analytics(ctx, vid, start, end, snippet.get("title") or "")
             peak = to_int(a.get("peakConcurrentViewers"))
             minutes = to_int(a.get("estimatedMinutesWatched"))
             avg_seconds = to_int(a.get("averageViewDuration"))

@@ -169,9 +169,44 @@ class TestYouTubeSync:
         yt.request_fn = Refuse(fake_youtube([live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}}))
         run = runner.run_sync(yt, "manual")
         warnings = json.loads(run.detail)["warnings"]
-        assert run.status == "partial" and len(warnings) == 1 and "No peak concurrent viewers" in warnings[0]
+        assert run.status == "partial" and len(warnings) == 1 and "Peak concurrent viewers could not be read" in warnings[0]
         n = StreamingNumber.query.one()
         assert (n.total_views, n.watch_minutes, n.peak_concurrent) == (800, 600, None)
+
+    def test_when_the_whole_stream_peak_fails_the_minute_by_minute_form_is_used(self, yt):
+        from connectors.errors import UpstreamError
+        inner = fake_youtube([live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}})
+        def wrapper(method, url, **kw):
+            params = kw.get("params") or {}
+            if "youtubeanalytics" in url and "peakConcurrentViewers" in params.get("metrics", ""):
+                if not params.get("dimensions"):
+                    raise UpstreamError("YouTube had a problem on its side (error 500).")
+                r = MagicMock(); r.status_code = 200; r.headers = {}
+                body = {"columnHeaders": [{"name": "livestreamPosition"}, {"name": "peakConcurrentViewers"}, {"name": "averageConcurrentViewers"}],
+                        "rows": [[0, 90, 80], [1, 150, 140], [2, 120, 110]]}
+                r.json.return_value = body; r.text = json.dumps(body)
+                return r
+            return inner(method, url, **kw)
+        yt.request_fn = wrapper
+        run = runner.run_sync(yt, "manual")
+        assert run.status == "ok", run.error
+        assert StreamingNumber.query.one().peak_concurrent == 150
+
+    def test_it_stops_asking_for_peaks_after_three_failures_and_warns_once(self, yt):
+        from connectors.errors import UpstreamError
+        videos = [live_video(f"v{n}", "Sunday", SUN_START - timedelta(days=7 * n)) for n in range(6)]
+        inner = fake_youtube(videos, {v["id"]: {"views": 100} for v in videos})
+        peak_calls = []
+        def wrapper(method, url, **kw):
+            if "youtubeanalytics" in url and "peakConcurrentViewers" in (kw.get("params") or {}).get("metrics", ""):
+                peak_calls.append(1)
+                raise UpstreamError("YouTube had a problem on its side (error 500).")
+            return inner(method, url, **kw)
+        yt.request_fn = wrapper
+        run = runner.run_sync(yt, "manual")
+        warnings = json.loads(run.detail)["warnings"]
+        assert [w for w in warnings if "Peak concurrent" in w].__len__() == 1 and "stopped asking" in warnings[-1]
+        assert len(peak_calls) == 3 * 2        # whole-stream and per-minute form, for the first three videos only
 
     def test_old_videos_are_ignored(self, yt):
         old = live_video("old", "Sunday", NOW - timedelta(days=200))
