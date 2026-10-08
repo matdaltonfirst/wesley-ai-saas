@@ -166,6 +166,48 @@ class TestTextInChurch:
         assert runner.run_sync(c).status == "ok"
         assert seen["h"]["Authorization"] == "Bearer tic-key-1234567890" and seen["url"].startswith("https://api.textinchurch.com/API/1_0/")
 
+    def test_a_missing_conversation_endpoint_is_a_warning_and_the_rest_still_syncs(self, tic):
+        from connectors import tic_mock
+        original = tic_mock.respond
+        def respond(endpoint, params):
+            if endpoint == "conversation.php":
+                from connectors.errors import UpstreamError
+                raise UpstreamError("Text In Church rejected a request (error 404): File not found.")
+            return original(endpoint, params)
+        tic_mock.respond = respond
+        try:
+            run = runner.run_sync(tic, "manual")
+        finally:
+            tic_mock.respond = original
+        warnings = json.loads(run.detail)["warnings"]
+        assert run.status == "partial" and any("conversation.php" in w and "Conversations could not be listed" in w for w in warnings)
+        assert TicContact.query.count() == 10 and TicMessage.query.count() >= 20 and TicConnectCard.query.count() == 3
+
+    def test_without_conversations_the_followup_list_says_unavailable_instead_of_listing_everyone(self, tic):
+        from models import TicConversation
+        runner.run_sync(tic)
+        TicConversation.query.delete(); db.session.commit()
+        s = M.summary(60)
+        assert s["awaiting_followup"] is None and "Not available" in s["awaiting_followup_note"]
+
+    def test_conversations_are_learned_from_messages_when_they_carry_them(self, tic):
+        from models import TicConversation
+        from connectors import tic_mock
+        original = tic_mock.respond
+        def respond(endpoint, params):
+            if endpoint == "conversation.php":
+                return []
+            rows = original(endpoint, params)
+            if endpoint == "message.php":
+                rows = [dict(m, conversation={"conv_id": m["conv_id"], "contact_id": "1001"}) for m in rows]
+            return rows
+        tic_mock.respond = respond
+        try:
+            runner.run_sync(tic, "manual")
+        finally:
+            tic_mock.respond = original
+        assert TicConversation.query.filter_by(contact_id="1001").count() >= 1
+
     def test_a_rejected_key_says_to_make_a_new_one(self, app, church, monkeypatch):
         monkeypatch.delenv("TEXT_IN_CHURCH_MOCK", raising=False); monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "k")
         c = TextInChurchConnector(); c.min_interval_seconds = 0; c.save_api_key("bad-key-1234567")

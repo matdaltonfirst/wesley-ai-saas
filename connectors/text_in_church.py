@@ -127,9 +127,12 @@ class TextInChurchConnector(OAuthConnector):
 
     # ── Calls ────────────────────────────────────────────────────────────────
     def get(self, ctx, endpoint, **params):
-        if self.mock():
-            return tic_mock.respond(endpoint, params)
-        return ctx.client.get(BASE + endpoint, params=params, headers=self.auth_headers())
+        try:
+            if self.mock():
+                return tic_mock.respond(endpoint, params)
+            return ctx.client.get(BASE + endpoint, params=params, headers=self.auth_headers())
+        except ConnectorError as exc:
+            raise type(exc)(f"{endpoint}: {exc}", exc.kind) from exc
 
     def paged(self, ctx, endpoint, **params):
         offset = 0
@@ -167,21 +170,31 @@ class TextInChurchConnector(OAuthConnector):
                 ctx.note("contacts", fetched=1, changed=int(changed))
 
     def sync_conversations(self, ctx):
-        for rows in self.paged(ctx, "conversation.php", order_by="conv_id", sort_dir="DESC"):
-            for c in rows:
-                cid = str(c.get("conv_id"))
-                ctx.store_raw("conversation", cid, c)
-                changed = ctx.upsert(TicConversation, {"conv_id": cid}, {
-                    "contact_id": str(c.get("contact_id")) if c.get("contact_id") else None,
-                    "archived": truthy(c.get("conv_archived", 0)),
-                })
-                ctx.note("conversations", fetched=1, changed=int(changed))
+        """The docs list conversation.php, but on 8 Oct 2026 Text In Church's server answered 404 for it.
+        That is a warning, not a failure: messages still sync, and conversations are learned from them."""
+        try:
+            for rows in self.paged(ctx, "conversation.php", order_by="conv_id", sort_dir="DESC"):
+                for c in rows:
+                    cid = str(c.get("conv_id"))
+                    ctx.store_raw("conversation", cid, c)
+                    changed = ctx.upsert(TicConversation, {"conv_id": cid}, {
+                        "contact_id": str(c.get("contact_id")) if c.get("contact_id") else None,
+                        "archived": truthy(c.get("conv_archived", 0)),
+                    })
+                    ctx.note("conversations", fetched=1, changed=int(changed))
+        except ConnectorError as exc:
+            if exc.kind == "auth":
+                raise
+            ctx.warn("Conversations could not be listed (" + str(exc)[:120] + "). Who has been answered is worked out "
+                     "from messages instead, and may be incomplete.")
 
     def sync_messages(self, ctx):
         since = (datetime.utcnow() - timedelta(days=MESSAGE_WINDOW_DAYS)).strftime("%Y-%m-%d")
-        for rows in self.paged(ctx, "message.php", start_date=since, order_by="msg_id", sort_dir="DESC"):
+        for rows in self.paged(ctx, "message.php", start_date=since, order_by="msg_id", sort_dir="DESC",
+                               load_conversations="1"):
             for m in rows:
                 mid = str(m.get("msg_id"))
+                self.learn_conversation(ctx, m)
                 ctx.store_raw("message", mid, {k: v for k, v in m.items() if k != "msg_content"})
                 changed = ctx.upsert(TicMessage, {"msg_id": mid}, {
                     "conv_id": str(m.get("conv_id")) if m.get("conv_id") else None,
@@ -190,6 +203,15 @@ class TextInChurchConnector(OAuthConnector):
                     "content": m.get("msg_content"), "automated": truthy(m.get("automated", 0)),
                 })
                 ctx.note("messages", fetched=1, changed=int(changed))
+
+    @staticmethod
+    def learn_conversation(ctx, m):
+        """If a message carries its conversation (load_conversations), remember which contact it belongs to."""
+        conv = m.get("conversation") if isinstance(m.get("conversation"), dict) else {}
+        cid = m.get("conv_id") or conv.get("conv_id")
+        contact = m.get("contact_id") or conv.get("contact_id")
+        if cid and contact:
+            ctx.upsert(TicConversation, {"conv_id": str(cid)}, {"contact_id": str(contact), "archived": truthy(conv.get("conv_archived", 0))})
 
     def sync_connect_cards(self, ctx):
         """Completed connect card submissions (field names from Text In Church's API reference)."""

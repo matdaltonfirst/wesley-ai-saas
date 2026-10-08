@@ -74,4 +74,6 @@ def guests_awaiting_followup(days: int = 30, min_age_hours: int = 12) -> list:
 def summary(days: int = 28) -> dict:
     return {"messages": message_volume(days), "new_contacts": new_contacts(days),
             "connect_cards": connect_cards(days), "response_times": response_times(days),
-            "awaiting_followup": guests_awaiting_followup()}
+            "awaiting_followup": (guests_awaiting_followup() if TicConversation.query.first() is not None else None),
+            "awaiting_followup_note": ("" if TicConversation.query.first() is not None else
+                                       "Not available yet: Text In Church has not told us which conversations belong to which person.")}

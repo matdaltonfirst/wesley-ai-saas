@@ -112,6 +112,8 @@ source and turn the old one off on the Integrations page. History stays in place
   by time, but it dies if the person who created it changes their password, loses Page
   access, or removes the app. Then status becomes Needs reconnect: make a new token and
   paste it in.
+- **Permission `read_insights`.** Facebook's video insights need it. Without it, the connector falls back to the
+  video's own view counter (views only, no watch time) and says so in the sync notes.
 - **App review.** Reading your own Page's data while the app is in development mode, with
   an admin of the app, needs no review. Typical permissions: `pages_read_engagement`,
   `pages_show_list`, `read_insights`, and for Instagram `instagram_basic` and
@@ -149,6 +151,10 @@ source and turn the old one off on the Integrations page. History stays in place
 - **Webhooks.** Optional. Set `TEXT_IN_CHURCH_WEBHOOK_TOKEN` and point the webhook at
   `<APP_URL>/webhooks/text_in_church?token=<the token>`.
 - **Checked against the API reference, not yet a live run.** Endpoints are `contact.php`, `conversation.php`, `message.php` and `connectCardSubmission.php`; the key goes in an `Authorization: Bearer` header. The webhook payload is unverified.
+- **Conversation endpoint.** The API reference lists `conversation.php`, but on 8 Oct 2026 Text In Church's server
+  answered 404 for it. The sync records a warning and carries on; it asks messages to include their conversation
+  and learns which person each belongs to that way. Until that works, "guests awaiting follow-up" reports
+  "not available" instead of a list. Ask Text In Church support which endpoint lists conversations.
 
 ## Subsplash
 
