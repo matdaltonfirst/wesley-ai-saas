@@ -232,13 +232,17 @@ class TestTextInChurchMetrics:
 # ── Meta ──────────────────────────────────────────────────────────────────────
 
 class FakeMeta:
-    def __init__(self, fail_insights=False, bad_token=False):
-        self.fail_insights, self.bad_token, self.calls = fail_insights, bad_token, []
+    def __init__(self, fail_insights=False, bad_token=False, me_id="42", empty=False):
+        self.fail_insights, self.bad_token, self.me_id, self.empty, self.calls = fail_insights, bad_token, me_id, empty, []
 
     def __call__(self, method, url, **kw):
         self.calls.append((url, kw.get("params")))
         if self.bad_token:
             return resp({}, 400, text='{"error":{"message":"Error validating access token","type":"OAuthException","code":190}}')
+        if url.endswith("/me"):
+            return resp({"id": self.me_id, "name": "Someone" if self.me_id != "42" else "Dalton First UMC"})
+        if self.empty and (url.endswith("/42/posts") or url.endswith("/42/live_videos")):
+            return resp({"data": []})
         if url.endswith("/42/posts"):
             return resp({"data": [{"id": "42_1", "created_time": "2026-10-01T15:00:00+0000", "message": "Fall Festival is coming!",
                                    "permalink_url": "https://fb.example/p1", "status_type": "added_photos",
@@ -295,6 +299,18 @@ class TestMeta:
         meta.request_fn = FakeMeta(bad_token=True)
         run = runner.run_sync(meta)
         assert run.status == "failed" and run.error_kind == "auth" and runner.health(meta).status == "needs_reconnect"
+
+    def test_empty_lists_from_meta_are_explained_not_silent(self, meta):
+        meta.request_fn = FakeMeta(empty=True)
+        run = runner.run_sync(meta)
+        warnings = json.loads(run.detail)["warnings"]
+        assert run.status == "partial"
+        assert any("no posts" in w for w in warnings) and any("no live videos" in w for w in warnings)
+
+    def test_a_token_for_a_different_page_or_person_is_called_out(self, meta):
+        meta.request_fn = FakeMeta(me_id="999", empty=True)
+        run = runner.run_sync(meta)
+        assert any("belongs to 'Someone'" in w and "42" in w for w in json.loads(run.detail)["warnings"])
 
     def test_without_a_page_id_it_asks_for_one(self, app, church, monkeypatch):
         monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "k")

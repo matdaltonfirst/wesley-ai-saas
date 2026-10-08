@@ -105,10 +105,24 @@ class MetaConnector(StaticTokenConnector):
     # ── Sync ─────────────────────────────────────────────────────────────────
     def sync(self, ctx):
         cfg = self.settings()
+        self.check_token_matches_page(ctx, cfg["page_id"])
         self.sync_facebook_posts(ctx, cfg["page_id"])
         self.sync_live_videos(ctx, cfg["page_id"])
         if cfg.get("ig_user_id"):
             self.sync_instagram(ctx, cfg["ig_user_id"])
+
+    def check_token_matches_page(self, ctx, page_id):
+        """A user token or the wrong Page's token returns empty lists, not errors. Say so."""
+        try:
+            me = self.graph(ctx, "me", fields="id,name")
+        except AuthError:
+            raise
+        except ConnectorError as exc:
+            ctx.warn(f"Could not ask Meta which Page this token belongs to: {str(exc)[:140]}")
+            return
+        if str(me.get("id")) != str(page_id):
+            ctx.warn(f"This token belongs to '{me.get('name')}' (id {me.get('id')}), not the Page id {page_id}. "
+                     "Meta returns empty lists in that case. Make a Page token for the church Page and paste it again.")
 
     def _optional(self, ctx, what, fn):
         """Run an optional insights call; a retired or unpermitted metric is only a warning."""
@@ -124,6 +138,10 @@ class MetaConnector(StaticTokenConnector):
         body = self.graph(ctx, f"{page_id}/posts", limit=25, fields=(
             "id,created_time,permalink_url,message,status_type,"
             "reactions.summary(true).limit(0),comments.summary(true).limit(0),shares"))
+        if not body.get("data"):
+            ctx.warn("Meta returned no posts for this Page. Either nothing was posted recently or the token lacks "
+                     "permission to read posts (it needs pages_read_engagement; for some Pages Meta also asks for "
+                     "pages_read_user_content).")
         for p in body.get("data", []):
             reactions = ((p.get("reactions") or {}).get("summary") or {}).get("total_count") or 0
             comments = ((p.get("comments") or {}).get("summary") or {}).get("total_count") or 0
@@ -141,6 +159,9 @@ class MetaConnector(StaticTokenConnector):
     def sync_live_videos(self, ctx, page_id):
         body = self.graph(ctx, f"{page_id}/live_videos", limit=25, fields=LIVE_FIELDS)
         services = {}
+        if not body.get("data"):
+            ctx.warn("Meta returned no live videos for this Page. Services streamed from other software, or "
+                     "only to YouTube, will not appear here.")
         for lv in body.get("data", []):
             video_id = (lv.get("video") or {}).get("id") or lv.get("id")
             created = parse_time(lv.get("creation_time"))
