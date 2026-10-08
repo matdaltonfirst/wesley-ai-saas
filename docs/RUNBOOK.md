@@ -125,9 +125,15 @@ or reactivating them is enough; no email is sent.
 
 ## Rolling back the roles and sign-in release (Phase 1b)
 
-Backup taken just before it: `~/wesley-backups/2026-10-07-predeploy-1b/` (taken at revision
-`c3a7f1d20b44`). To roll back: redeploy the previous Railway deployment (code at commit
-`854204c...` is NOT right; use the commit before the Phase 1b merge, tagged `pre-phase-1b`), rebuild
-the schema at that revision with that code (`flask db upgrade c3a7f1d20b44` on an empty
-schema), then
-`python scripts/restore_to_postgres.py <backup>/db --revision c3a7f1d20b44`.
+Backup taken just before it: `~/wesley-backups/2026-10-07-predeploy-1b/`, at Alembic revision
+`c3a7f1d20b44`. The last commit before the release is the git tag `pre-phase-1b`.
+
+1. In Railway, redeploy the previous deployment, or revert to `pre-phase-1b`.
+2. In the container, rebuild the old schema with that code, on an empty schema:
+   `flask db upgrade c3a7f1d20b44`.
+3. Restore the data:
+   `python scripts/restore_to_postgres.py <backup>/db --revision c3a7f1d20b44`.
+
+Anything written between the backup and the rollback is lost. Note: the restore script's
+refusal checks and sequence handling were tested against the earlier revision; the logic is
+revision-independent, but run it first against a scratch schema (`--schema`) if time allows.
