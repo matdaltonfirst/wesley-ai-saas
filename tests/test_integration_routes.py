@@ -34,6 +34,14 @@ class TestPage:
         assert by["youtube"]["status"] == "needs_reconnect" and "reconnected" in by["youtube"]["detail"]
         assert "Traceback" not in json.dumps(by["youtube"])
 
+    def test_a_partial_runs_warnings_are_sent_to_the_page(self, auth_client, app):
+        db.session.add(SyncRun(integration="facebook", status="partial", trigger="manual", finished_at=datetime.utcnow(),
+                               detail=json.dumps({"resources": {}, "warnings": ["Live video insights not available from Meta right now: (#100) bad metric"]})))
+        db.session.commit()
+        by = {i["key"]: i for i in auth_client.get("/api/integrations").get_json()["integrations"]}
+        assert by["facebook"]["runs"][0]["warnings"] == ["Live video insights not available from Meta right now: (#100) bad metric"]
+        assert by["youtube"]["runs"] == []
+
     def test_read_access_without_manage_hides_nothing_but_allows_nothing(self, client, church):
         login(client, make_user("c@daltonfumc.com", ["comms"]))        # comms: integrations.read only
         assert client.get("/integrations").status_code == 200

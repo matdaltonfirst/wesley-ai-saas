@@ -1,5 +1,6 @@
 """The Integrations status page, connecting tools, manual sync, and webhook intake."""
 
+import json
 import logging
 import secrets
 import threading
@@ -45,6 +46,14 @@ def _how(c) -> str:
     return "none"
 
 
+def _warnings_of(run) -> list:
+    """The plain-language warnings a sync attached to itself (stored in the run's detail)."""
+    try:
+        return [str(w)[:400] for w in (json.loads(run.detail or "{}").get("warnings") or [])][:10]
+    except (ValueError, AttributeError):
+        return []
+
+
 def describe(c) -> dict:
     h = runner.health(c)
     runs = runner.last_runs(c.key, 5)
@@ -58,7 +67,8 @@ def describe(c) -> dict:
         "settings": runner.config_of(c.key) if c.key in ("facebook", "youtube") else {},
         "runs": [{"id": r.id, "started_at": iso_utc(r.started_at), "finished_at": iso_utc(r.finished_at),
                   "status": r.status, "trigger": r.trigger, "rows_fetched": r.rows_fetched,
-                  "rows_changed": r.rows_changed, "error": r.error or ""} for r in runs],
+                  "rows_changed": r.rows_changed, "error": r.error or "",
+                  "warnings": _warnings_of(r)} for r in runs],
     }
 
 

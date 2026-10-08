@@ -47,7 +47,7 @@
     else {
       var t = el('table'); t.appendChild(el('thead', {}, [el('tr', {}, ['When', 'Result', 'Rows', 'Message'].map(function (h) { return el('th', { text: h }); }))]));
       var b = el('tbody');
-      i.runs.forEach(function (r) { b.appendChild(el('tr', {}, [el('td', { text: new Date(r.started_at).toLocaleString() + ' (' + r.trigger + ')' }), el('td', { text: r.status }), el('td', { text: r.rows_fetched + ' read, ' + r.rows_changed + ' changed' }), el('td', { text: r.error })])); });
+      i.runs.forEach(function (r) { b.appendChild(el('tr', {}, [el('td', { text: new Date(r.started_at).toLocaleString() + ' (' + r.trigger + ')' }), el('td', { text: r.status }), el('td', { text: r.rows_fetched + ' read, ' + r.rows_changed + ' changed' }), el('td', { text: [r.error].concat(r.warnings || []).filter(Boolean).join(' | ') })])); });
       t.appendChild(b); runs.appendChild(t);
     }
     return el('section', { class: 'card', 'aria-labelledby': 'h-' + i.key }, [
@@ -55,7 +55,8 @@
         el('div', {}, [el('div', { class: 'name', id: 'h-' + i.key, text: i.label }), el('div', { class: 'desc', text: i.description })]),
         el('span', { class: 'pill ' + i.status, text: STATUS[i.status] || i.status }),
       ]),
-      el('p', { class: 'detail', text: [i.headline, i.detail].filter(Boolean).join('. ').replace(/\.\.$/, '.') }),
+      el('p', { class: 'detail', text: (i.detail && i.headline && i.detail.indexOf(i.headline) === 0) ? i.detail : [i.headline, i.detail].filter(Boolean).join('. ').replace(/\.\.$/, '.') }),
+      (i.runs.length && i.runs[0].warnings && i.runs[0].warnings.length) ? el('p', { class: 'detail', style: 'color:#8a5a00', text: 'The last sync finished with notes: ' + i.runs[0].warnings.join(' | ') }) : el('span'),
       el('div', { class: 'meta', text: (i.account ? 'Connected as ' + i.account + '. ' : '') + (i.status === 'manual' ? '' : 'Last good sync: ' + ago(i.last_success_at) + (i.interval_minutes ? '. Syncs every ' + i.interval_minutes + ' minutes.' : '.')) }),
       actions, runs,
     ]);
