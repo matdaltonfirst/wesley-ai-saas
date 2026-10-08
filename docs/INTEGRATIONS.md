@@ -12,10 +12,10 @@ realistic fake responses. "Live" means someone ran it against the real service.
 | Connector | Tested with fake responses | Run against the real service |
 |---|---|---|
 | Planning Center | yes, using real response shapes | The calendar part ran in production before Phase 2. The new parts (services, groups, check-ins, publishing, registrations) have not. |
-| YouTube | yes | no |
-| Facebook and Instagram | yes | no. Metric and field names may need adjusting on first live run. |
+| YouTube | yes | yes (8 Oct 2026). Watch time and views work. Peak concurrent was refused until the report was split in two; recheck after the next sync. |
+| Facebook and Instagram | yes | connected 8 Oct 2026. Meta retired `post_impressions_unique`; reach now uses `post_total_media_view_unique`. Live video metrics are still being confirmed. |
 | Constant Contact | yes | no. The list and contact request parameters are unverified. |
-| Text In Church | yes, plus a built-in mock | no. The connect-card endpoint name and the webhook payload are unverified. |
+| Text In Church | yes, plus a built-in mock. Endpoint and field names checked against Text In Church's API reference on 8 Oct 2026. | not yet. The webhook payload is unverified. |
 | Subsplash | no API exists to test (see below) | not applicable |
 
 Each connector reports its own problems on the Integrations page, so a wrong guess shows up
@@ -97,8 +97,9 @@ source and turn the old one off on the Integrations page. History stays in place
 - **Service labels.** A video's service name comes from its title. Titles containing words
   configured in `service_labels` map to labels such as "Sunday service". Anything else is
   stored as the title and can be corrected by hand.
-- **Known limits.** Analytics for a live stream can lag by a day. Not run against the real
-  channel yet.
+- **Known limits.** Analytics for a live stream can lag by a day. Google only allows peak and average
+  concurrent viewers in a report of their own, so the connector makes two Analytics requests per
+  stream (watch time and views; then concurrent viewers). One can fail without losing the other.
 
 ## Facebook and Instagram
 
@@ -147,7 +148,7 @@ source and turn the old one off on the Integrations page. History stays in place
   payloads. A retention period for this data is still undecided (see "Open questions").
 - **Webhooks.** Optional. Set `TEXT_IN_CHURCH_WEBHOOK_TOKEN` and point the webhook at
   `<APP_URL>/webhooks/text_in_church?token=<the token>`.
-- **Not run against the real service yet.** The connect-card endpoint name is unverified.
+- **Checked against the API reference, not yet a live run.** Endpoints are `contact.php`, `conversation.php`, `message.php` and `connectCardSubmission.php`; the key goes in an `Authorization: Bearer` header. The webhook payload is unverified.
 
 ## Subsplash
 

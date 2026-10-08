@@ -46,8 +46,8 @@ def _build():
                              "msg_send_time": _fmt(created + timedelta(hours=3 + i)), "msg_content": "Welcome! Yes, we meet Wednesdays at 6."})
             mid += 1
         if i % 3 == 0:
-            cards.append({"id": str(3000 + i), "contact_id": str(1000 + i), "collection_name": "Sunday Connect Card",
-                          "created": _fmt(created)})
+            cards.append({"connect_card_submission_id": str(3000 + i), "connect_card_id": 7, "contact_id": str(1000 + i),
+                          "submission_completed": 1, "date_submitted": _fmt(created), "current": 1})
     return contacts, conversations, messages, cards
 
 

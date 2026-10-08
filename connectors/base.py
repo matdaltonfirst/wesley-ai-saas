@@ -65,8 +65,9 @@ class SyncContext:
 
     def warn(self, message: str):
         """A problem with one item that should not fail the whole run."""
-        if len(self.warnings) < 20:
-            self.warnings.append(message[:300])
+        message = message[:300]
+        if len(self.warnings) < 20 and message not in self.warnings:
+            self.warnings.append(message)
 
     def store_raw(self, resource: str, external_id, payload) -> None:
         """Keep the last raw response for an object, replacing the previous one."""

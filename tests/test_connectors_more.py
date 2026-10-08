@@ -247,13 +247,15 @@ class FakeMeta:
             return resp({"data": [{"id": "42_1", "created_time": "2026-10-01T15:00:00+0000", "message": "Fall Festival is coming!",
                                    "permalink_url": "https://fb.example/p1", "status_type": "added_photos",
                                    "reactions": {"summary": {"total_count": 30}}, "comments": {"summary": {"total_count": 4}}, "shares": {"count": 6}}]})
-        if "/insights" in url and self.fail_insights:
+        if ("/insights" in url or url.endswith("/video_insights")) and self.fail_insights:
             return resp({}, 400, text='{"error":{"message":"(#100) The value must be a valid insights metric","code":100}}')
         if url.endswith("/42_1/insights"):
-            return resp({"data": [{"name": "post_impressions_unique", "values": [{"value": 1200}]}]})
+            return resp({"data": [{"name": "post_total_media_view_unique", "values": [{"value": 1200}]}]})
         if url.endswith("/42/live_videos"):
             return resp({"data": [{"id": "L1", "status": "VOD", "title": "Modern Service Live", "creation_time": "2026-10-04T13:25:00+0000",
                                    "live_views": 150, "video": {"id": "V1"}}]})
+        if url.endswith("/V1"):
+            return resp({"id": "V1", "views": 777})
         if url.endswith("/V1/video_insights"):
             return resp({"data": [{"name": "total_video_views", "values": [{"value": 900}]},
                                   {"name": "total_video_view_total_time", "values": [{"value": 36000000}]}]})
@@ -294,6 +296,27 @@ class TestMeta:
         run = runner.run_sync(meta)
         assert run.status == "partial" and any("not available from Meta" in w for w in json.loads(run.detail)["warnings"])
         assert SocialPost.query.filter_by(post_id="42_1").one().reach is None and SocialPost.query.count() == 3
+
+    def test_a_refused_metric_is_one_warning_not_one_per_post(self, meta):
+        many = FakeMeta(fail_insights=True)
+        original = many.__call__
+        def lots_of_posts(method, url, **kw):
+            if url.endswith("/42/posts"):
+                body = original(method, url, **kw).json.return_value
+                posts = [dict(body["data"][0], id=f"42_{n}") for n in range(1, 21)]
+                return resp({"data": posts})
+            return original(method, url, **kw)
+        meta.request_fn = lots_of_posts
+        run = runner.run_sync(meta)
+        warnings = [w for w in json.loads(run.detail)["warnings"] if "Post reach" in w]
+        assert len(warnings) == 1
+        insight_calls = [u for u, _ in many.calls if u.endswith("/insights") and "/42_" in u]
+        assert len(insight_calls) == 1                         # it stopped asking after the first refusal
+
+    def test_when_video_insights_are_refused_the_videos_own_counter_is_used(self, meta):
+        meta.request_fn = FakeMeta(fail_insights=True)
+        runner.run_sync(meta)
+        assert StreamingNumber.query.one().total_views == 777
 
     def test_an_invalid_token_means_reconnect(self, meta):
         meta.request_fn = FakeMeta(bad_token=True)

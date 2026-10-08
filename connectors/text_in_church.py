@@ -192,15 +192,19 @@ class TextInChurchConnector(OAuthConnector):
                 ctx.note("messages", fetched=1, changed=int(changed))
 
     def sync_connect_cards(self, ctx):
+        """Completed connect card submissions (field names from Text In Church's API reference)."""
         try:
-            for rows in self.paged(ctx, "connectCardSubmission.php", order_by="id", sort_dir="DESC"):
+            for rows in self.paged(ctx, "connectCardSubmission.php", order_by="connect_card_submission_id", sort_dir="DESC"):
                 for s in rows:
-                    sid = str(s.get("id") or s.get("submission_id"))
+                    if not truthy(s.get("submission_completed", 1)):
+                        continue                                   # started but never finished
+                    sid = str(s.get("connect_card_submission_id"))
                     ctx.store_raw("connect_card", sid, s)
+                    card = s.get("connect_card_id")
                     changed = ctx.upsert(TicConnectCard, {"submission_id": sid}, {
                         "contact_id": str(s.get("contact_id")) if s.get("contact_id") else None,
-                        "collection": (s.get("collection_name") or s.get("collection_id") and str(s.get("collection_id")) or None),
-                        "submitted_at": parse_time(s.get("created") or s.get("date_created") or s.get("submitted")),
+                        "collection": ("Card " + str(card)) if card else None,
+                        "submitted_at": parse_time(s.get("date_submitted")),
                     })
                     ctx.note("connect_cards", fetched=1, changed=int(changed))
         except ConnectorError as exc:

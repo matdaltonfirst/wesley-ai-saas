@@ -40,11 +40,17 @@ def fake_youtube(videos, analytics, calls=None, channel_items=True):
             return resp({"items": [v for v in videos if v["id"] in ids]})
         if "youtubeanalytics" in url:
             vid = kw["params"]["filters"].split("==")[1]
+            wanted = kw["params"]["metrics"].split(",")
+            concurrent = [m for m in wanted if "ConcurrentViewers" in m]
+            if concurrent and len(concurrent) != len(wanted):
+                # Google: concurrent-viewer metrics cannot be mixed with other metrics
+                return resp({"error": {"code": 400, "message": "The query is not supported."}}, 400)
             a = analytics.get(vid)
             if isinstance(a, Exception):
                 raise a
             if a is None:
                 return resp({"columnHeaders": [], "rows": []})
+            a = {k: v for k, v in a.items() if k in wanted}
             names = list(a)
             return resp({"columnHeaders": [{"name": n} for n in names], "rows": [[a[n] for n in names]]})
         raise AssertionError("unexpected url " + url)
@@ -140,8 +146,32 @@ class TestYouTubeSync:
     def test_a_video_without_analytics_is_a_warning_not_a_failure(self, yt):
         from connectors.errors import UpstreamError
         run = sync(yt, [live_video("v1", "Sunday", SUN_START, views=321)], {"v1": UpstreamError("quota")})
-        assert run.status == "partial" and "No analytics" in json.loads(run.detail)["warnings"][0]
+        assert run.status == "partial" and "No watch time" in json.loads(run.detail)["warnings"][0]
         assert StreamingNumber.query.one().total_views == 321 and StreamingNumber.query.one().peak_concurrent is None
+
+    def test_peak_and_watch_time_are_separate_requests_so_one_can_fail_alone(self, yt):
+        calls = []
+        sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "peakConcurrentViewers": 150}}, calls=calls)
+        metric_sets = [p["metrics"] for u, p in calls if "youtubeanalytics" in u]
+        assert metric_sets == ["views,estimatedMinutesWatched,averageViewDuration",
+                               "peakConcurrentViewers,averageConcurrentViewers"]
+        n = StreamingNumber.query.one()
+        assert (n.total_views, n.peak_concurrent) == (800, 150)
+
+    def test_a_refused_peak_query_keeps_the_views_and_says_so_once(self, yt):
+        from connectors.errors import UpstreamError
+        class Refuse:
+            def __init__(self, inner): self.inner = inner
+            def __call__(self, method, url, **kw):
+                if "youtubeanalytics" in url and "peakConcurrentViewers" in kw["params"]["metrics"]:
+                    raise UpstreamError("The query is not supported.")
+                return self.inner(method, url, **kw)
+        yt.request_fn = Refuse(fake_youtube([live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}}))
+        run = runner.run_sync(yt, "manual")
+        warnings = json.loads(run.detail)["warnings"]
+        assert run.status == "partial" and len(warnings) == 1 and "No peak concurrent viewers" in warnings[0]
+        n = StreamingNumber.query.one()
+        assert (n.total_views, n.watch_minutes, n.peak_concurrent) == (800, 600, None)
 
     def test_old_videos_are_ignored(self, yt):
         old = live_video("old", "Sunday", NOW - timedelta(days=200))
@@ -163,8 +193,9 @@ class TestYouTubeSync:
     def test_analytics_requests_ask_for_the_peak_metric_for_one_video(self, yt):
         calls = []
         sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {}}, calls=calls)
-        params = next(p for u, p in calls if "youtubeanalytics" in u)
+        params = next(p for u, p in calls if "youtubeanalytics" in u and "peakConcurrentViewers" in p["metrics"])
         assert "peakConcurrentViewers" in params["metrics"] and params["filters"] == "video==v1" and params["ids"] == "channel==MINE"
+        assert params["metrics"] == "peakConcurrentViewers,averageConcurrentViewers"      # a report of its own
 
     def test_a_configured_channel_id_is_used_instead_of_mine(self, yt, monkeypatch):
         monkeypatch.setenv("YOUTUBE_CHANNEL_ID", "UCchurch")

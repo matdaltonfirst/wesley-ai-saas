@@ -47,6 +47,8 @@ VERSION = os.getenv("META_GRAPH_VERSION", "v23.0")
 GRAPH = f"https://graph.facebook.com/{VERSION}"
 LIVE_FIELDS = "id,status,title,creation_time,live_views,video{id,length}"
 VIDEO_METRICS = "total_video_views,total_video_view_total_time"
+# Meta retired post_impressions_unique; this is its replacement ("unique viewers of the post").
+POST_REACH_METRIC = "post_total_media_view_unique"
 
 
 def parse_time(value):
@@ -105,6 +107,7 @@ class MetaConnector(StaticTokenConnector):
     # ── Sync ─────────────────────────────────────────────────────────────────
     def sync(self, ctx):
         cfg = self.settings()
+        self._refused = set()
         self.check_token_matches_page(ctx, cfg["page_id"])
         self.sync_facebook_posts(ctx, cfg["page_id"])
         self.sync_live_videos(ctx, cfg["page_id"])
@@ -126,11 +129,17 @@ class MetaConnector(StaticTokenConnector):
 
     def _optional(self, ctx, what, fn):
         """Run an optional insights call; a retired or unpermitted metric is only a warning."""
+        refused = getattr(self, "_refused", None)
+        if refused is None:
+            refused = self._refused = set()
+        if what in refused:                 # Meta already said no to this once; do not ask 25 more times
+            return None
         try:
             return fn()
         except AuthError:
             raise
         except ConnectorError as exc:
+            refused.add(what)
             ctx.warn(f"{what} not available from Meta right now: {str(exc)[:140]}")
             return None
 
@@ -147,7 +156,7 @@ class MetaConnector(StaticTokenConnector):
             comments = ((p.get("comments") or {}).get("summary") or {}).get("total_count") or 0
             shares = (p.get("shares") or {}).get("count") or 0
             reach = self._optional(ctx, "Post reach", lambda: metric_value(
-                self.graph(ctx, f"{p['id']}/insights", metric="post_impressions_unique"), "post_impressions_unique"))
+                self.graph(ctx, f"{p['id']}/insights", metric=POST_REACH_METRIC), POST_REACH_METRIC))
             ctx.store_raw("fb_post", p["id"], p)
             changed = ctx.upsert(SocialPost, {"platform": "facebook", "post_id": p["id"]}, {
                 "kind": (p.get("status_type") or "post")[:20], "created_at": parse_time(p.get("created_time")),
@@ -168,6 +177,9 @@ class MetaConnector(StaticTokenConnector):
             insights = self._optional(ctx, "Live video insights", lambda: self.graph(
                 ctx, f"{video_id}/video_insights", metric=VIDEO_METRICS))
             views = metric_value(insights, "total_video_views") if insights else None
+            if views is None:               # the insights edge refused: fall back to the video's own counter
+                counter = self._optional(ctx, "Live video view counter", lambda: self.graph(ctx, video_id, fields="views"))
+                views = counter.get("views") if counter else None
             ms = metric_value(insights, "total_video_view_total_time") if insights else None
             minutes = int(ms / 60000) if ms is not None else None
             ctx.store_raw("fb_live", lv.get("id"), lv)
