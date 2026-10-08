@@ -14,8 +14,13 @@ from tests.conftest import login, make_user
 
 # Endpoints that are intentionally open to the world or handle their own auth.
 OPEN_PREFIXES = ("static", "public.", "auth.")
-# Staff endpoints that only need a signed-in person by design (none today).
-OPEN_ENDPOINTS = set()
+# Open on purpose, each authenticating the caller some other way. Adding to this
+# list is a security decision: say why.
+OPEN_ENDPOINTS = {
+    # Providers call it with no session; each connector verifies its own signature or
+    # secret, and the payload is never trusted (it only triggers a sync).
+    "integrations.webhook_intake",
+}
 
 
 class TestDefaultDeny:

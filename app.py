@@ -188,6 +188,8 @@ def create_app(testing: bool = False) -> Flask:
     from routes.public_api import public_bp
     from routes.staff_widget import staff_widget_bp
     from routes.team import team_bp
+    from routes.streaming_routes import streaming_bp
+    from routes.integrations import integrations_bp
     from routes.settings import settings_bp
     from routes.admin import admin_bp
     from routes.comms_routes import comms_bp
@@ -204,6 +206,8 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(public_bp)
     _app.register_blueprint(staff_widget_bp)
     _app.register_blueprint(team_bp)
+    _app.register_blueprint(streaming_bp)
+    _app.register_blueprint(integrations_bp)
     _app.register_blueprint(settings_bp)
     _app.register_blueprint(admin_bp)
     _app.register_blueprint(comms_bp)
@@ -410,6 +414,8 @@ def nightly_widget_cleanup_job():
         log.info("Nightly widget cleanup: deleted %d widget conversation(s) older than 30 days.", count)
         import public_limits
         log.info("Rate-limit counters pruned: %d.", public_limits.prune())
+        from connectors import runner as _runner
+        log.info("Old sync runs pruned: %d.", _runner.prune_runs())
 
 
 def calendar_refresh_job():
@@ -477,6 +483,17 @@ def pco_reconciliation_job():
 # cross-process lock: all workers wake, exactly one runs it. Without this,
 # raising the worker count would send each church duplicate digests, crawl each
 # website repeatedly, and repeat every billing warning.
+def connector_sync_job(key):
+    """Build the job body for one connector. Errors are recorded by the runner."""
+    def job():
+        with app.app_context():
+            import connectors
+            from connectors import runner
+            runner.run_sync(connectors.get(key), "scheduled")
+    job.__name__ = f"sync_{key}_job"
+    return job
+
+
 _SCHEDULED_JOBS = [
     ("nightly_crawl",         nightly_crawl_job,         CronTrigger(hour=2, minute=0)),
     ("transcript_backfill",   transcript_backfill_job,   CronTrigger(hour=2, minute=30)),
@@ -505,6 +522,16 @@ if not app.testing and not _scheduler_disabled:
             scheduler.add_job(_locked, "interval", minutes=5, id=_name)
         else:
             scheduler.add_job(_locked, _trigger, id=_name)
+    # One interval job per connector that syncs on a schedule.
+    try:
+        import connectors as _connectors
+        for _c in _connectors.all_connectors():
+            if _c.interval_minutes:
+                _locked = single_flight(app, "sched_sync_" + _c.key)(connector_sync_job(_c.key))
+                scheduler.add_job(_locked, "interval", minutes=_c.interval_minutes, id="sync_" + _c.key,
+                                  jitter=60, max_instances=1, coalesce=True)
+    except Exception:
+        log.exception("Could not schedule connector syncs")
     if not scheduler.running:
         scheduler.start()
 

@@ -493,6 +493,9 @@ class PcoConnection(db.Model):
     workflow_name     = db.Column(db.String(200), nullable=True)
     connected_by_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    # Space-separated OAuth scopes granted. Connections made before Phase 2 hold
+    # only "people"; the Integrations page asks to reconnect for the rest.
+    scope             = db.Column(db.String(300), nullable=True)
 
 
 class SermonSource(db.Model):
@@ -541,3 +544,309 @@ class Sermon(db.Model):
     @property
     def video_url(self):
         return f"https://www.youtube.com/watch?v={self.video_id}"
+
+
+# ── Connector framework ──────────────────────────────────────────────────────
+
+class Integration(db.Model):
+    """One row per external system: whether it is on, and how its last syncs went."""
+    __tablename__ = "integrations"
+    id              = db.Column(db.Integer, primary_key=True)
+    key             = db.Column(db.String(40), nullable=False, unique=True)   # e.g. "youtube"
+    enabled         = db.Column(db.Boolean, nullable=False, default=True)
+    config          = db.Column(db.Text, nullable=True)       # JSON, never secrets
+    last_success_at = db.Column(db.DateTime, nullable=True)
+    last_error      = db.Column(db.Text, nullable=True)       # plain-language message
+    last_error_kind = db.Column(db.String(20), nullable=True)   # auth | rate_limit | upstream | config | other
+    updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class IntegrationToken(db.Model):
+    """OAuth tokens for one integration, encrypted at rest (see crypto.py)."""
+    __tablename__ = "integration_tokens"
+    id            = db.Column(db.Integer, primary_key=True)
+    key           = db.Column(db.String(40), nullable=False, unique=True)
+    access_token  = db.Column(db.Text, nullable=False)
+    refresh_token = db.Column(db.Text, nullable=True)
+    expires_at    = db.Column(db.DateTime, nullable=True)
+    scope         = db.Column(db.String(500), nullable=True)
+    account_label = db.Column(db.String(200), nullable=True)   # e.g. the channel or page name
+    connected_by_id = db.Column(db.Integer, nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SyncRun(db.Model):
+    """One attempt to sync one integration. Never edited after it finishes."""
+    __tablename__ = "sync_runs"
+    id            = db.Column(db.Integer, primary_key=True)
+    integration   = db.Column(db.String(40), nullable=False, index=True)
+    started_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    finished_at   = db.Column(db.DateTime, nullable=True)
+    status        = db.Column(db.String(10), nullable=False, default="running")   # running | ok | partial | failed
+    trigger       = db.Column(db.String(12), nullable=False, default="scheduled") # scheduled | manual | webhook
+    rows_fetched  = db.Column(db.Integer, nullable=False, default=0)
+    rows_changed  = db.Column(db.Integer, nullable=False, default=0)
+    error         = db.Column(db.Text, nullable=True)       # plain-language
+    error_kind    = db.Column(db.String(20), nullable=True)
+    detail        = db.Column(db.Text, nullable=True)       # JSON: per-resource counts, warnings
+
+
+class RawPayload(db.Model):
+    """The last response we received for one object, kept apart from the normalized rows.
+
+    So a parsing bug can be fixed and replayed without asking the provider again,
+    and so normalized tables hold only what the app uses.
+    """
+    __tablename__ = "raw_payloads"
+    id          = db.Column(db.Integer, primary_key=True)
+    integration = db.Column(db.String(40), nullable=False)
+    resource    = db.Column(db.String(60), nullable=False)
+    external_id = db.Column(db.String(120), nullable=False)
+    fetched_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    payload     = db.Column(db.Text, nullable=False)
+    payload_hash = db.Column(db.String(64), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("integration", "resource", "external_id", name="uq_raw_payload"),
+    )
+
+
+# ── Streaming numbers (the administrative assistant's weekly pane) ───────────
+
+class StreamingNumber(db.Model):
+    """One platform's numbers for one service on one date.
+
+    Platforms count differently and a person can watch on several, so these are
+    *views*, never people. ``source`` says where each figure came from.
+    """
+    __tablename__ = "streaming_numbers"
+    id              = db.Column(db.Integer, primary_key=True)
+    service_date    = db.Column(db.Date, nullable=False, index=True)
+    service_label   = db.Column(db.String(60), nullable=False, default="Sunday service")
+    platform        = db.Column(db.String(30), nullable=False)   # youtube | facebook | subsplash | other
+    peak_concurrent = db.Column(db.Integer, nullable=True)
+    total_views     = db.Column(db.Integer, nullable=True)
+    watch_minutes   = db.Column(db.Integer, nullable=True)
+    # Where each value came from: api | csv | manual. Per field, since a person
+    # may correct one number from an API row and leave the rest.
+    sources         = db.Column(db.Text, nullable=True)           # JSON {"peak_concurrent": "api", ...}
+    external_id     = db.Column(db.String(120), nullable=True)    # e.g. the YouTube video id
+    note            = db.Column(db.String(300), nullable=True)
+    updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by      = db.Column(db.String(200), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("service_date", "service_label", "platform", name="uq_streaming_number"),
+    )
+
+
+class StreamingNumberEdit(db.Model):
+    """Every change to a streaming number, by whom, and what it was before."""
+    __tablename__ = "streaming_number_edits"
+    id         = db.Column(db.Integer, primary_key=True)
+    number_id  = db.Column(db.Integer, nullable=False, index=True)   # no FK: history outlives a deleted row
+    at         = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    by         = db.Column(db.String(200), nullable=True)
+    field      = db.Column(db.String(30), nullable=False)
+    old_value  = db.Column(db.String(60), nullable=True)
+    new_value  = db.Column(db.String(60), nullable=True)
+    source     = db.Column(db.String(10), nullable=False)           # api | csv | manual
+    reason     = db.Column(db.String(300), nullable=True)
+
+
+# ── Normalized connector data ────────────────────────────────────────────────
+
+class YoutubeVideo(db.Model):
+    __tablename__ = "youtube_videos"
+    id              = db.Column(db.Integer, primary_key=True)
+    video_id        = db.Column(db.String(20), nullable=False, unique=True)
+    title           = db.Column(db.String(500), nullable=False)
+    published_at    = db.Column(db.DateTime, nullable=True)
+    is_live         = db.Column(db.Boolean, nullable=False, default=False)
+    actual_start    = db.Column(db.DateTime, nullable=True)
+    actual_end      = db.Column(db.DateTime, nullable=True)
+    views           = db.Column(db.Integer, nullable=True)
+    likes           = db.Column(db.Integer, nullable=True)
+    comments        = db.Column(db.Integer, nullable=True)
+    peak_concurrent = db.Column(db.Integer, nullable=True)
+    watch_minutes   = db.Column(db.Integer, nullable=True)
+    avg_view_seconds = db.Column(db.Integer, nullable=True)
+    synced_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SocialPost(db.Model):
+    """A Facebook or Instagram post and how it performed."""
+    __tablename__ = "social_posts"
+    id           = db.Column(db.Integer, primary_key=True)
+    platform     = db.Column(db.String(12), nullable=False)       # facebook | instagram
+    post_id      = db.Column(db.String(60), nullable=False)
+    kind         = db.Column(db.String(20), nullable=True)        # post | video | live | reel | image
+    created_at   = db.Column(db.DateTime, nullable=True)
+    permalink    = db.Column(db.String(500), nullable=True)
+    caption      = db.Column(db.String(300), nullable=True)
+    reach        = db.Column(db.Integer, nullable=True)
+    impressions  = db.Column(db.Integer, nullable=True)
+    engagements  = db.Column(db.Integer, nullable=True)
+    video_views  = db.Column(db.Integer, nullable=True)
+    live_views   = db.Column(db.Integer, nullable=True)           # Facebook live: viewers during the broadcast
+    watch_seconds = db.Column(db.Integer, nullable=True)
+    synced_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("platform", "post_id", name="uq_social_post"),)
+
+
+class EmailCampaign(db.Model):
+    __tablename__ = "email_campaigns"
+    id          = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.String(60), nullable=False, unique=True)
+    name        = db.Column(db.String(300), nullable=True)
+    sent_at     = db.Column(db.DateTime, nullable=True)
+    sends       = db.Column(db.Integer, nullable=True)
+    opens       = db.Column(db.Integer, nullable=True)
+    clicks      = db.Column(db.Integer, nullable=True)
+    bounces     = db.Column(db.Integer, nullable=True)
+    optouts     = db.Column(db.Integer, nullable=True)
+    forwards    = db.Column(db.Integer, nullable=True)
+    synced_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class EmailListSnapshot(db.Model):
+    """List sizes once a day, so growth can be charted. Counts only, no addresses."""
+    __tablename__ = "email_list_snapshots"
+    id        = db.Column(db.Integer, primary_key=True)
+    day       = db.Column(db.Date, nullable=False)
+    list_id   = db.Column(db.String(60), nullable=False)          # "all" for total contacts
+    list_name = db.Column(db.String(200), nullable=True)
+    members   = db.Column(db.Integer, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("day", "list_id", name="uq_email_list_snapshot"),)
+
+
+class TicContact(db.Model):
+    """A Text In Church contact: name and status only (no phone, email or address)."""
+    __tablename__ = "tic_contacts"
+    id            = db.Column(db.Integer, primary_key=True)
+    contact_id    = db.Column(db.String(30), nullable=False, unique=True)
+    first_name    = db.Column(db.String(100), nullable=True)
+    last_name     = db.Column(db.String(100), nullable=True)
+    created_at    = db.Column(db.DateTime, nullable=True)
+    source        = db.Column(db.String(60), nullable=True)
+    active        = db.Column(db.Boolean, nullable=False, default=True)
+    optout_sms    = db.Column(db.Boolean, nullable=False, default=False)
+    synced_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TicConversation(db.Model):
+    __tablename__ = "tic_conversations"
+    id          = db.Column(db.Integer, primary_key=True)
+    conv_id     = db.Column(db.String(30), nullable=False, unique=True)
+    contact_id  = db.Column(db.String(30), nullable=True, index=True)
+    archived    = db.Column(db.Boolean, nullable=False, default=False)
+    synced_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TicMessage(db.Model):
+    """A text message. Content is sensitive: only reachable with data.text_in_church."""
+    __tablename__ = "tic_messages"
+    id         = db.Column(db.Integer, primary_key=True)
+    msg_id     = db.Column(db.String(30), nullable=False, unique=True)
+    conv_id    = db.Column(db.String(30), nullable=True, index=True)
+    incoming   = db.Column(db.Boolean, nullable=False, default=False)
+    sent_at    = db.Column(db.DateTime, nullable=True, index=True)
+    content    = db.Column(db.Text, nullable=True)
+    automated  = db.Column(db.Boolean, nullable=False, default=False)
+    synced_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TicConnectCard(db.Model):
+    __tablename__ = "tic_connect_cards"
+    id            = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.String(30), nullable=False, unique=True)
+    contact_id    = db.Column(db.String(30), nullable=True, index=True)
+    collection    = db.Column(db.String(120), nullable=True)
+    submitted_at  = db.Column(db.DateTime, nullable=True, index=True)
+    synced_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoEvent(db.Model):
+    """A Planning Center Calendar event instance."""
+    __tablename__ = "pco_events"
+    id           = db.Column(db.Integer, primary_key=True)
+    instance_id  = db.Column(db.String(30), nullable=False, unique=True)
+    event_id     = db.Column(db.String(30), nullable=True, index=True)
+    name         = db.Column(db.String(300), nullable=False)
+    starts_at    = db.Column(db.DateTime, nullable=True, index=True)   # naive UTC
+    ends_at      = db.Column(db.DateTime, nullable=True)
+    all_day      = db.Column(db.Boolean, nullable=False, default=False)
+    location     = db.Column(db.String(300), nullable=True)
+    tags         = db.Column(db.String(300), nullable=True)            # comma separated
+    visible_in_church_center = db.Column(db.Boolean, nullable=True)
+    updated_remote_at = db.Column(db.DateTime, nullable=True)
+    # Set when a future instance stops appearing in Planning Center (cancelled or
+    # deleted). Kept, not deleted, so workflows can notice and flag it.
+    removed_at   = db.Column(db.DateTime, nullable=True)
+    synced_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoServicePlan(db.Model):
+    __tablename__ = "pco_service_plans"
+    id           = db.Column(db.Integer, primary_key=True)
+    plan_id      = db.Column(db.String(30), nullable=False, unique=True)
+    service_type = db.Column(db.String(120), nullable=True)
+    title        = db.Column(db.String(300), nullable=True)
+    series       = db.Column(db.String(300), nullable=True)
+    sort_date    = db.Column(db.DateTime, nullable=True, index=True)
+    positions_total     = db.Column(db.Integer, nullable=True)     # plan_people_count
+    positions_needed    = db.Column(db.Integer, nullable=True)     # needed_positions_count
+    synced_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoGroup(db.Model):
+    __tablename__ = "pco_groups"
+    id            = db.Column(db.Integer, primary_key=True)
+    group_id      = db.Column(db.String(30), nullable=False, unique=True)
+    name          = db.Column(db.String(300), nullable=False)
+    group_type    = db.Column(db.String(120), nullable=True)
+    members_count = db.Column(db.Integer, nullable=True)
+    archived      = db.Column(db.Boolean, nullable=False, default=False)
+    synced_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoCheckinCount(db.Model):
+    """Check-in totals for one event time. Counts only: never names."""
+    __tablename__ = "pco_checkin_counts"
+    id          = db.Column(db.Integer, primary_key=True)
+    event_time_id = db.Column(db.String(30), nullable=False, unique=True)
+    event_name  = db.Column(db.String(300), nullable=True)
+    starts_at   = db.Column(db.DateTime, nullable=True, index=True)
+    check_ins   = db.Column(db.Integer, nullable=True)
+    guests      = db.Column(db.Integer, nullable=True)
+    regulars    = db.Column(db.Integer, nullable=True)
+    volunteers  = db.Column(db.Integer, nullable=True)
+    synced_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoSignup(db.Model):
+    """A Registrations signup and how full it is. Counts only."""
+    __tablename__ = "pco_signups"
+    id          = db.Column(db.Integer, primary_key=True)
+    signup_id   = db.Column(db.String(30), nullable=False, unique=True)
+    name        = db.Column(db.String(300), nullable=False)
+    opens_at    = db.Column(db.DateTime, nullable=True)
+    closes_at   = db.Column(db.DateTime, nullable=True)
+    capacity    = db.Column(db.Integer, nullable=True)
+    attendee_count = db.Column(db.Integer, nullable=True)
+    archived    = db.Column(db.Boolean, nullable=False, default=False)
+    synced_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PcoEpisode(db.Model):
+    """A Publishing episode and its statistics."""
+    __tablename__ = "pco_episodes"
+    id          = db.Column(db.Integer, primary_key=True)
+    episode_id  = db.Column(db.String(30), nullable=False, unique=True)
+    title       = db.Column(db.String(500), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
+    views       = db.Column(db.Integer, nullable=True)
+    synced_at   = db.Column(db.DateTime, default=datetime.utcnow)

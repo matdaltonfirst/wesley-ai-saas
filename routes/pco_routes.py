@@ -88,6 +88,7 @@ def pco_callback():
     conn.refresh_token = pco.encrypt_token(tokens["refresh_token"])
     conn.token_expires_at = datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 7200))
     conn.connected_by_id = current_user.id
+    conn.scope = tokens.get("scope") or pco.PCO_SCOPES
     db.session.commit()
 
     try:

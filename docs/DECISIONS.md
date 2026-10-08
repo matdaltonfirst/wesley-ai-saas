@@ -79,3 +79,32 @@ stays up (fail open) and the daily cap still bounds the damage.
 ## 2026-10-07: Staff AI chats belong to the person who had them
 They were readable by every staff account. Chats now carry `user_id` and are only listed and
 opened for their owner. Chats are still deleted after 14 days; the audit log is not.
+
+## 2026-10-07: Planning Center People is not synced
+Copying the membership database into another store adds risk for little gain. Phase 5 will
+look a person up live, one at a time, with permission. Giving is never requested and
+check-ins are counts only.
+
+## 2026-10-07: Connectors only ever read, and webhooks never carry data
+A webhook is a nudge: it is verified, then a normal sync runs. Nothing a webhook says is
+trusted or stored as data.
+
+## 2026-10-07: Streaming numbers are views, and peaks are never added
+Total views are labelled as views, never people. Peak concurrent across platforms is the
+highest single-platform peak, because viewers at the same moment on two platforms may overlap
+and viewers cannot be de-duplicated. A person's correction beats a CSV, which beats the API,
+field by field, and every correction is kept in an edit history.
+
+## 2026-10-07: Subsplash gets manual and CSV entry, not a guessed API
+No public viewership API was found and the church leaves Subsplash in April. A common
+streaming source interface lets Resi or OBS plug in later.
+
+## 2026-10-07: Meta has no peak concurrent number
+The Graph API does not provide it, so Facebook peaks are left for manual entry.
+
+## 2026-10-07: Text In Church message text is stored, narrowly
+The AI is meant to read church texts, so message bodies are stored in one table, gated by
+`data.text_in_church`, audited on read and kept out of raw payloads. Retention is undecided.
+
+## 2026-10-07: Google Workspace Calendar connector deferred to Phase 3
+It was marked optional and the workflows in Phase 3 are what need it.

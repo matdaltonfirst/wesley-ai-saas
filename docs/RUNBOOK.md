@@ -137,3 +137,38 @@ Backup taken just before it: `~/wesley-backups/2026-10-07-predeploy-1b/`, at Ale
 Anything written between the backup and the rollback is lost. Note: the restore script's
 refusal checks and sequence handling were tested against the earlier revision; the logic is
 revision-independent, but run it first against a scratch schema (`--schema`) if time allows.
+
+## A connector is failing or stale
+
+Open `/integrations`. The status line says what is wrong in plain language, and the Recent
+syncs list shows the error for each run.
+
+- **Needs reconnect.** The saved login was refused. Click Connect again (or paste a new token
+  for Facebook and Text In Church). Nothing is lost; syncing resumes.
+- **Not set up on this server.** A Railway variable is missing. The line names it. Add it and
+  redeploy. See [INTEGRATIONS.md](INTEGRATIONS.md) for where each value comes from.
+- **Waiting for access.** The outside service has not turned something on (Text In Church API
+  access, or a Planning Center scope that needs a reconnect).
+- **Failing or Stale.** Click Sync now. If it fails the same way, copy the error from Recent
+  syncs. Rate limits and outages clear on their own; the connector backs off and retries.
+- **Numbers on the Streaming page look wrong.** Use History on that row to see where each
+  number came from. A person's entry is never overwritten by a sync. Correct it by hand.
+
+Turning a connector off on the Integrations page stops its syncs and keeps its history.
+
+## Deploying Phase 2 (connectors and streaming)
+
+Migration `f7a8b9c0d1e2` only adds tables and one column (`pco_connections.scope`), so it is
+reversible: `flask db downgrade e5f6a7b8c9d0` drops them and loses only data synced since.
+
+1. Fresh backup (see "Backup and restore").
+2. Optionally set `TOKEN_ENCRYPTION_KEY` on Railway first (see INTEGRATIONS.md). Without it
+   tokens are encrypted with `SECRET_KEY`; changing the key later means reconnecting.
+3. Merge to `main` and push. `release.sh` runs the migration. Watch `railway logs`.
+4. Verify: `/streaming` and `/integrations` load for an admin, an administrative assistant
+   can enter a number and see its history, and the public widget still answers.
+5. In Planning Center, reconnect once so the new scopes are granted. For YouTube, enable the
+   two Google APIs and add the callback URL (see INTEGRATIONS.md), then Connect.
+
+Rollback: redeploy the previous deployment, then `flask db downgrade e5f6a7b8c9d0` if the new
+tables must go. The old code ignores the new tables, so the downgrade is optional.

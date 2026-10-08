@@ -61,6 +61,10 @@ PCO_CLIENT_ID     = os.getenv("PCO_CLIENT_ID", "")
 PCO_CLIENT_SECRET = os.getenv("PCO_CLIENT_SECRET", "")
 PCO_TOKEN_ENCRYPTION_KEY = os.getenv("PCO_TOKEN_ENCRYPTION_KEY", "")
 PCO_API_BASE      = "https://api.planningcenteronline.com"
+# Everything the Staff OS reads. Giving is deliberately absent: it is requested only
+# when an admin decides to grant it (see docs/ROLES.md).
+PCO_SCOPES        = os.getenv("PCO_SCOPES", "people calendar services groups check_ins publishing registrations")
+PCO_WEBHOOK_SECRET = os.getenv("PCO_WEBHOOK_SECRET", "")
 
 # ── YouTube Data API (sermon ingestion) ───────────────────────────────────────
 

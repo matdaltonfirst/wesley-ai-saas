@@ -20,7 +20,7 @@ from sqlalchemy import and_, or_
 from models import db, PcoConnection, GuestConnection
 from config import (
     PCO_CLIENT_ID, PCO_CLIENT_SECRET, PCO_TOKEN_ENCRYPTION_KEY,
-    PCO_API_BASE, APP_URL,
+    PCO_API_BASE, PCO_SCOPES, APP_URL,
 )
 
 log = logging.getLogger("wesley")
@@ -93,7 +93,7 @@ def authorize_url(state: str) -> str:
         "client_id": PCO_CLIENT_ID,
         "redirect_uri": redirect_uri(),
         "response_type": "code",
-        "scope": "people",
+        "scope": PCO_SCOPES,
         "state": state,
     })
 

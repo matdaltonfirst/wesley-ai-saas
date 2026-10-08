@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Streaming numbers</title>
+  {% include 'partials/head.html' %}
+  <style>
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font); }
+    header.bar { display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:#0e1a2b; color:#fff; flex-wrap:wrap; gap:8px; }
+    header.bar a { color:#fff; margin-left:16px; font-size:.9rem; }
+    main { max-width:1100px; margin:0 auto; padding:24px 20px 80px; }
+    h1 { font-size:1.5rem; margin:0 0 4px; } h2 { font-size:1.05rem; margin:0 0 10px; }
+    .sub { opacity:.75; margin:0 0 20px; font-size:.92rem; max-width:70ch; }
+    .card { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:18px; margin-bottom:18px; }
+    .note { background:#fff8e6; border:1px solid #f1d99a; border-radius:10px; padding:10px 14px; font-size:.84rem; line-height:1.5; margin-bottom:18px; }
+    .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:18px; }
+    .stat { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:14px 16px; }
+    .stat .v { font-size:1.8rem; font-weight:800; line-height:1.1; } .stat .l { font-size:.8rem; opacity:.7; margin-top:2px; }
+    .up { color:#0f8a6a; } .down { color:#b3402a; }
+    table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    th { text-align:left; padding:8px 6px; font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; opacity:.7; }
+    td { padding:8px 6px; border-top:1px solid rgba(0,0,0,.07); vertical-align:top; }
+    td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; }
+    .scroll { overflow-x:auto; }
+    .badge { display:inline-block; font-size:.68rem; padding:1px 6px; border-radius:999px; margin-left:4px; vertical-align:middle; background:#eef2f6; }
+    .badge.api { background:#e3f2fd; } .badge.csv { background:#f3e8ff; } .badge.manual { background:#e6f6ec; }
+    button, .btn { font:inherit; padding:8px 14px; border-radius:10px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; text-decoration:none; color:inherit; display:inline-block; }
+    button.primary { background:#1695a0; color:#fff; border-color:#1695a0; }
+    button.link { border:0; background:none; color:#0b6b74; padding:0; text-decoration:underline; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline:3px solid rgba(42,173,181,.5); outline-offset:2px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    dialog { border:0; border-radius:16px; padding:22px; max-width:520px; width:92vw; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+    dialog::backdrop { background:rgba(10,20,30,.5); }
+    label { display:block; font-size:.82rem; margin:10px 0 3px; font-weight:600; }
+    input, select, textarea { font:inherit; width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.2); border-radius:8px; box-sizing:border-box; }
+    .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+    .err { color:#b3402a; font-size:.84rem; margin-top:8px; } .ok { color:#0f8a6a; font-size:.84rem; margin-top:8px; }
+    svg text { font-family:inherit; }
+    @media (max-width:640px){ .grid3 { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <strong>{{ church_name }}</strong>
+    <span><a href="/home">Home</a><a href="/integrations">Integrations</a><span style="margin-left:16px;font-size:.9rem">{{ user_email }}</span> <a href="/logout">Sign out</a></span>
+  </header>
+  <main>
+    <h1>Streaming numbers</h1>
+    <p class="sub">Weekly viewership from YouTube, Facebook and Subsplash, side by side. Every number shows where it came from, and corrections are kept in an edit history.</p>
+
+    <div class="note" role="note">
+      <strong>How to read these numbers.</strong> Everything here is <em>views</em>, not people. Someone who watches on two platforms, or replays a service, is counted each time, so totals are labelled <em>total views</em>. Peak concurrent viewers are never added together; the weekly figure is the highest single-platform peak.
+    </div>
+
+    <div class="stats" id="stats" aria-live="polite"></div>
+
+    <section class="card" aria-labelledby="trendH">
+      <h2 id="trendH">Total views by week</h2>
+      <div id="trend" role="img" aria-label="Line chart of total views per week. The same numbers are in the table below."></div>
+    </section>
+
+    <section class="card" aria-labelledby="weeksH">
+      <h2 id="weeksH">Week by week</h2>
+      <div class="scroll"><table id="weeks"></table></div>
+    </section>
+
+    <section class="card" aria-labelledby="svcH">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="svcH" style="margin:0">Each service</h2>
+        <span class="row" style="margin:0">
+          {% if can_write %}<button class="primary" id="addBtn">Enter numbers</button>
+          <button id="importBtn">Import CSV</button>{% endif %}
+          <a class="btn" id="exportBtn" href="#">Export CSV</a>
+        </span>
+      </div>
+      <div class="scroll"><table id="services"></table></div>
+    </section>
+  </main>
+
+  <dialog id="entryDlg" aria-labelledby="entryH">
+    <form method="dialog" id="entryForm">
+      <h2 id="entryH">Enter or correct numbers</h2>
+      <label for="eDate">Service date</label><input type="date" id="eDate" required>
+      <label for="eLabel">Service</label><input type="text" id="eLabel" value="Sunday service" maxlength="60">
+      <label for="ePlatform">Platform</label>
+      <select id="ePlatform">{% for k, v in platforms.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      <div class="grid3">
+        <div><label for="ePeak">Peak concurrent</label><input type="text" inputmode="numeric" id="ePeak"></div>
+        <div><label for="eViews">Total views</label><input type="text" inputmode="numeric" id="eViews"></div>
+        <div><label for="eMin">Watch minutes</label><input type="text" inputmode="numeric" id="eMin"></div>
+      </div>
+      <label for="eReason">Reason (required when changing an existing number)</label><input type="text" id="eReason" maxlength="300">
+      <div class="err" id="eErr" role="alert"></div>
+      <div class="row" style="margin-top:14px"><button type="submit" class="primary" id="eSave">Save</button><button type="button" id="eCancel">Cancel</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDlg" aria-labelledby="importH">
+    <h2 id="importH">Import numbers from a CSV</h2>
+    <p style="font-size:.84rem">Columns: <code>date</code>, <code>platform</code>, <code>service</code> (optional), <code>peak_concurrent</code>, <code>total_views</code>, <code>watch_minutes</code>. Anything entered by hand is never overwritten.</p>
+    <label for="iFile">CSV file</label><input type="file" id="iFile" accept=".csv,text/csv">
+    <label for="iPlatform">Platform for the whole file (only if the file has no platform column)</label>
+    <select id="iPlatform"><option value="">The file has a platform column</option>{% for k, v in platforms.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <div id="iResult" role="status" style="margin-top:12px;font-size:.86rem"></div>
+    <div class="row" style="margin-top:14px"><button id="iPreview">Preview</button><button class="primary" id="iGo" disabled>Import</button><button id="iClose">Close</button></div>
+  </dialog>
+
+  <dialog id="histDlg" aria-labelledby="histH"><h2 id="histH">Edit history</h2><div id="histBody"></div><div class="row" style="margin-top:14px"><button id="hClose">Close</button></div></dialog>
+
+  <script src="/static/streaming.js"></script>
+</body>
+</html>

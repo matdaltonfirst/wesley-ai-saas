@@ -1,7 +1,7 @@
 # Architecture
 
-Status after Phase 1b (roles, Google sign-in, public/staff boundary). Later phases add connectors, roles and the
-streaming pane; this file is updated with each.
+Status after Phase 2 (connector framework and streaming pane, on top of roles, Google sign-in and the
+public/staff boundary). Later phases add workflows and role home screens; this file is updated with each.
 
 ```mermaid
 flowchart LR
@@ -59,5 +59,28 @@ flowchart LR
   worker runs each job. `WESLEY_DISABLE_SCHEDULER=1` stops it for one-off tooling.
 - **Storage.** PostgreSQL in production, SQLite locally. Uploads live on the Railway volume at
   `DATA_DIR/uploads/2/` (the folder name is historical).
+
+## Connectors and the streaming pane (Phase 2)
+
+```mermaid
+flowchart LR
+  Sched["APScheduler (Postgres lock)"] --> Runner["connectors/runner.py<br/>run_sync, health, sync_runs"]
+  Hook["POST /webhooks/&lt;key&gt;<br/>verified, only triggers a sync"] --> Runner
+  Manual["Sync now (Integrations page)"] --> Runner
+  Runner --> C["Connector (one file each)<br/>planning_center, youtube, facebook,<br/>constant_contact, text_in_church, subsplash"]
+  C --> Http["connectors/http.py<br/>retry, backoff, Retry-After, pacing"]
+  Http --> Ext["Outside services"]
+  C --> Raw[("raw_payloads")]
+  C --> Norm[("normalized tables<br/>pco_*, youtube_videos, social_posts,<br/>email_*, tic_*, streaming_numbers")]
+  Tok[("integration_tokens<br/>encrypted")] --> C
+  Csv["CSV import / manual entry<br/>streaming_sources.py"] --> Norm
+  Norm --> Pane["Streaming pane (streaming.py)<br/>source priority, edit history"]
+  Norm --> Status["Integrations page<br/>plain-language health"]
+```
+
+Each connector follows one interface in `connectors/base.py`. Raw payloads and normalized rows
+are separate tables. Tokens are encrypted. Every sync is a row in `sync_runs`. The full
+per-tool detail is in [INTEGRATIONS.md](INTEGRATIONS.md). The streaming pane merges numbers
+per field by source priority (manual, then CSV, then API) and keeps an edit history.
 
 Known limits are tracked in [AUDIT.md](AUDIT.md).

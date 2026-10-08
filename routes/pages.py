@@ -44,6 +44,19 @@ def home_page():
         cards.append({"title": "Chatbot answers to correct", "link": "/dashboard#feedback",
                       "count": AnswerFeedback.query.filter_by(status="open").count(),
                       "note": "flagged or thumbs-down answers"})
+    if can("streaming.read"):
+        import streaming
+        latest = next((w for w in reversed(streaming.weekly_summary(8)["weeks"]) if w["total_views"] is not None), None)
+        cards.append({"title": "Streaming numbers", "link": "/streaming",
+                      "count": latest["total_views"] if latest else None,
+                      "note": ("total views, week of " + latest["week_start"]) if latest else "no numbers yet. Enter or import them"})
+    if can("integrations.read"):
+        import connectors
+        from connectors import runner
+        bad = sum(1 for c in connectors.all_connectors()
+                  if runner.health(c).status in ("failing", "needs_reconnect", "stale"))
+        cards.append({"title": "Integrations", "link": "/integrations", "count": bad,
+                      "note": "need attention" if bad else "all working or not yet set up"})
     if can("chat.use"):
         cards.append({"title": "Ask Wesley", "link": "/", "count": None,
                       "note": "questions about policy, events, sermons and more"})

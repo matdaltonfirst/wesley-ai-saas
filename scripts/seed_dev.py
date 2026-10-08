@@ -102,6 +102,15 @@ def main() -> int:
             WidgetMessage(widget_conversation_id=wc.id, role="assistant",
                           content="Modern worship is at 9:30 AM and Traditional is at 11:00 AM."),
         ])
+        # A few weeks of fake streaming numbers so the pane has something to show.
+        import streaming
+        sunday = date.today() - timedelta(days=(date.today().weekday() + 1) % 7)
+        for w in range(8):
+            d = sunday - timedelta(weeks=w)
+            for platform, base, peak in (("youtube", 900, 140), ("facebook", 420, None), ("subsplash", 260, 55)):
+                streaming.save_number(d, "Sunday service", platform,
+                                      {"total_views": base + (7 - w) * 25, **({"peak_concurrent": peak + (7 - w) * 3} if peak else {})},
+                                      "api" if platform == "youtube" else "csv", by="seed")
         db.session.commit()
 
     print(f"Seeded. Sign in as dev-admin, dev-comms, dev-assistant, dev-family, dev-music, "

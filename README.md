@@ -63,7 +63,7 @@ denominations/      the Wesleyan United Methodist profile and local-practice rul
 content/            house-style settings for generated content
 migrations/         Alembic revisions
 scripts/            backup, restore, restore check, local seed
-docs/               audit, architecture, runbook, decisions, removed features
+docs/               audit, architecture, integrations, runbook, decisions, removed features
 ```
 
-More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DECISIONS.md](docs/DECISIONS.md).
+More: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DECISIONS.md](docs/DECISIONS.md).
