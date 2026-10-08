@@ -88,6 +88,12 @@ source and turn the old one off on the Integrations page. History stays in place
   API**. Add the redirect URI `<APP_URL>/integrations/youtube/callback` to the OAuth client.
   The person who connects must manage the church channel. Because the client is Internal,
   that person needs a daltonfumc.com account.
+- **Channel owned by another account.** If the church channel belongs to an account that is not
+  a daltonfumc.com account, add a daltonfumc.com person as a Manager in YouTube Studio
+  (Settings, Permissions), then set `YOUTUBE_CHANNEL_ID` on Railway to the church channel's id
+  (Studio, Settings, Channel, Advanced settings; it starts with `UC`). Every request then
+  names that channel instead of the signed-in person's own. Whether Google's Analytics API
+  accepts a manager this way for the church's channel has to be confirmed on the first sync.
 - **Service labels.** A video's service name comes from its title. Titles containing words
   configured in `service_labels` map to labels such as "Sunday service". Anything else is
   stored as the title and can be corrected by hand.

@@ -166,6 +166,20 @@ class TestYouTubeSync:
         params = next(p for u, p in calls if "youtubeanalytics" in u)
         assert "peakConcurrentViewers" in params["metrics"] and params["filters"] == "video==v1" and params["ids"] == "channel==MINE"
 
+    def test_a_configured_channel_id_is_used_instead_of_mine(self, yt, monkeypatch):
+        monkeypatch.setenv("YOUTUBE_CHANNEL_ID", "UCchurch")
+        calls = []
+        sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {}}, calls=calls)
+        channel_params = next(p for u, p in calls if u.endswith("/channels"))
+        assert channel_params.get("id") == "UCchurch" and "mine" not in channel_params
+        analytics_params = next(p for u, p in calls if "youtubeanalytics" in u)
+        assert analytics_params["ids"] == "channel==UCchurch"
+
+    def test_a_wrong_configured_channel_id_says_so(self, yt, monkeypatch):
+        monkeypatch.setenv("YOUTUBE_CHANNEL_ID", "UCnope")
+        run = sync(yt, [], {}, channel_items=False)
+        assert run.status == "failed" and "YOUTUBE_CHANNEL_ID" in run.error
+
     def test_it_asks_for_offline_access_and_both_scopes(self, yt):
         url = yt.authorize_redirect("s")
         assert "access_type=offline" in url and "yt-analytics.readonly" in url and "youtube.readonly" in url

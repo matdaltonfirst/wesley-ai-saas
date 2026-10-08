@@ -17,6 +17,7 @@ Transcripts are still fetched by the sermon pipeline; the official captions API
 needs a broader scope and is a Phase 3 decision.
 """
 
+import os
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -93,6 +94,17 @@ class YouTubeConnector(OAuthConnector):
             zone = ZoneInfo("America/New_York")
         return utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(zone).date()
 
+    # ── Which channel ────────────────────────────────────────────────────────
+    @staticmethod
+    def channel_id() -> str:
+        """The church channel's id, when the signed-in person manages it from their own account.
+
+        Someone who was given manager access in YouTube Studio is signed in as their own
+        channel, so "mine" would be the wrong one. Setting the church's channel id
+        (YOUTUBE_CHANNEL_ID, or config "channel_id") makes every request name it.
+        """
+        return (config_of("youtube").get("channel_id") or os.getenv("YOUTUBE_CHANNEL_ID", "")).strip()
+
     # ── API calls ────────────────────────────────────────────────────────────
     def _data(self, ctx, path, **params):
         return ctx.client.get(f"{DATA}/{path}", params=params, headers=self.auth_headers())
@@ -112,7 +124,7 @@ class YouTubeConnector(OAuthConnector):
     def _analytics(self, ctx, video_id: str, start: datetime) -> dict:
         """Peak and average concurrents, views and minutes watched for one video."""
         params = {
-            "ids": "channel==MINE", "startDate": start.date().isoformat(),
+            "ids": f"channel=={self.channel_id() or 'MINE'}", "startDate": start.date().isoformat(),
             "endDate": datetime.utcnow().date().isoformat(),
             "metrics": "views,estimatedMinutesWatched,averageViewDuration,peakConcurrentViewers,averageConcurrentViewers",
             "filters": f"video=={video_id}",
@@ -124,10 +136,14 @@ class YouTubeConnector(OAuthConnector):
 
     # ── Sync ─────────────────────────────────────────────────────────────────
     def sync(self, ctx):
-        channel = self._data(ctx, "channels", part="snippet,contentDetails", mine="true")
+        wanted = self.channel_id()
+        lookup = {"id": wanted} if wanted else {"mine": "true"}
+        channel = self._data(ctx, "channels", part="snippet,contentDetails", **lookup)
         items = channel.get("items") or []
+        if not items and wanted:
+            raise UpstreamError("YouTube found no channel with the id set in YOUTUBE_CHANNEL_ID. Check that the id starts with UC and is copied exactly.")
         if not items:
-            raise UpstreamError("YouTube returned no channel for this sign-in. Reconnect using the church channel's account.")
+            raise UpstreamError("YouTube returned no channel for this sign-in. Reconnect using the church channel's account, or set YOUTUBE_CHANNEL_ID.")
         uploads = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
         row = self.token_row()
         row.account_label = items[0]["snippet"].get("title")
