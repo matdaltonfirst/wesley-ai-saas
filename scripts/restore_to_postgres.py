@@ -3,7 +3,7 @@
     DATABASE_URL=postgresql://... python scripts/restore_to_postgres.py <backup-dir>/db [--schema NAME]
 
 This is the rollback for the single-organization migration (docs/RUNBOOK.md).
-The target must already be at the pre-migration Alembic revision (dbfa384bb56f),
+The target must already be at the Alembic revision the backup was taken at (--revision),
 so rebuild the schema first with the OLD code:
 
     DROP SCHEMA public CASCADE; CREATE SCHEMA public;
@@ -24,7 +24,7 @@ import sys
 
 import sqlalchemy as sa
 
-EXPECTED_REVISION = "dbfa384bb56f"
+DEFAULT_REVISION = "dbfa384bb56f"     # the last multi-tenant schema
 
 
 def decode(v):
@@ -39,6 +39,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("backup_dir")
     ap.add_argument("--schema", default=None)
+    ap.add_argument("--revision", default=DEFAULT_REVISION,
+                    help="Alembic revision the backup was taken at (default: the last multi-tenant schema; "
+                         "c3a7f1d20b44 for the single-organization schema before roles)")
     args = ap.parse_args()
 
     url = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+psycopg2://", 1)
@@ -53,8 +56,8 @@ def main() -> int:
 
     with engine.begin() as conn:
         revision = conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
-        if revision != EXPECTED_REVISION:
-            print(f"Refusing: database is at {revision!r}, expected {EXPECTED_REVISION!r}. "
+        if revision != args.revision:
+            print(f"Refusing: database is at {revision!r}, expected {args.revision!r}. "
                   "Rebuild the old schema first.")
             return 2
         missing = [t for t in manifest if t != "alembic_version" and t not in tables]

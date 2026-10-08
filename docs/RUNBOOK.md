@@ -121,3 +121,13 @@ or reactivating them is enough; no email is sent.
 3. **It says something wrong:** correct it from Feedback and Corrections (becomes approved Q&A).
 4. **It revealed something it should not:** mark the source staff-only (Q&A, snippet, calendar,
    or document visibility) and tell Mat; add a canary for it in `tests/test_public_boundary.py`.
+
+
+## Rolling back the roles and sign-in release (Phase 1b)
+
+Backup taken just before it: `~/wesley-backups/2026-10-07-predeploy-1b/` (taken at revision
+`c3a7f1d20b44`). To roll back: redeploy the previous Railway deployment (code at commit
+`854204c...` is NOT right; use the commit before the Phase 1b merge, tagged `pre-phase-1b`), rebuild
+the schema at that revision with that code (`flask db upgrade c3a7f1d20b44` on an empty
+schema), then
+`python scripts/restore_to_postgres.py <backup>/db --revision c3a7f1d20b44`.
