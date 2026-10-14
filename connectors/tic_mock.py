@@ -13,8 +13,12 @@ FIRST = ["Alex", "Blair", "Casey", "Devon", "Emery", "Finley", "Gray", "Harper",
 LAST = ["Sample", "Example", "Placeholder", "Demo", "Testperson"]
 
 
+_STARTED = datetime.utcnow().replace(microsecond=0)
+
+
 def _now():
-    return datetime.utcnow().replace(microsecond=0)
+    """Fixed for the life of the process, so two syncs see identical fake data (a moving clock made them differ)."""
+    return _STARTED
 
 
 def _fmt(dt):
