@@ -108,3 +108,23 @@ The AI is meant to read church texts, so message bodies are stored in one table,
 
 ## 2026-10-07: Google Workspace Calendar connector deferred to Phase 3
 It was marked optional and the workflows in Phase 3 are what need it.
+
+## 2026-10-14: Checklists are created from keywords, not tags alone
+We do not know which tags Dalton First uses in Planning Center, so a template matches words in the event's
+name or tags. Templates are editable by anyone who can manage events, and the starter set is only a start.
+
+## 2026-10-14: Late events get catch-up tasks, not overdue ones
+An event added three weeks out would otherwise appear with tasks already six weeks overdue, and every
+alert would be noise. Those tasks are due today and only become overdue within a week of the event.
+
+## 2026-10-14: Approval is for exact words
+Editing or rebuilding a piece of sermon content sends it back to draft and keeps the old words as a
+version. Quotes and chapters are never editable. There is no publish action in the app.
+
+## 2026-10-14: Approval needs the approve permission; asking for changes does not
+Comms or Pastoral can approve. Anyone who can edit or approve can ask for changes, but must say what.
+
+## 2026-10-14: Alerts are computed, not stored
+Stable keys mean the same problem is the same alert however many syncs happen, and there is no alert table
+to get out of date. A person can hide an alert for up to 30 days. Alerts show on the home page only; nothing
+is emailed.

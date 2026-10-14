@@ -190,6 +190,9 @@ def create_app(testing: bool = False) -> Flask:
     from routes.team import team_bp
     from routes.streaming_routes import streaming_bp
     from routes.integrations import integrations_bp
+    from routes.checklists_routes import checklists_bp
+    from routes.review_routes import review_bp
+    from routes.attention_routes import attention_bp
     from routes.settings import settings_bp
     from routes.admin import admin_bp
     from routes.comms_routes import comms_bp
@@ -208,6 +211,9 @@ def create_app(testing: bool = False) -> Flask:
     _app.register_blueprint(team_bp)
     _app.register_blueprint(streaming_bp)
     _app.register_blueprint(integrations_bp)
+    _app.register_blueprint(checklists_bp)
+    _app.register_blueprint(review_bp)
+    _app.register_blueprint(attention_bp)
     _app.register_blueprint(settings_bp)
     _app.register_blueprint(admin_bp)
     _app.register_blueprint(comms_bp)
@@ -483,6 +489,17 @@ def pco_reconciliation_job():
 # cross-process lock: all workers wake, exactly one runs it. Without this,
 # raising the worker count would send each church duplicate digests, crawl each
 # website repeatedly, and repeat every billing warning.
+def checklist_refresh_job():
+    """Keep event checklists in step with Planning Center. Safe to run often; it never duplicates."""
+    with app.app_context():
+        import checklists
+        from audit import log_event
+        stats = checklists.generate_for_upcoming_events()
+        if any(stats.values()):
+            log_event("checklist.auto_refresh", detail=stats)
+            log.info("Checklists refreshed: %s", stats)
+
+
 def connector_sync_job(key):
     """Build the job body for one connector. Errors are recorded by the runner."""
     def job():
@@ -505,6 +522,7 @@ _SCHEDULED_JOBS = [
     ("calendar_refresh",      calendar_refresh_job,      CronTrigger(hour=1, minute=30)),
     ("sermon_check",          sermon_check_job,          CronTrigger(hour=4, minute=30)),
     ("pco_reconciliation",    pco_reconciliation_job,    "interval"),
+    ("checklist_refresh",     checklist_refresh_job,     CronTrigger(minute="*/20")),
 ]
 
 # WESLEY_DISABLE_SCHEDULER=1 for one-off tooling (migrations, rehearsals, scripts):

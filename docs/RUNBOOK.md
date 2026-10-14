@@ -172,3 +172,26 @@ reversible: `flask db downgrade e5f6a7b8c9d0` drops them and loses only data syn
 
 Rollback: redeploy the previous deployment, then `flask db downgrade e5f6a7b8c9d0` if the new
 tables must go. The old code ignores the new tables, so the downgrade is optional.
+
+## Deploying Phase 3 (workflows)
+
+Migration `a1b2c3d4e5f6` only adds seven tables, so it is reversible: `flask db downgrade f7a8b9c0d1e2`
+drops them and loses only checklist progress and review decisions made since.
+
+1. Fresh backup (see "Backup and restore").
+2. Merge to `main` and push. `release.sh` runs the migration. Watch `railway logs`.
+3. Verify as an admin: `/home` shows the Needs attention list, `/checklists` loads, and **Edit templates**
+   shows the four starter templates. `/review` lists recent sermons. Check the public widget still answers.
+4. The first checklist job (every 20 minutes) may create several checklists at once for events already in
+   the calendar. Open `/checklists` and look at what it made. A template that is too broad can be fixed by
+   editing its keywords, and a wrong checklist can be cancelled.
+
+Rollback: redeploy the previous deployment. The old code ignores the new tables, so the downgrade is optional.
+
+## A checklist is missing or wrong
+
+- **No checklist for an event.** Does its name or tags contain one of a template's keywords? Open **Edit
+  templates**. Is the event in Planning Center in the next 60 days? Press **Check Planning Center now**.
+- **Too many checklists.** A template's keywords are too broad. Edit them. Existing checklists can be cancelled.
+- **Due dates look wrong after an event moved.** Open tasks follow the event; done tasks and dates a person
+  typed do not.

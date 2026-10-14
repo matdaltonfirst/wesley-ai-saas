@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Sermon content review</title>
+  {% include 'partials/head.html' %}
+  <style>
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font); }
+    header.bar { display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:#0e1a2b; color:#fff; flex-wrap:wrap; gap:8px; }
+    header.bar a { color:#fff; margin-left:16px; font-size:.9rem; }
+    main { max-width:940px; margin:0 auto; padding:24px 20px 80px; }
+    h1 { font-size:1.5rem; margin:0 0 4px; } h2 { font-size:1.15rem; margin:0 0 4px; } h3 { font-size:1rem; margin:0; }
+    .sub { opacity:.75; margin:0 0 18px; font-size:.92rem; max-width:72ch; }
+    .notice { background:#eef6f7; border:1px solid #c5e3e6; border-radius:10px; padding:10px 14px; font-size:.88rem; margin-bottom:16px; }
+    .card { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:16px 18px; margin-bottom:12px; }
+    .row { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; }
+    .meta { font-size:.82rem; opacity:.7; margin-top:2px; }
+    .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }
+    .approved { background:#e3f6ea; color:#0f6b43; } .draft, .in_review { background:#fff3d6; color:#7a5a00; } .needs_changes { background:#fde4df; color:#a3341f; } .empty { background:#eceff3; color:#4a5666; }
+    button, .btn { font:inherit; padding:7px 13px; border-radius:10px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; font-size:.88rem; color:inherit; text-decoration:none; display:inline-block; }
+    .primary { background:#1695a0; color:#fff; border-color:#1695a0; } .danger { color:#a3341f; }
+    button.link { border:0; background:none; color:#0b6b74; text-decoration:underline; padding:0; font-size:.9rem; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible { outline:3px solid rgba(42,173,181,.5); outline-offset:2px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .body { white-space:pre-wrap; font-size:.92rem; line-height:1.55; margin:10px 0 0; }
+    .quote { border-left:3px solid #1695a0; padding:2px 0 2px 12px; margin:10px 0; } .small { font-size:.8rem; opacity:.7; }
+    .banner { padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:.9rem; } .ok { background:#e3f6ea; } .bad { background:#fde4df; }
+    dialog { border:0; border-radius:16px; padding:22px; max-width:720px; width:94vw; box-shadow:0 20px 60px rgba(0,0,0,.3); max-height:90vh; overflow:auto; } dialog::backdrop { background:rgba(10,20,30,.5); }
+    textarea, input { font:inherit; width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.2); border-radius:8px; box-sizing:border-box; margin-top:6px; }
+    label { display:block; font-size:.82rem; margin:10px 0 3px; font-weight:600; }
+    .err { color:#a3341f; font-size:.84rem; margin-top:8px; } .note { background:#fde4df; border-radius:8px; padding:6px 10px; font-size:.86rem; margin-top:8px; }
+    .picker .card { cursor:pointer; } .picker .card:hover, .picker .card:focus-visible { border-color:#2aadb5; outline:none; }
+  </style>
+</head>
+<body>
+  <header class="bar"><strong>{{ church_name }}</strong><span><a href="/home">Home</a><a href="/checklists">Event checklists</a><span style="margin-left:16px;font-size:.9rem">{{ user_email }}</span> <a href="/logout">Sign out</a></span></header>
+  <main>
+    <h1>Sermon content review</h1>
+    <p class="sub">Each week's content is checked here piece by piece. A person approves what is ready and asks for changes on what is not. Editing or rebuilding a piece sends it back to draft, so an approval always means "these exact words".</p>
+    <div id="banner" class="banner" hidden></div>
+    <div id="picker" class="picker"></div>
+    <div id="detail" hidden></div>
+  </main>
+  <dialog id="dlg"></dialog>
+  <script>window.REVIEW = { canWrite: {{ 'true' if can_write else 'false' }}, canApprove: {{ 'true' if can_approve else 'false' }} };</script>
+  <script src="/static/review.js"></script>
+</body>
+</html>

@@ -40,6 +40,16 @@ def home_page():
         cards.append({"title": "Sunday Content", "link": "/dashboard#sermon-packets",
                       "count": SermonPacket.query.filter_by(status="ready").count(),
                       "note": "packets ready to review"})
+    if can("sunday.read"):
+        import review
+        waiting = len(review.waiting_for_approval())
+        cards.append({"title": "Sermon content review", "link": "/review", "count": waiting,
+                      "note": "sermons with content waiting for review" if waiting else "nothing waiting for review"})
+    if can("events.read"):
+        from models import Checklist
+        cards.append({"title": "Event checklists", "link": "/checklists",
+                      "count": Checklist.query.filter_by(status="active").count(),
+                      "note": "active checklists for upcoming events"})
     if can("chatlogs.write"):
         cards.append({"title": "Chatbot answers to correct", "link": "/dashboard#feedback",
                       "count": AnswerFeedback.query.filter_by(status="open").count(),

@@ -19,6 +19,13 @@
     .count { font-size:2rem; font-weight:800; line-height:1; margin-bottom:6px; }
     .title { font-weight:700; }
     .note { font-size:.82rem; opacity:.7; margin-top:2px; }
+    .attn { margin:0 0 28px; } .attn h2 { font-size:1.05rem; margin:0 0 10px; }
+    .alert { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; background:#fff; border:1px solid rgba(0,0,0,.08); border-left:5px solid #c58b00; border-radius:12px; padding:12px 16px; margin-bottom:10px; }
+    .alert.high { border-left-color:#c0432b; } .alert .t { font-weight:700; } .alert .d { font-size:.86rem; opacity:.8; margin-top:2px; max-width:68ch; }
+    .alert .go { font-size:.88rem; margin-top:6px; display:inline-block; }
+    .alert button { font:inherit; font-size:.8rem; border:1px solid rgba(0,0,0,.15); background:#fff; border-radius:8px; padding:5px 10px; cursor:pointer; white-space:nowrap; }
+    .alert button:focus-visible, .alert a:focus-visible { outline:3px solid rgba(42,173,181,.5); outline-offset:2px; }
+    .clear { opacity:.7; font-size:.92rem; }
   </style>
 </head>
 <body>
@@ -29,6 +36,7 @@
   <main>
     <h1>Hello, {{ name }}</h1>
     <p class="sub">{% if role_labels %}{{ role_labels | join(' and ') }}{% else %}No role assigned yet. Ask an admin.{% endif %}</p>
+    <section class="attn" aria-labelledby="attnH"><h2 id="attnH">Needs attention</h2><div id="attn" aria-live="polite"><p class="clear">Checking...</p></div></section>
     <div class="grid">
       {% for c in cards %}
       <a class="card" href="{{ c.link }}">
@@ -40,5 +48,6 @@
     </div>
     {% if not cards %}<p>Nothing is available to you yet. An admin can give you a role.</p>{% endif %}
   </main>
+  <script src="/static/home_attention.js"></script>
 </body>
 </html>

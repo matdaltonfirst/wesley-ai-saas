@@ -850,3 +850,97 @@ class PcoEpisode(db.Model):
     published_at = db.Column(db.DateTime, nullable=True, index=True)
     views       = db.Column(db.Integer, nullable=True)
     synced_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ── Phase 3: checklists, content review, attention ───────────────────────────
+
+class ChecklistTemplate(db.Model):
+    """A reusable list of tasks for one kind of event. Edited by whoever holds events.write."""
+    __tablename__ = "checklist_templates"
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(120), nullable=False, unique=True)
+    description = db.Column(db.String(300), nullable=True)
+    # Comma separated words. An event matches when its name or tags contain any of them.
+    keywords    = db.Column(db.String(500), nullable=True)
+    active      = db.Column(db.Boolean, nullable=False, default=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ChecklistTemplateTask(db.Model):
+    __tablename__ = "checklist_template_tasks"
+    id          = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("checklist_templates.id"), nullable=False, index=True)
+    position    = db.Column(db.Integer, nullable=False, default=0)
+    title       = db.Column(db.String(300), nullable=False)
+    owner_role  = db.Column(db.String(30), nullable=True)      # a key of permissions.ROLES
+    days_before = db.Column(db.Integer, nullable=False, default=0)   # negative: after the event
+    notes       = db.Column(db.String(500), nullable=True)
+
+
+class Checklist(db.Model):
+    """The task list for one event. One per (event instance, template); never duplicated by a sync."""
+    __tablename__ = "checklists"
+    id          = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("checklist_templates.id"), nullable=True, index=True)
+    instance_id = db.Column(db.String(30), nullable=True, index=True)   # pco_events.instance_id; null when made by hand
+    name        = db.Column(db.String(300), nullable=False)
+    event_date  = db.Column(db.DateTime, nullable=True, index=True)     # naive UTC, like pco_events
+    source      = db.Column(db.String(10), nullable=False, default="auto")    # auto | manual
+    status      = db.Column(db.String(12), nullable=False, default="active")  # active | cancelled | done
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint("instance_id", "template_id", name="uq_checklist_instance_template"),)
+
+
+class ChecklistTask(db.Model):
+    __tablename__ = "checklist_tasks"
+    id            = db.Column(db.Integer, primary_key=True)
+    checklist_id  = db.Column(db.Integer, db.ForeignKey("checklists.id"), nullable=False, index=True)
+    template_task_id = db.Column(db.Integer, nullable=True)
+    position      = db.Column(db.Integer, nullable=False, default=0)
+    title         = db.Column(db.String(300), nullable=False)
+    notes         = db.Column(db.String(500), nullable=True)
+    owner_role    = db.Column(db.String(30), nullable=True)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    days_before   = db.Column(db.Integer, nullable=False, default=0)
+    due_date      = db.Column(db.Date, nullable=True, index=True)
+    due_overridden = db.Column(db.Boolean, nullable=False, default=False)   # a person set it; a moved event leaves it alone
+    catch_up      = db.Column(db.Boolean, nullable=False, default=False)    # made after its natural due date had passed
+    done_at       = db.Column(db.DateTime, nullable=True)
+    done_by_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+
+class ContentReview(db.Model):
+    """Where one piece of a sermon's weekly content stands. Nothing publishes from here."""
+    __tablename__ = "content_reviews"
+    id          = db.Column(db.Integer, primary_key=True)
+    packet_id   = db.Column(db.Integer, db.ForeignKey("sermon_packets.id"), nullable=False, index=True)
+    piece       = db.Column(db.String(20), nullable=False)        # youtube | quotes | social | blog | guide
+    status      = db.Column(db.String(14), nullable=False, default="draft")   # draft | needs_changes | approved
+    note        = db.Column(db.String(500), nullable=True)
+    decided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    decided_at  = db.Column(db.DateTime, nullable=True)
+    __table_args__ = (db.UniqueConstraint("packet_id", "piece", name="uq_content_review_piece"),)
+
+
+class ContentVersion(db.Model):
+    """The previous text of a piece, kept when it is regenerated or replaced."""
+    __tablename__ = "content_versions"
+    id          = db.Column(db.Integer, primary_key=True)
+    packet_id   = db.Column(db.Integer, nullable=False, index=True)
+    piece       = db.Column(db.String(20), nullable=False)
+    content     = db.Column(db.Text, nullable=False)              # JSON of the piece's fields
+    reason      = db.Column(db.String(20), nullable=False)        # regenerated | edited
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class AttentionSnooze(db.Model):
+    """A person hid one alert for a while. Alerts themselves are worked out live, never stored."""
+    __tablename__ = "attention_snoozes"
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    alert_key   = db.Column(db.String(120), nullable=False)
+    until       = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (db.UniqueConstraint("user_id", "alert_key", name="uq_attention_snooze"),)

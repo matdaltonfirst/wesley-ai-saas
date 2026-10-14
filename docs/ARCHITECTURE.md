@@ -83,4 +83,21 @@ are separate tables. Tokens are encrypted. Every sync is a row in `sync_runs`. T
 per-tool detail is in [INTEGRATIONS.md](INTEGRATIONS.md). The streaming pane merges numbers
 per field by source priority (manual, then CSV, then API) and keeps an edit history.
 
+## Workflows (Phase 3)
+
+```mermaid
+flowchart LR
+  PCO[("pco_events<br/>from Planning Center sync")] --> Engine["checklists.py<br/>match keywords, build, keep in step"]
+  Tpl[("checklist_templates<br/>edited by staff")] --> Engine
+  Engine --> CL[("checklists and tasks")]
+  Sermon[("sermon_packets<br/>generated weekly")] --> Rev["review.py<br/>per-piece status and versions"]
+  Rev --> RS[("content_reviews, content_versions")]
+  CL --> Attn["attention.py<br/>computed on request"]
+  RS --> Attn
+  Sync[("sync health, streaming numbers, guests")] --> Attn
+  Attn --> Home["Home page: Needs attention"]
+```
+
+Everything here is a list people work through. Nothing publishes or sends. See [WORKFLOWS.md](WORKFLOWS.md).
+
 Known limits are tracked in [AUDIT.md](AUDIT.md).

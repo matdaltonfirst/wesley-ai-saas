@@ -9,7 +9,10 @@ import json
 import logging
 from datetime import datetime
 
+import copy
+
 from flask import Blueprint, jsonify, request
+from flask_login import current_user
 from permissions import require
 
 from helpers import iso_utc, validate_csrf_json
@@ -101,6 +104,7 @@ def update_packet(packet_id):
     except (ValueError, TypeError):
         content = {}
 
+    old_content = copy.deepcopy(content)
     changed = False
     for field in EDITABLE:
         if field not in data:
@@ -160,6 +164,11 @@ def update_packet(packet_id):
 
     packet.content = json.dumps(content)
     db.session.commit()
+    import review
+    voided = review.record_edit(packet, old_content, content, current_user)   # keeps the old text, voids approvals
+    if voided:
+        from audit import log_event
+        log_event("review.edit", source=f"packet:{packet.id}", detail={"pieces": voided})
     sermon = Sermon.query.get(packet.sermon_id)
     return jsonify({"ok": True, "packet": _packet_dict(packet, sermon)})
 
@@ -226,10 +235,10 @@ def generate_for_sermon():
 @packets_bp.route("/api/packets/<int:packet_id>/regenerate", methods=["POST"])
 @require("sunday.write")
 def regenerate_packet(packet_id):
-    """Rebuild a packet from its sermon, discarding edits.
+    """Rebuild a whole packet from its sermon.
 
-    Kept explicit rather than automatic: regenerating silently would throw away
-    staff edits, and the nightly job deliberately never touches a sermon twice.
+    Kept explicit rather than automatic, and the previous text of every piece that changed is kept as a
+    version, so nothing a person wrote is lost. The nightly job deliberately never touches a sermon twice.
     """
     err, status = validate_csrf_json()
     if err:
@@ -254,9 +263,14 @@ def regenerate_packet(packet_id):
         log.error("Packet regenerate failed for packet_id=%s: %s", packet_id, exc)
         return jsonify({"error": "Could not rebuild this packet. Please try again."}), 502
 
+    import review
+    old_content = review.load_content(packet)
     packet.content = json.dumps(content)
     packet.status = "ready"
     packet.error = None
     packet.generated_at = datetime.utcnow()
     db.session.commit()
+    review.record_edit(packet, old_content, content, current_user)      # nothing is lost: old text becomes versions
+    from audit import log_event
+    log_event("review.regenerate_all", source=f"packet:{packet.id}")
     return jsonify({"ok": True, "packet": _packet_dict(packet, sermon)})

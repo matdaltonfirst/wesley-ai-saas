@@ -113,6 +113,30 @@ def main() -> int:
                                       "api" if platform == "youtube" else "csv", by="seed")
         db.session.commit()
 
+        # Phase 3: events that match the starter checklist templates, and one sermon's content to review.
+        import checklists, json
+        from models import PcoEvent, Sermon, SermonPacket, SermonSource
+        checklists.seed_starter_templates()
+        now = datetime.utcnow()
+        for i, (name, days) in enumerate((("Fall Festival", 40), ("Youth Lock-in", 12), ("Christmas Eve Candlelight", 55), ("Choir Rehearsal", 3))):
+            db.session.add(PcoEvent(instance_id=f"dev-{i}", name=name, starts_at=now + timedelta(days=days, hours=1), tags=""))
+        db.session.commit()
+        checklists.generate_for_upcoming_events()
+        src = SermonSource(channel_url="https://example.org", channel_id="dev"); db.session.add(src); db.session.flush()
+        sermon = Sermon(source_id=src.id, video_id="devvid", title="IS GOD TOO STRICT?", series="The Ten Words", published_at=now - timedelta(days=3),
+                        status="ingested", transcript="Rules are a fence around a garden.")
+        db.session.add(sermon); db.session.flush()
+        db.session.add(SermonPacket(sermon_id=sermon.id, status="ready", generated_at=now, content=json.dumps({
+            "titles": ["IS GOD TOO STRICT? (WHAT THE 10 COMMANDMENTS ARE REALLY FOR)", "WHY DID GOD GIVE US RULES?"],
+            "description": "What are the Ten Commandments for? This week we looked at rules as a fence around a garden.",
+            "chapters": [{"label": "Introduction", "start": 0.0, "timestamp": "0:00"}, {"label": "The fence and the garden", "start": 312.0, "timestamp": "5:12"}],
+            "quotes": [{"text": "Rules are a fence around a garden.", "start": 312.0, "timestamp": "5:12"}],
+            "social": [{"platform": "facebook", "body": "Sunday we asked: is God too strict? Watch the message and join us this week."}],
+            "blog": {"title": "Is God too strict?", "body": "A short look at what the commandments are for.", "words": 9, "unverified": []},
+            "guide": {"document": "Questions for your group\n1. Where have rules protected you?"},
+        })))
+        db.session.commit()
+
     print(f"Seeded. Sign in as dev-admin, dev-comms, dev-assistant, dev-family, dev-music, "
           f"dev-pastor or dev-norole at @{ORG_DOMAIN}.")
     print("The password is SEED_PASSWORD, or the default in scripts/seed_dev.py.")
