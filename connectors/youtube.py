@@ -74,18 +74,23 @@ class YouTubeConnector(OAuthConnector):
 
     # ── Labeling a stream as a service ───────────────────────────────────────
     @staticmethod
-    def service_label(title: str) -> str:
-        """Pick a service label from the video title using the configurable rules."""
+    def service_label(title: str):
+        """Which service a stream is, from its title, or None when it is not a worship service.
+
+        Only titles that match a rule count. A sermon clip that was streamed on Sunday afternoon,
+        or a mid-week video, is stored but never becomes a service number.
+        """
         rules = config_of("youtube").get("service_labels") or [
             {"match": "modern", "label": "Modern service"},
             {"match": "traditional", "label": "Traditional service"},
             {"match": "contemporary", "label": "Modern service"},
+            {"match": "sunday", "label": streaming.DEFAULT_LABEL},
         ]
         lowered = (title or "").lower()
         for rule in rules:
             if str(rule.get("match", "")).lower() in lowered:
                 return str(rule.get("label") or streaming.DEFAULT_LABEL)
-        return streaming.DEFAULT_LABEL
+        return None
 
     @staticmethod
     def local_date(utc: datetime):
@@ -228,7 +233,9 @@ class YouTubeConnector(OAuthConnector):
             minutes = to_int(a.get("estimatedMinutesWatched"))
             avg_seconds = to_int(a.get("averageViewDuration"))
             views_analytics = to_int(a.get("views"))
-        total_views = views_analytics if views_analytics is not None else to_int(stats.get("viewCount"))
+        # YouTube's public counter is current; Analytics lags by a day or two and runs lower. Use the larger.
+        counter = to_int(stats.get("viewCount"))
+        total_views = max(v for v in (views_analytics, counter) if v is not None) if (views_analytics is not None or counter is not None) else None
         changed = ctx.upsert(YoutubeVideo, {"video_id": vid}, {
             "title": (snippet.get("title") or "")[:500], "published_at": parse_time(snippet.get("publishedAt")),
             "is_live": bool(live), "actual_start": start, "actual_end": end,
@@ -237,8 +244,9 @@ class YouTubeConnector(OAuthConnector):
             "watch_minutes": minutes, "avg_view_seconds": avg_seconds,
         })
         ctx.note("videos", fetched=1, changed=int(changed))
-        if live and start and end:
-            key = (self.local_date(start), self.service_label(snippet.get("title")))
+        label = self.service_label(snippet.get("title"))
+        if live and start and end and label:
+            key = (self.local_date(start), label)
             s = services.setdefault(key, {"views": None, "peak": None, "minutes": None, "ids": []})
             s["ids"].append(vid)
             if total_views is not None:

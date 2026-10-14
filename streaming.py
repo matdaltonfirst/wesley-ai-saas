@@ -202,8 +202,12 @@ def history(number_id: int, limit: int = 50) -> list:
 # ── Weekly rollups ───────────────────────────────────────────────────────────
 
 def week_start(d: date) -> date:
-    """Monday of the week containing *d*. A service on Sunday closes its week."""
-    return d - timedelta(days=d.weekday())
+    """Sunday of the week containing *d* (weeks run Sunday to Saturday), so a Sunday service opens its week.
+
+    The week is named for its Sunday: "week of Oct 11" holds the Oct 11 services and any
+    weekday uploads after them.
+    """
+    return d - timedelta(days=(d.weekday() + 1) % 7)
 
 
 def _pct(new, old):

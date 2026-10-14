@@ -93,13 +93,16 @@ class TestYouTubeSync:
         vid = YoutubeVideo.query.one()
         assert vid.peak_concurrent == 212 and vid.likes == 40 and vid.is_live and vid.avg_view_seconds == 410
 
-    def test_total_views_prefer_analytics_over_the_public_counter(self, yt):
+    def test_total_views_use_the_larger_of_analytics_and_the_public_counter(self, yt):
         sync(yt, [live_video("v1", "Sunday", SUN_START, views=999)], {"v1": {"views": 1234, "peakConcurrentViewers": 10, "estimatedMinutesWatched": 5}})
         assert StreamingNumber.query.one().total_views == 1234
+        # Analytics lags and runs lower than the live counter (seen in production: 8 vs 16), so the counter wins then
+        sync(yt, [live_video("v1", "Sunday", SUN_START, views=2000)], {"v1": {"views": 800, "peakConcurrentViewers": 10, "estimatedMinutesWatched": 5}})
+        assert StreamingNumber.query.one().total_views == 2000
 
     def test_the_service_date_is_the_churchs_local_date(self, yt):
         late = datetime(2026, 10, 5, 2, 30)         # 10:30 pm Sunday evening Eastern, already Monday in UTC
-        sync(yt, [live_video("v1", "Evening", late)], {"v1": {"views": 5, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 5}})
+        sync(yt, [live_video("v1", "Sunday Evening Service", late)], {"v1": {"views": 5, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 5}})
         assert StreamingNumber.query.one().service_date == date(2026, 10, 4)
 
     def test_service_labels_come_from_the_title(self, yt):
@@ -109,7 +112,7 @@ class TestYouTubeSync:
         assert {n.service_label for n in StreamingNumber.query} == {"Traditional service", "Sunday service"}
 
     def test_two_streams_with_the_same_label_and_day_add_views_and_take_the_higher_peak(self, yt):
-        vids = [live_video("a", "Modern Service", SUN_START), live_video("b", "Modern Service (replay stream)", SUN_START + timedelta(hours=3))]
+        vids = [live_video("a", "Modern Service", SUN_START, views=0), live_video("b", "Modern Service (replay stream)", SUN_START + timedelta(hours=3), views=0)]
         sync(yt, vids, {"a": {"views": 100, "peakConcurrentViewers": 20, "estimatedMinutesWatched": 10},
                         "b": {"views": 50, "peakConcurrentViewers": 35, "estimatedMinutesWatched": 5}})
         n = StreamingNumber.query.one()
@@ -131,11 +134,16 @@ class TestYouTubeSync:
         assert n.total_views == 777 and n.peak_concurrent == 6          # peak kept updating; views stayed corrected
 
     def test_rising_views_do_not_flood_the_edit_history(self, yt):
-        sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 10, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 1}})
+        sync(yt, [live_video("v1", "Sunday", SUN_START, views=0)], {"v1": {"views": 10, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 1}})
         for views in (20, 30, 40):
-            sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {"views": views, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 1}})
+            sync(yt, [live_video("v1", "Sunday", SUN_START, views=0)], {"v1": {"views": views, "peakConcurrentViewers": 5, "estimatedMinutesWatched": 1}})
         from models import StreamingNumberEdit
         assert StreamingNumber.query.one().total_views == 40 and StreamingNumberEdit.query.count() == 3   # first write only
+
+    def test_a_sermon_clip_streamed_on_sunday_afternoon_is_not_a_service(self, yt):
+        clip = live_video("clip", "WHAT DO YOU DO WHEN THERE'S NO WAY FORWARD?", SUN_START + timedelta(hours=4))
+        sync(yt, [clip], {"clip": {"views": 3, "peakConcurrentViewers": 1, "estimatedMinutesWatched": 1}})
+        assert StreamingNumber.query.count() == 0 and YoutubeVideo.query.filter_by(video_id="clip").count() == 1
 
     def test_an_ordinary_upload_is_stored_but_is_not_a_service(self, yt):
         v = {"id": "up1", "snippet": {"title": "Choir feature", "publishedAt": iso(NOW - timedelta(days=3))},
@@ -151,7 +159,7 @@ class TestYouTubeSync:
 
     def test_peak_and_watch_time_are_separate_requests_so_one_can_fail_alone(self, yt):
         calls = []
-        sync(yt, [live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "peakConcurrentViewers": 150}}, calls=calls)
+        sync(yt, [live_video("v1", "Sunday", SUN_START, views=0)], {"v1": {"views": 800, "peakConcurrentViewers": 150}}, calls=calls)
         metric_sets = [p["metrics"] for u, p in calls if "youtubeanalytics" in u]
         assert metric_sets == ["views,estimatedMinutesWatched,averageViewDuration",
                                "peakConcurrentViewers,averageConcurrentViewers"]
@@ -166,7 +174,7 @@ class TestYouTubeSync:
                 if "youtubeanalytics" in url and "peakConcurrentViewers" in kw["params"]["metrics"]:
                     raise UpstreamError("The query is not supported.")
                 return self.inner(method, url, **kw)
-        yt.request_fn = Refuse(fake_youtube([live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}}))
+        yt.request_fn = Refuse(fake_youtube([live_video("v1", "Sunday", SUN_START, views=0)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}}))
         run = runner.run_sync(yt, "manual")
         warnings = json.loads(run.detail)["warnings"]
         assert run.status == "partial" and len(warnings) == 1 and "Peak concurrent viewers could not be read" in warnings[0]
@@ -175,7 +183,7 @@ class TestYouTubeSync:
 
     def test_when_the_whole_stream_peak_fails_the_minute_by_minute_form_is_used(self, yt):
         from connectors.errors import UpstreamError
-        inner = fake_youtube([live_video("v1", "Sunday", SUN_START)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}})
+        inner = fake_youtube([live_video("v1", "Sunday", SUN_START, views=0)], {"v1": {"views": 800, "estimatedMinutesWatched": 600}})
         def wrapper(method, url, **kw):
             params = kw.get("params") or {}
             if "youtubeanalytics" in url and "peakConcurrentViewers" in params.get("metrics", ""):
@@ -249,3 +257,21 @@ class TestYouTubeSync:
     def test_it_asks_for_offline_access_and_both_scopes(self, yt):
         url = yt.authorize_redirect("s")
         assert "access_type=offline" in url and "yt-analytics.readonly" in url and "youtube.readonly" in url
+
+
+class TestStrayRowCleanup:
+    def test_only_untouched_sync_rows_without_a_real_service_stream_are_removed(self, yt):
+        import streaming_cleanup as C
+        from models import StreamingNumberEdit
+        # a clip the old code turned into a service, a real service, and a typed correction
+        S.save_number(date(2026, 9, 27), "Sunday service", "youtube", {"total_views": 2}, "api", by="YouTube sync")
+        S.save_number(date(2026, 10, 4), "Sunday service", "youtube", {"total_views": 9}, "api", by="YouTube sync")
+        S.save_number(date(2026, 10, 11), "Sunday service", "youtube", {"total_views": 7}, "api", by="YouTube sync")
+        S.save_number(date(2026, 10, 11), "Sunday service", "youtube", {"total_views": 70}, "manual", by="c@x", reason="fix")
+        db.session.add(YoutubeVideo(video_id="real", title="Sunday Worship", is_live=True, actual_start=datetime(2026, 10, 4, 14, 0)))
+        db.session.commit()
+        assert [(r[0], r[1]) for r in C.remove_stray_rows(dry_run=True)] == [("2026-09-27", "youtube")]
+        assert StreamingNumber.query.count() == 3                           # dry run changes nothing
+        C.remove_stray_rows(dry_run=False)
+        assert {n.service_date for n in StreamingNumber.query} == {date(2026, 10, 4), date(2026, 10, 11)}
+        assert StreamingNumberEdit.query.filter_by(by="c@x").count() >= 1

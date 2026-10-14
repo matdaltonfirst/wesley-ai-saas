@@ -94,7 +94,8 @@ source and turn the old one off on the Integrations page. History stays in place
   (Studio, Settings, Channel, Advanced settings; it starts with `UC`). Every request then
   names that channel instead of the signed-in person's own. Whether Google's Analytics API
   accepts a manager this way for the church's channel has to be confirmed on the first sync.
-- **Service labels.** A video's service name comes from its title. Titles containing words
+- **Service labels.** Only streams whose title matches a rule become service numbers (`modern`, `traditional`, `contemporary`, `sunday` by default). A sermon clip streamed on Sunday afternoon is stored but is not a service. Total views use the larger of YouTube's public counter and Analytics, because Analytics lags and runs lower.
+- **(older note on labels)** A video's service name comes from its title. Titles containing words
   configured in `service_labels` map to labels such as "Sunday service". Anything else is
   stored as the title and can be corrected by hand.
 - **Known limits.** Analytics for a live stream can lag by a day. Google only allows peak and average
@@ -178,7 +179,7 @@ These exist so the numbers can be trusted. They are enforced in `streaming.py` a
    field, a person's entry beats a CSV, which beats the API. A later API sync does not
    overwrite a person's correction.
 4. Every manual change is kept in an **edit history** (who, when, old and new value).
-5. A week runs Monday to Sunday. Week over week is flagged "not like for like" when the set
+5. A week runs Sunday to Saturday and is named for its Sunday ("week of Oct 11" holds the Oct 11 services and any weekday uploads after them). Week over week is flagged "not like for like" when the set
    of platforms differs between the two weeks.
 
 ## Setting everything up on Railway

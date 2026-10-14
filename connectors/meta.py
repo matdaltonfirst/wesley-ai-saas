@@ -189,9 +189,10 @@ class MetaConnector(StaticTokenConnector):
                 "caption": (lv.get("title") or "")[:300] or None,
             })
             ctx.note("facebook_live", fetched=1, changed=int(changed))
+            label = YouTubeConnector.service_label(lv.get("title"))
             if lv.get("status") in ("VOD", "PROCESSING") or lv.get("status") == "LIVE_STOPPED":
-                if created and (views is not None or minutes is not None):
-                    key = (YouTubeConnector.local_date(created), YouTubeConnector.service_label(lv.get("title")))
+                if created and label and (views is not None or minutes is not None):
+                    key = (YouTubeConnector.local_date(created), label)
                     s = services.setdefault(key, {"views": None, "minutes": None, "id": str(video_id)})
                     if views is not None:
                         s["views"] = (s["views"] or 0) + views

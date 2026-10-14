@@ -148,8 +148,9 @@ class TestWeeklySummary:
         notes = " ".join(S.weekly_summary(4, today=SUN)["notes"])
         assert "not unique people" in notes and "never added together" in notes
 
-    def test_a_sunday_belongs_to_the_week_that_ends_with_it(self):
-        assert S.week_start(SUN) == date(2026, 9, 28) and S.week_start(date(2026, 9, 28)) == date(2026, 9, 28)
+    def test_a_sunday_opens_its_week_and_the_days_after_it_belong_to_it(self):
+        assert S.week_start(SUN) == SUN and S.week_start(SUN + timedelta(days=1)) == SUN
+        assert S.week_start(SUN + timedelta(days=6)) == SUN and S.week_start(SUN - timedelta(days=1)) == SUN - timedelta(days=7)
 
     def test_the_number_of_weeks_is_bounded(self, church):
         assert len(S.weekly_summary(10_000, today=SUN)["weeks"]) == 104
